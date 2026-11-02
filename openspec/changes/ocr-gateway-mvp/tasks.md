@@ -17,11 +17,11 @@
   - R-ID: R-ADM-01
 - [ ] 2.2 实现成员 CRUD（名称唯一、启用/禁用）；验证重名返回 400、禁用成员后其 Key 调用公共 API 返回 401。
   - R-ID: R-ADM-02
-- [ ] 2.3 实现 API Key 管理（`ocr_` 前缀、SHA-256、明文仅创建响应返回一次、前缀展示、启用/吊销、日限额与 RPM 字段）；验证列表响应无明文、吊销后调用返回 401。
+- [ ] 2.3 实现 API Key 管理（`ocr_` 前缀、SHA-256、明文仅创建响应返回一次、前缀展示、启用/吊销、日限额与 RPM 字段，默认 `daily_limit=100`/`rpm_limit=30`，显式 `null` 解除）；验证列表响应无明文、吊销后调用返回 401。`[spec-review-amendment Q2/Q3]`
   - R-ID: R-ADM-03
-- [ ] 2.4 实现凭证 AES-256-GCM 加解密与账号 CRUD（百度/腾讯凭证 schema 校验、响应脱敏）；验证密文往返、缺少 `secret_key` 返回 400、响应不含明文。
+- [ ] 2.4 实现凭证 AES-256-GCM 加解密与账号 CRUD（百度/腾讯凭证 schema 校验、响应脱敏、`qps_limit` 默认 5、显式 `null` 解除）；验证密文往返、缺少 `secret_key` 返回 400、响应不含明文。`[spec-review-amendment Q3]`
   - R-ID: R-ADM-04
-- [ ] 2.5 实现公共 API Key 鉴权依赖（hash 查库、Key/成员启用状态、401 语义）；验证缺失、无效、Key 禁用、成员禁用四类均 401。
+- [ ] 2.5 实现公共 API Key 鉴权依赖（hash 查库、Key/成员启用状态、401 语义、全局并发信号量）；验证缺失、无效、Key 禁用、成员禁用四类均 401，并发饱和返回 503。`[spec-review-amendment Q5]`
   - R-ID: R-API-04
 - [ ] 2.6 实现每 Key RPM 令牌桶与日限额计数；验证 RPM 超限 429 `RATE_LIMITED`、日限额耗尽 429 `QUOTA_EXCEEDED`、1 分钟后恢复。
   - R-ID: R-QTA-04

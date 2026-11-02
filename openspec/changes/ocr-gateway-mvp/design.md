@@ -8,7 +8,7 @@
 
 - 百度标准版：`POST https://aip.baidubce.com/rest/2.0/ocr/v1/general_basic`，`access_token` 走 query，`image` base64 后 urlencode，**base64+urlencode 后 ≤8MB**、最短边 ≥15px、最长边 ≤4096px，jpg/jpeg/png/bmp，`words_result` 默认不含 confidence。`[spec-review-amendment D10]`
 - 腾讯 `GeneralBasicOCR`（Version `2018-11-19`，域名 `ocr.tencentcloudapi.com`，TC3-HMAC-SHA256），Base64 ≤10M，PNG/JPG/JPEG/BMP/PDF，`TextDetections[].Confidence` 可用。
-- 部署为公网单实例 + 反代 HTTPS；规模 ≤5 人、日均 <500 次；真实凭证只存本地。
+- 部署为公网单实例 + 反代 HTTPS；规模 ≤5 人、日均 <60 次（2 账号 × 1000 次/月，账号增加时线性扩容）；真实凭证只存本地。`[spec-review-amendment Q1]`
 
 ## Goals / Non-Goals
 
@@ -16,7 +16,7 @@
 
 **Non-Goals（设计级边界，每条附可证伪假设）**：
 
-- **多实例/多 worker**：`uvicorn` 固定单 worker。可证伪假设：日均 <500 次、≤5 人（D14），单进程事件循环足够；若峰值持续 >20 QPS 或需零停机，则内存计数/注册表方案失效，需改 Redis/Postgres。
+- **多实例/多 worker**：`uvicorn` 固定单 worker。可证伪假设：日均 <60 次、≤5 人（2 账号 × 1000 次/月；D14 的规模前提按评审 Q1 修正），单进程事件循环足够；若峰值持续 >20 QPS 或需零停机，则内存计数/注册表方案失效，需改 Redis/Postgres。
 - **任务队列/异步批处理**：无批量接口（proposal Non-Goals），请求全同步。可证伪假设：单张图片处理 p99 不超过请求 deadline（20s）；若厂商延迟常态超过 deadline，则需异步任务模型。
 - **前端 SPA**：管理操作走 `/docs`/curl。可证伪假设：运营动作集合为 JSON CRUD（`docs/tech-selection.md:325-349`），无需浏览器专用交互；若出现必须可视化的操作（如图表筛选），再回补面板。
 - **本地 OCR**：无进程池。可证伪假设：MVP 期间至少一家云厂商可用；若两家同时不可用，`auto` 返回 `PROVIDER_UNAVAILABLE`（503）。
@@ -80,7 +80,7 @@ flowchart TB
 | --- | --- | --- |
 | `api/public.py` | `/v1/ocr/image`、`/v1/providers`、`/v1/me`、`/healthz` | 不直接调厂商 |
 | `api/admin.py` | 登录、成员、Key、账号、用量、日志、测活、重置、清缓存 | 不返回凭证明文 |
-| `api/deps.py` | Key 校验、admin 鉴权、每 Key RPM | 不做 IP 匿名限流（MVP 无匿名） |
+| `api/deps.py` | Key 校验、admin 鉴权、每 Key RPM、全局并发信号量 | 不做 IP 匿名限流（MVP 无匿名） |
 | `core/scheduler.py` | 过滤、排序、deadline 尝试循环、结果/错误归一 | 不落盘、不重试输入错误 |
 | `core/registry.py` | 账号内存态、EWMA、冷却、并发计数、QPS 令牌桶 | 不持久化运行时状态 |
 | `core/quota.py` | 账号配额计数、周期键、2s 批量 upsert、启动加载 | 不做用户级配额表 |
@@ -180,8 +180,8 @@ flowchart LR
 | `key_prefix` | TEXT | — | — | 否 |
 | `key_hash` | TEXT | UNIQUE | — | 否 |
 | `enabled` | BOOLEAN | — | 1 | 否 |
-| `daily_limit` | INTEGER | ≥0 | NULL | 是 |
-| `rpm_limit` | INTEGER | ≥0 | NULL | 是 |
+| `daily_limit` | INTEGER | ≥0 | 100 | 是 |
+| `rpm_limit` | INTEGER | ≥0 | 30 | 是 |
 | `last_used_at` | DATETIME | — | NULL | 是 |
 | `created_at` | DATETIME | — | — | 否 |
 
@@ -199,7 +199,7 @@ flowchart LR
 | `enabled` | BOOLEAN | — | 1 | 否 |
 | `timeout_ms` | INTEGER | >0 | 8000 | 否 |
 | `max_concurrency` | INTEGER | ≥1 | 2 | 否 |
-| `qps_limit` | REAL | >0 | NULL | 是 |
+| `qps_limit` | REAL | >0 | 5 | 是 |
 | `quota_daily` | INTEGER | ≥0 | NULL | 是 |
 | `quota_monthly` | INTEGER | ≥0 | NULL | 是 |
 | `quota_total` | INTEGER | ≥0 | NULL | 是 |
@@ -281,8 +281,11 @@ stateDiagram-v2
 - **创建**：管理员建账号 → 凭证加密入库 → 注册内存态（`ewma` 用厂商种子值，百度/腾讯各 1000ms）→ 状态 `active`。
 - **使用**：成功更新 `ewma`、`last_used_at`、内存配额计数；失败按状态机转移并记 `last_error_*`。
 - **重置**：日配额 `Asia/Shanghai` 00:00；月配额 `reset_day` 当天 00:00（默认 1），周期键取该周期起始日 `YYYY-MM-DD`；`quota_total` 不自动重置；进程启动时按周期键从 `quota_counters` 加载。`[spec-review-amendment D2]`
+- **Key 日限额**：按 `usage_events` 中该 `api_key_id` 当日 `quota_used=1` 的行数计（复用 `api_key_id, created_at` 索引），不做内存计数；缓存命中不占日限额；`/v1/me.today.requests` 另计全部进入调度的请求。`[spec-review-amendment Q2]`
 - **删除**：账号删除级联删计数；`usage_events.account_id` SET NULL，历史保留。
 - **配额模板**：`providers/templates.py` 内置只读参考值（百度/腾讯 + 凭证字段），不落库、不自动套用；账号配额仍由管理员创建时填写。
+
+> 限流默认值：账号 `qps_limit=5`、Key `daily_limit=100`、`rpm_limit=30`；显式传 `null` 表示不限。`[spec-review-amendment Q3]`
 
 ### 迁移 v_old / v_new
 
@@ -341,11 +344,11 @@ raise PROVIDER_UNAVAILABLE          # 503：候选均不可用（鉴权/配额/�
 
 | 分类 | 触发 | 账号状态 | 网关响应 |
 | --- | --- | --- | --- |
-| `AUTH_FAILED` | 401/403 / 厂商鉴权错误码（百度 110/111 先刷新 token 重试一次；腾讯 `SignatureExpire` 见 Q4） | `invalid`（不自动恢复） | 继续下一个候选；全无 → 503 |
+| `AUTH_FAILED` | 401/403 / 厂商鉴权错误码（百度 110/111 先刷新 token 重试一次；腾讯 `SignatureExpire` 不归此类） | `invalid`（不自动恢复） | 继续下一个候选；全无 → 503 |
 | `QUOTA_EXCEEDED` | 厂商配额错误码 / 余额不足 | `quota_exhausted`（日/月周期重置恢复；总量仅 reset-state） | 同上 |
 | `RATE_LIMITED` | HTTP 429 / 厂商限流错误码 | `cooling` 30s（`Retry-After` 上限 300s） | 同上 |
 | `TIMEOUT` / 网络 | 连接/读取超时、DNS/连接错误 | `cooling` 30s | 同上 |
-| `PROVIDER_ERROR` | 5xx / 协议错误 / 非法 JSON | `cooling` 10s | 同上 |
+| `PROVIDER_ERROR` | 5xx / 协议错误 / 非法 JSON；腾讯 `SignatureExpire`（时钟/配置问题） | `cooling` 10s（`SignatureExpire` 30s + 告警） | 同上 |
 | 输入错误 | 厂商返回参数/格式错误 | 不变 | 400 `BAD_REQUEST`，不切换 |
 | 空文本 | 厂商成功但 `text=""` | 不变 | 成功 + `warnings: ["EMPTY_TEXT"]` |
 
@@ -361,6 +364,7 @@ raise PROVIDER_UNAVAILABLE          # 503：候选均不可用（鉴权/配额/�
 - 每个**进入调度**的请求 `INSERT` `usage_events` 并 `commit`（鉴权/输入校验失败的请求只记 stdout，`provider` 保持 NOT NULL）；账号配额计数用内存值，后台任务每 2s 整行 upsert，`shutdown` 时再刷一次；账号状态/EWMA/`last_used_at` 随请求提交（每请求一次 UPDATE）。`[spec-review-amendment D3/D14]`
 - SQLite 启动时 `PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;`；`usage_events` 的每请求 commit 计入 p99 预算。`[spec-review-amendment D30]`
 - 配额检查在选中账号时做、成功时递增；并发下允许 ≤`max_concurrency-1` 的瞬时超额，厂商侧配额错误兜底。`[spec-review-amendment D28]`
+- 公共 OCR 请求进入管线前获取全局信号量 `MAX_CONCURRENT_REQUESTS`（默认 8）；获取超时按剩余 `REQUEST_DEADLINE_MS` 等待，超时返回 503（message 标注 gateway at capacity）。`[spec-review-amendment Q5]`
 - 共享 `httpx.AsyncClient`（`max_connections=100`、`max_keepalive_connections=20`、默认 `connect=3s/read=account.timeout`）。
 - 禁止多 worker/多实例的约束写入 README 与启动日志；启动时检测 `WEB_CONCURRENCY`、`UVICORN_WORKERS` 与 `sys.argv` 中的 `--workers`，任一 >1 直接拒绝启动（fail-loud）。`[spec-review-amendment D17]`
 
@@ -411,7 +415,7 @@ multipart 请求（`file` 必填，`image_base64` 可选但不得与 `file` 同�
 #### 其余
 
 - `GET /v1/providers` → `{"providers":[{"code":"baidu","name":"百度智能云","available_accounts":2,"enabled":true}, ...]}`；不泄露凭证。
-- `GET /v1/me` → `{"user":"小明","key_prefix":"ocr_ab12","today":{"requests":42,"quota_used":42},"limits":{"daily_limit":200,"rpm_limit":30}}`。`today.requests` = 当日进入调度的请求数（含缓存命中）；`today.quota_used` = 当日 `quota_used` 合计；`daily_limit` 的计数口径待 Q2 拍板（推荐按 `quota_used` 比较）。`[spec-review-amendment Q2]`
+- `GET /v1/me` → `{"user":"小明","key_prefix":"ocr_ab12","today":{"requests":42,"quota_used":42},"limits":{"daily_limit":200,"rpm_limit":30}}`。`today.requests` = 当日进入调度的请求数（含缓存命中）；`today.quota_used` = 当日 `quota_used` 合计；`daily_limit` 按 `quota_used` 比较（缓存命中不占日限额）。`[spec-review-amendment Q2]`
 - `GET /healthz` → `{"status":"ok","db":"ok","version":"0.1.0"}`；DB `SELECT 1` 1s 超时失败 → `503`。
 
 ### 管理 API
@@ -472,6 +476,7 @@ multipart 请求（`file` 必填，`image_base64` 可选但不得与 `file` 同�
 | `CACHE_MAX_ENTRIES` | 否 | `1000` | |
 | `MAX_UPLOAD_BYTES` | 否 | `10485760` | 解码后的图片字节数上限（multipart 与 base64 JSON 一致）`[spec-review-amendment D11]` |
 | `MAX_IMAGE_PIXELS` | 否 | `40000000` | 解码前像素上限，超限 400 `[spec-review-amendment D8]` |
+| `MAX_CONCURRENT_REQUESTS` | 否 | `8` | 公共 OCR 全局并发上限；获取超时按剩余预算等待，超时 503 `[spec-review-amendment Q5]` |
 | `URL_FETCH_TIMEOUT_SECONDS` | 否 | `10` | |
 | `URL_FETCH_MAX_BYTES` | 否 | `10485760` | |
 | `SESSION_TTL_SECONDS` | 否 | `43200` | admin token 有效期 |
@@ -508,12 +513,13 @@ multipart 请求（`file` 必填，`image_base64` 可选但不得与 `file` 同�
 | --- | --- | --- |
 | 网关自身开销 | mock 厂商 0ms 时 p99 <20ms（不含厂商） | pytest 基准脚本 |
 | 单请求总预算 | 默认 20s；账号默认 8s | 集成测试注入延迟 |
-| 峰值吞吐 | ≤5 QPS；均值 <0.01 QPS（500/日） | 日志统计 |
+| 峰值吞吐 | ≤5 QPS；均值 <0.001 QPS（60/日） | 日志统计 |
+| 全局并发 | 默认 8（`MAX_CONCURRENT_REQUESTS`） | 信号量单测 |
 | 上传上限 | 10MB（解码后）；百度目标 base64+urlencode 后 ≤8MB、最短边 ≥15px、长边 ≤4096px | 边界测试 |
 | 缓存 | 1000 条 / 1h / 单条 ≤256KB（最坏 ≈256MB） | 单测 |
 | 配额刷盘 | 每 2s；崩溃最多丢 2s 计数 | 单测 + 故障注入 |
 | 启动 | <5s（无模型下载） | 计时 |
-| 数据增长 | ≈500 行/日 → ≈18 万行/年 | SQL 统计 |
+| 数据增长 | ≈60 行/日 → ≈2.2 万行/年 | SQL 统计 |
 | 可用性 | 单实例，无 SLA 承诺；维护窗口重启 | README 声明 |
 | 备份 | 每日 `sqlite3 .backup` 到 `data/backup/`（保留 7 天，运维脚本/文档）`[spec-review-amendment D29]` | 恢复演练 |
 | RPO / RTO | 配额计数 RPO ≤2s；账户/Key 配置 RPO = 上次备份；RTO = 重启（<5s）`[spec-review-amendment D29]` | 文档声明 |
@@ -558,7 +564,7 @@ multipart 请求（`file` 必填，`image_base64` 可选但不得与 `file` 同�
 - [DNS rebinding 残余] → 解析后校验 + 逐跳复核；MVP 接受，后续可加 IP 固定/代理出口。
 - [管理员 token 无法即时吊销] → 12h TTL；改密码后旧 token 仍有效（已接受，文档标注）。
 - [登录限速反被用来锁死管理员] → 按 IP + 全局双层，全局层只延迟不阻断（D16）。
-- [大图解码 OOM] → 像素上限 + `PIL.MAX_IMAGE_PIXELS`（D8）；全局并发上限见 Q5。
+- [大图解码 OOM] → 像素上限 + `PIL.MAX_IMAGE_PIXELS`（D8）；全局并发上限见 `MAX_CONCURRENT_REQUESTS`（Q5）。
 - [百度 token 落日志] → `httpx` logger WARNING/URL 脱敏（D9）。
 
 ## Migration Plan
@@ -588,7 +594,7 @@ multipart 请求（`file` 必填，`image_base64` 可选但不得与 `file` 同�
 | 百度 | 100 / 216201 | `InputError` |
 | 百度 | 其他 `error_code` | `PROVIDER_ERROR` |
 | 腾讯 | `AuthFailure.SignatureFailure` / `AuthFailure.SecretIdNotFound` | `AUTH_FAILED` |
-| 腾讯 | `AuthFailure.SignatureExpire` | `PROVIDER_ERROR`（时钟/配置问题；Q4 待拍板） |
+| 腾讯 | `AuthFailure.SignatureExpire` | `PROVIDER_ERROR`（时钟/配置问题；冷却 30s + 告警） |
 | 腾讯 | `ResourceUnavailable.InArrears` | `QUOTA_EXCEEDED` |
 | 腾讯 | `RequestLimitExceeded` | `RATE_LIMITED` |
 | 腾讯 | `FailedOperation.ImageDecodeFailed` / `InvalidParameterValue` | `InputError` |

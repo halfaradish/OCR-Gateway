@@ -79,7 +79,7 @@
 - **THEN** 返回 429 `RATE_LIMITED`
 
 ### Requirement: R-API-05 统一响应与错误码
-成功响应 SHALL 含 `request_id`、`provider`、`text`、`lines[{text, confidence}]`、`latency_ms`、`cached`、`quota{unit,used}`、`warnings`；失败响应 SHALL 为 `{"request_id","error":{"code","message"}}` 并遵守约定 HTTP 状态。
+成功响应 SHALL 含 `request_id`、`provider`、`text`、`lines[{text, confidence}]`、`latency_ms`、`cached`、`quota{unit,used}`、`warnings`；失败响应 SHALL 为 `{"request_id","error":{"code","message"}}` 并遵守约定 HTTP 状态。网关全局并发饱和且等待超过剩余预算时 SHALL 返回 503 `PROVIDER_UNAVAILABLE`（message 标注 gateway at capacity）。`[spec-review-amendment Q5]`
 
 #### Scenario: confidence 可空
 - **WHEN** 实际厂商为百度标准版
@@ -96,6 +96,10 @@
 #### Scenario: 总预算耗尽
 - **WHEN** 尝试所有候选后超过 `REQUEST_DEADLINE_MS`
 - **THEN** 返回 504 `TIMEOUT`
+
+#### Scenario: 网关并发饱和
+- **WHEN** 全局并发达到 `MAX_CONCURRENT_REQUESTS` 且等待超过剩余预算
+- **THEN** 返回 503 `PROVIDER_UNAVAILABLE`，message 标注 gateway at capacity
 
 ### Requirement: R-API-06 服务元数据与健康检查
 系统 SHALL 提供 `GET /v1/providers`（厂商与可用账号数，不含凭证）、`GET /v1/me`（当前 Key 的今日用量与限额）、`GET /healthz`（数据库健康）。

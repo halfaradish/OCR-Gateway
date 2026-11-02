@@ -54,6 +54,10 @@
 - **WHEN** 厂商返回图片格式或参数错误
 - **THEN** 适配器抛出 `InputError`，公共 API 返回 400 且不尝试其他账号
 
+#### Scenario: 签名过期不归鉴权失败
+- **WHEN** 腾讯返回 `AuthFailure.SignatureExpire`
+- **THEN** 适配器抛出 `PROVIDER_ERROR`，不抛出 `AUTH_FAILED` `[spec-review-amendment Q4]`
+
 ### Requirement: R-ADP-05 单账号测活
 系统 SHALL 支持管理员对指定账号测活：用内置样图或上传图片调用适配器，返回文本、延迟与分类结果；测活 MUST NOT 写入用量事件、扣配额或改变账号状态。
 

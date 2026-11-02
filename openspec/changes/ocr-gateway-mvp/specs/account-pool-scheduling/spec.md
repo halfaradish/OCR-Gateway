@@ -44,7 +44,7 @@
 - **THEN** 返回 502 `PROVIDER_ERROR`，不返回 503
 
 ### Requirement: R-SCH-04 状态与冷却
-失败 SHALL 按分类转移状态：`AUTH_FAILED` → `invalid`（仅管理员重置）、`QUOTA_EXCEEDED` → `quota_exhausted`（周期重置恢复）、`RATE_LIMITED`/`TIMEOUT`/网络 → `cooling` 30s、5xx → `cooling` 10s；到期 MUST 在下次选择时惰性恢复。
+失败 SHALL 按分类转移状态：`AUTH_FAILED` → `invalid`（仅管理员重置）、`QUOTA_EXCEEDED` → `quota_exhausted`（周期重置恢复）、`RATE_LIMITED`/`TIMEOUT`/网络 → `cooling` 30s、5xx → `cooling` 10s；到期 MUST 在下次选择时惰性恢复。腾讯 `AuthFailure.SignatureExpire` MUST 归 `PROVIDER_ERROR`（冷却 30s + 告警），MUST NOT 置 `invalid`。`[spec-review-amendment Q4]`
 
 #### Scenario: 鉴权失败长禁用
 - **WHEN** 适配器返回 `AUTH_FAILED`
@@ -53,6 +53,10 @@
 #### Scenario: 冷却自动恢复
 - **WHEN** `cooling` 账号的 `cooldown_until` 已过
 - **THEN** 下次选择时恢复 `active` 并可被选中
+
+#### Scenario: 时钟偏移不永久禁用
+- **WHEN** 腾讯返回 `AuthFailure.SignatureExpire`
+- **THEN** 账号进入 `cooling` 30s，不进入 `invalid`，冷却后可再次被选中
 
 ### Requirement: R-SCH-05 显式厂商不回退
 当请求指定 `provider` 时，调度器 MUST 只使用该厂商账号，禁止跨厂商切换；只有 `auto` 可在全部厂商账号间切换。

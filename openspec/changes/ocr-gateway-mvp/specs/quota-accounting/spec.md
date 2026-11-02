@@ -44,11 +44,15 @@
 - **THEN** 重启后最多丢失 2 秒内的计数
 
 ### Requirement: R-QTA-04 Key 日限额与 RPM
-Key 的 `daily_limit` 与 `rpm_limit` SHALL 只限制该 Key 的请求量，不影响账号池额度；超限分别返回 429 `QUOTA_EXCEEDED` 与 `RATE_LIMITED`。
+Key 的 `daily_limit` SHALL 限制该 Key 当日消耗的配额单位（`quota_used` 合计），`rpm_limit` SHALL 限制请求速率；两者不影响账号池额度；超限分别返回 429 `QUOTA_EXCEEDED` 与 `RATE_LIMITED`。`[spec-review-amendment Q2]`
 
 #### Scenario: Key 日限额
-- **WHEN** Key 当日成功请求数达到 `daily_limit`
+- **WHEN** Key 当日 `quota_used` 合计达到 `daily_limit`
 - **THEN** 后续请求返回 429 `QUOTA_EXCEEDED`
+
+#### Scenario: 缓存命中不占日限额
+- **WHEN** 该 Key 当日仅发生缓存命中（`quota_used=0`）
+- **THEN** `daily_limit` 计数不变，请求不被限流
 
 #### Scenario: RPM 恢复
 - **WHEN** 距上次限流已超过 1 分钟

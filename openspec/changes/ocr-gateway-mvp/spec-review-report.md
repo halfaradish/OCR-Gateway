@@ -24,22 +24,26 @@ memo: ok
 ## 拍板三问（人在设计 HARD-GATE 逐项勾选）
 
 **Q-scope 范围划界认不认？**
-自答：锚 `proposal.md:24-34` `## Non-Goals` + `design.md:17-24` `## Goals / Non-Goals`——单实例 MVP，明确砍掉 SPA、批量、本地 OCR、阿里/华为、Docker、`settings` 表、匿名模式；每条附可证伪假设。**但「免费额度耗尽」不是 Non-Goal 也不是行为定义**：按仓内唯一额度口径（2 账号 × 1000 次/月）与「日均 <500 次」（`proposal.md:69`）对不上（见 F-01），范围与容量前提需要拍板。
-[ ] 认 [ ] 不认
+自答：锚 `proposal.md:24-34` `## Non-Goals` + `design.md:17-24` `## Goals / Non-Goals`——单实例 MVP，明确砍掉 SPA、批量、本地 OCR、阿里/华为、Docker、`settings` 表、匿名模式；每条附可证伪假设。**但「免费额度耗尽」不是 Non-Goal 也不是行为定义**：按仓内唯一额度口径（2 账号 × 1000 次/月）与「日均 <500 次」（`proposal.md:69`）对不上（见 F-01；已由 D32 修正为 <60 次），范围与容量前提需要拍板。
+[x] 认 [ ] 不认
 
 **Q-deps 依赖/顺序认不认？**
 自答：锚 `design.md:508-520` `## 切片与依赖`——S1 脚手架/存储 → S2 管理端鉴权与实体 → S3 百度链路 → S4 腾讯与切换 → S5 输入补全/可运营性，5 张垂直切片落在 3–6 预算内；真实 `Blocked-by` 出票时写入 `tickets.md`。顺序合理，S3 依赖 S2（先能建账号才能测百度）属可接受约束。
-[ ] 认 [ ] 不认
+[x] 认 [ ] 不认
 
 **Q-risk 风险赌注与对策认不认？**
-自答：锚 `design.md:522-530` `## Risks / Trade-offs` + `decision-memo.md:44-50` 接受的边角——签名手写、额度模板过时、共享池风控、单 worker 被绕过、SQLite 写放大、DNS rebinding、admin token 无法即时吊销。**风控对策写的是「账号级并发/QPS + Key RPM/日限额」，但这三项默认值全是 NULL（不限）**（`design.md:200`、`design.md:183-184`），默认部署等于没有这层对策（见 F-28 / Q3）。
-[ ] 认 [ ] 不认
+自答：锚 `design.md:522-530` `## Risks / Trade-offs` + `decision-memo.md:44-50` 接受的边角——签名手写、额度模板过时、共享池风控、单 worker 被绕过、SQLite 写放大、DNS rebinding、admin token 无法即时吊销。**风控对策写的是「账号级并发/QPS + Key RPM/日限额」，但这三项默认值全是 NULL（不限）**（`design.md:200`、`design.md:183-184`），默认部署等于没有这层对策（见 F-28 / Q3；已由 D34 修正为非空默认）。
+[x] 认 [ ] 不认
+
+**人已批准（2026-11-03）**：三问均认；Q1–Q5 按推荐项落盘（见 D32–D36）。
 
 ---
 
 ## 决策登记区
 
-### [需拍板]（5 项，出票前必须关闭）
+**拍板结果（2026-11-03）**：人选择「按推荐项落盘」——Q1–Q5 全部按推荐项 A 写入四件套（D32–D36），已完成增量窄复核与重锚。
+
+### [需拍板]（5 项，已于 2026-11-03 关闭）
 
 **Q1 · 容量口径矛盾（F-01，高）**
 仓内唯一的额度口径是 `docs/tech-selection.md:435-436`：百度 1000 次/月、腾讯 1000 次/月；两家账号合计 ≈2000 次/月 ≈ **66 次/日**。而 `proposal.md:69`、`design.md:484` 的规模前提是 **<500 次/日**（≈15,000 次/月），相差约 7.5 倍。按 500/日运行，免费额度约 4 天耗尽；而「额度耗尽」在 spec 里没有一等公民行为（只有账号级 `quota_exhausted` → 503）。
@@ -48,6 +52,7 @@ memo: ok
 - **选项 C**：把额度预警/耗尽做成一等管理能力（新增视图/告警）。代价：超出当前 MVP 范围。
 - 三镜：系统镜 A 最小（只改文档）；用户镜 B 会让成员频繁遇到 503；开发循环镜 C 成本最高。
 - **主次判定**：开发循环镜优先——先让前提自洽，再谈运行期策略；推荐 A，B 作为运行期兜底写进 README。
+- **拍板（2026-11-03）**：选 A，落盘 D32。
 
 **Q2 · `daily_limit` 口径与 Key 日计数存储（F-05/F-06，中）**
 `api_keys.daily_limit` 存在，但 `api_keys` 没有 `daily_used`，`quota_counters` 只按 `account_id` 建键（`design.md:238-246`）；R-QTA-04 又说「当日成功请求数达到 `daily_limit`」（`specs/quota-accounting/spec.md:50`），而 R-QTA-01 说缓存命中「Key 计数不变」。缓存命中到底占不占日限额，未定义。
@@ -55,6 +60,7 @@ memo: ok
 - **选项 B**：按请求数计——缓存命中与失败也计入；实现简单，但缓存命中会被误伤。
 - 代价：A 需要一次带索引的聚合查询（<500/日无压力）；B 语义与 tech-selection 冲突。
 - **主次判定**：用户镜优先——缓存的意义就是「不耗额度」，日限额不应惩罚缓存命中；推荐 A。
+- **拍板（2026-11-03）**：选 A，落盘 D33。
 
 **Q3 · 默认限流全空（F-28，低中）**
 `qps_limit`（账号）、`rpm_limit` / `daily_limit`（Key）默认全为 NULL = 不限（`design.md:183-184`、`design.md:200`）。默认部署下：泄露一个 Key 即可在额度内无限刷；共享池风控对策形同虚设。
@@ -62,6 +68,7 @@ memo: ok
 - **选项 B**：保持 NULL，靠运营者创建时填写；代价：默认不安全。
 - **选项 C**：创建时强制必填；代价：管理摩擦大，且与「配额模板不自动套用」的取向冲突。
 - **主次判定**：系统镜优先（共享额度是核心资产）；推荐 A。
+- **拍板（2026-11-03）**：选 A，落盘 D34。
 
 **Q4 · `AUTH_FAILED` 粒度（F-45，高）**
 当前所有鉴权错误 → `invalid`（不自动恢复，只能管理员 reset，`design.md:327`）。但两类错误不是「凭证坏了」：
@@ -70,6 +77,7 @@ memo: ok
 - **选项 A（推荐）**：细分——百度 110/111 先刷新 token 重试一次，仍失败才 `invalid`；腾讯 `SignatureExpire` → `cooling` 30s + 告警（视为配置/时钟问题，不是凭证失效）；其余鉴权错误（`SignatureFailure`、`SecretIdNotFound`、401/403）→ `invalid`。
 - **选项 B**：保持现状（一律 invalid）；代价：一次时钟偏移造成全厂商不可用，需人工 reset。
 - **主次判定**：用户镜优先（可用性）；推荐 A。百度 110/111 的「刷新一次再判定」属 bug 修复，已按 D7 先行落盘，不依赖本问。
+- **拍板（2026-11-03）**：选 A，落盘 D35。
 
 **Q5 · 全局并发/内存上限（F-18，高）**
 只有每账号 `max_concurrency=2`（`design.md:199`）；`auto` 跨 N 个账号时峰值并发 = 2N。单请求可同时持有：10MB 原始字节 + ~13MB base64 + 解码位图（4096×4096 RGBA ≈ 67MB）+ 厂商响应。无全局信号量/内存预算（`design.md:337-344`）。
@@ -77,6 +85,17 @@ memo: ok
 - **选项 B**：不加，只靠账号级并发；代价：小机器 OOM → 单进程全站不可用。
 - **选项 C**：把入口上限从 10MB 降到 5MB；代价：牺牲大图，且不解决 4096px 位图的内存。
 - **主次判定**：系统镜优先（单实例 OOM = 全站宕机）；推荐 A。
+- **拍板（2026-11-03）**：选 A，落盘 D36。
+
+### [拍板落盘]（2026-11-03，Q1–Q5 按推荐项）
+
+| ID | 问题 | 落盘 |
+| --- | --- | --- |
+| D32 | Q1 容量口径 | 规模前提改为「2 账号 × 1000 次/月 ≈ 日均 <60 次」；NFR 均值/数据增长同步为 <0.001 QPS、≈2.2 万行/年 |
+| D33 | Q2 Key 日限额 | `daily_limit` 按 `quota_used` 合计；缓存命中不占；Key 日计数用 `usage_events` 聚合（复用 `api_key_id, created_at` 索引） |
+| D34 | Q3 默认限流 | 默认 `qps_limit=5`、`rpm_limit=30`、`daily_limit=100`；显式 `null` 解除 |
+| D35 | Q4 `AUTH_FAILED` 粒度 | 腾讯 `SignatureExpire` → `PROVIDER_ERROR`（冷却 30s + 告警），不置 `invalid`；百度 110/111 刷新重试一次 |
+| D36 | Q5 全局并发 | 新增 `MAX_CONCURRENT_REQUESTS=8` 全局信号量；获取超时按剩余预算等待，超时 503 |
 
 ### [自动决策]（已按推荐项落盘，可覆盖）
 
@@ -110,7 +129,7 @@ memo: ok
 | D26 | proposal 假设补「若不成立如何失效」；补「开放问题：无」与「利益相关方」节 | F-15 |
 | D27 | README quickstart 给步骤数 + 预计耗时（TTHW）；错误 `message` 声明为非契约、客户端按 `code` 分支 | F-39/F-40 |
 | D28 | 明确客户端超时重试会重复扣配额；并发下允许 ≤`max_concurrency-1` 的瞬时超额 | F-33/F-34 |
-| D29 | 补备份/RPO 说明：SQLite 定期备份；配额计数 RPO ≤2s；配置依赖运维备份 | F-31/F-50 |
+| D29 | 补备份/RPO 说明：SQLite 定期备份；配额计数 RPO ≤2s；配置依赖运维备份 | F-31 |
 | D30 | 指定 SQLite `WAL` + `synchronous=NORMAL`；记录缓存最坏内存 1000×256KB≈256MB | F-23/F-26 |
 | D31 | design 附录列两家错误码映射表（码值 + 含义 + 官方 URL + 核对日期） | F-43 |
 
@@ -122,12 +141,12 @@ memo: ok
 | X2 | BE-07 存活/就绪未分离（`design.md:475`） | 单实例、无编排；design 显式声明「进程存活由 uvicorn 决定」，分离无收益 |
 | X3 | BE-08 无指数退避/jitter | 调度模型是「换账号」而非「重试同一账号」，不构成同点雪崩；OAuth 仅 1 次重试 |
 | X4 | 账号/成员删除与 in-flight 请求竞态 | 单实例 + FK SET NULL/CASCADE；窗口 ≤8s；最坏一条计数刷新失败，接受 |
-| X5 | vendor 成功后进程崩溃 → usage_event 与计数双丢 | 与「崩溃丢 ≤2s 计数」同源（decision-memo:47 已接受）；≤500/日规模下审计行丢失可接受 |
+| X5 | vendor 成功后进程崩溃 → usage_event 与计数双丢 | 与「崩溃丢 ≤2s 计数」同源（decision-memo:47 已接受）；≤60/日规模下审计行丢失可接受 |
 | X6 | `/docs` 暴露 admin schema 未列入威胁模型 | D2 拍板「无 SPA，管理走 `/docs`」的已知代价；无 SPA 时这是唯一管理入口 |
 | X7 | 缓存 key 用原图 bytes，不同压缩/EXIF 不共享 | 保守选择，避免误命中；命中率低于理论值属预期，不影响正确性 |
 | X8 | 启动 <5s 未计 Alembic 迁移 | 迁移在启动前手工执行（`design.md:534`），不在启动路径 |
 | X9 | **`cachetools.TTLCache` 不是 LRU**（原怀疑） | **误报，已证伪**：cachetools 官方文档明确 TTLCache 是「LRU Cache implementation with per-item TTL」，`maxsize` 溢出时淘汰最久未使用项。R-CAC-02 的 LRU 措辞成立 |
-| X10 | usage_events 无保留/归档策略 | ≈18 万行/年（`design.md:489`），SQLite 可承受多年；D29 已补一句运维说明，不单列动作 |
+| X10 | usage_events 无保留/归档策略 | ≈2.2 万行/年（Q1 修正后，`design.md:489`），SQLite 可承受多年；D29 已补一句运维说明，不单列动作 |
 
 ---
 
@@ -397,12 +416,12 @@ memo: ok
 - **去重**：原始发现去重后保留 **38 条唯一 finding**（F-01–F-45，编号不连续处为合并/裁掉；对抗镜的重复命中并入对应 F 编号，命中镜集合记在各条「命中镜」里）。
 - **接地抽查**：全部 finding 的引文均真打开核对（本报告逐条带 `file:line` + 原文）；库行为类（httpx / Pillow / cachetools / uvicorn）标注了来源；其中 cachetools 一条被证伪并落入「已裁掉」。
 - **对抗裁决**：F-01/F-07/F-17/F-18/F-19/F-45 为高严重度，均通过「实现期会炸」的反驳（不是顺向 checklist）；X1–X10 为对抗镜提出但被裁掉/降级的项，理由已记录。
-- **结论**：**无阻塞项**；6 项高严重度（F-01/F-07/F-17/F-18/F-19/F-45）与 5 个 [需拍板] 问题必须在出票前关闭。其余 32 条为中级/低级，已按 D1–D31 落盘或记录。
+- **结论**：**无阻塞项**；6 项高严重度（F-01/F-07/F-17/F-18/F-19/F-45）与 5 个 [需拍板] 问题已于 2026-11-03 全部关闭（Q1–Q5 按推荐项落盘，D32–D36）。38 条 finding 全部有处置。
 
 | 处置 | 条目 |
 | --- | --- |
-| **已落盘（D1–D31）** | F-02/F-03/F-04/F-07/F-08/F-09/F-10/F-11/F-12/F-13/F-14/F-15/F-16/F-17/F-19/F-20/F-21/F-22/F-23/F-24/F-25/F-26/F-27/F-29/F-30/F-31/F-32/F-33/F-34/F-39/F-40/F-43 |
-| **待拍板（Q1–Q5）** | F-01（Q1）、F-05/F-06（Q2）、F-28（Q3）、F-45 的腾讯部分（Q4）、F-18（Q5） |
+| **已落盘（D1–D36）** | 全部 38 条：F-01/F-02/F-03/F-04/F-05/F-06/F-07/F-08/F-09/F-10/F-11/F-12/F-13/F-14/F-15/F-16/F-17/F-18/F-19/F-20/F-21/F-22/F-23/F-24/F-25/F-26/F-27/F-28/F-29/F-30/F-31/F-32/F-33/F-34/F-39/F-40/F-43/F-45（F-01/F-05/F-06/F-18/F-28/F-45 由 Q1–Q5 拍板后落盘） |
+| **待拍板** | 无（Q1–Q5 已于 2026-11-03 按推荐项落盘） |
 | **已裁掉（X1–X10）** | 见「已裁掉」表 |
 
 ---
@@ -413,16 +432,16 @@ memo: ok
 
 | 文件 | 改动 |
 | --- | --- |
-| `design.md` | 尝试循环区分 503/504（D1）；`period_key` 月周期改为起始日 + `quota_total` 不自动恢复（D2）；`usage_events` 只记进入调度的请求（D3）；`language` 枚举与映射（D4）；`PROVIDER_ERROR` 502（D5）；百度 OAuth body 错误（D6）；百度 110/111 刷新重试（D7）；像素上限（D8）；httpx 日志脱敏（D9）；8MB+urlencode / 15px（D10）；`MAX_UPLOAD_BYTES` 语义（D11）；token 超时预算（D12）；Retry-After 上限（D13）；状态持久化时机（D14）；multipart `image_base64`（D15）；登录限速双层（D16）；单 worker fail-loud（D17）；`/healthz` 不鉴权（D19）；region 删除（D21）；`from`/`to`（D25）；SQLite pragma + 缓存内存（D30）；错误码映射附录（D31）；备份/RPO（D29）；幂等/并发超额（D28） |
-| `proposal.md` | Compliance 补 D1/D3 + 无 Docker + 第三方数据声明（D18）；假设补失效条款 + 开放问题/利益相关方（D26）；移除 `argon2-cffi`（D22） |
-| `specs/ocr-api/spec.md` | R-API-01 补 `language` 枚举与场景（D4）；R-API-03 补像素上限与最短边场景（D8/D10）；R-API-05 补 502/504 场景（D1/D5） |
-| `specs/account-pool-scheduling/spec.md` | R-SCH-03 补 502/504 语义与场景（D1/D5） |
-| `specs/quota-accounting/spec.md` | 未应用（待 Q2 拍板）：R-QTA-04 口径改为 `quota_used` |
+| `design.md` | 尝试循环区分 503/504（D1）；`period_key` 月周期改为起始日 + `quota_total` 不自动恢复（D2）；`usage_events` 只记进入调度的请求（D3）；`language` 枚举与映射（D4）；`PROVIDER_ERROR` 502（D5）；百度 OAuth body 错误（D6）；百度 110/111 刷新重试（D7）；像素上限（D8）；httpx 日志脱敏（D9）；8MB+urlencode / 15px（D10）；`MAX_UPLOAD_BYTES` 语义（D11）；token 超时预算（D12）；Retry-After 上限（D13）；状态持久化时机（D14）；multipart `image_base64`（D15）；登录限速双层（D16）；单 worker fail-loud（D17）；`/healthz` 不鉴权（D19）；region 删除（D21）；`from`/`to`（D25）；SQLite pragma + 缓存内存（D30）；错误码映射附录（D31）；备份/RPO（D29）；幂等/并发超额（D28）；Q1 规模前提 / Q2 Key 日限额 / Q3 默认限流 / Q4 `SignatureExpire` / Q5 全局信号量（D32–D36） |
+| `proposal.md` | Compliance 补 D1/D3 + 无 Docker + 第三方数据声明（D18）；假设补失效条款 + 开放问题/利益相关方（D26）；移除 `argon2-cffi`（D22）；规模前提改为日均 <60 次（Q1/D32） |
+| `specs/ocr-api/spec.md` | R-API-01 补 `language` 枚举与场景（D4）；R-API-03 补像素上限与最短边场景（D8/D10）；R-API-05 补 502/504 与并发饱和场景（D1/D5/Q5） |
+| `specs/account-pool-scheduling/spec.md` | R-SCH-03 补 502/504 语义与场景（D1/D5）；R-SCH-04 补 `SignatureExpire` 不置 invalid（Q4/D35） |
+| `specs/quota-accounting/spec.md` | R-QTA-04 口径改为 `quota_used` + 缓存命中不占日限额场景（Q2/D33） |
 | `specs/admin-api/spec.md` | R-ADM-01 排除 login（D20）；R-ADM-05 补测活场景（D24） |
-| `specs/provider-adapters/spec.md` | R-ADP-01 补 token 过期刷新场景（D7）；R-ADP-04 补错误码映射表引用（D31） |
-| `tasks.md` | 3.7 加 `R-API-05`；3.4 加 `R-SCH-06`；5.6 加 README quickstart/TTHW（D23/D27） |
+| `specs/provider-adapters/spec.md` | R-ADP-01 补 token 过期刷新场景（D7）；R-ADP-04 补错误码映射表引用 + `SignatureExpire` 场景（D31/Q4） |
+| `tasks.md` | 3.7 加 `R-API-05`；3.4 加 `R-SCH-06`；5.6 加 README quickstart/TTHW（D23/D27）；2.3/2.4/2.5 补默认限流与全局并发（Q3/Q5） |
 
-> **未应用（待 Q1–Q5 拍板）**：容量前提（Q1）、Key 日限额口径与存储（Q2）、默认限流值（Q3）、腾讯 `SignatureExpire` 归类（Q4）、全局并发信号量（Q5）。这 5 项在拍板前保持原文，报告已给出推荐与代价。
+> **拍板落盘（2026-11-03）**：Q1–Q5 已按推荐项写入四件套（D32–D36），增量窄复核通过。无未应用项。
 
 ---
 
@@ -437,10 +456,10 @@ memo: ok
 
 ## 收敛建议
 
-建议进入**设计 HARD-GATE**。请人逐项过：
+**已完成设计 HARD-GATE**（人 2026-11-03 批准，Q1–Q5 按推荐项落盘）。下一步：`/sdflow-lite-ship ocr-gateway-mvp`。
 
-1. 拍板三问（Q-scope / Q-deps / Q-risk）勾选；
-2. 决策登记区的 5 个 [需拍板]（Q1–Q5）；
-3. 对「已裁掉」X1–X10 复核裁得对不对（尤其 X9 是证伪记录，不是漏项）。
+- 拍板三问：三问均认。
+- 决策登记区：5 个 [需拍板] 已关闭（D32–D36）。
+- 「已裁掉」X1–X10 保留供复核（尤其 X9 是证伪记录，不是漏项）。
 
-拍板批准后由主 session 调用 `anchor_writeback.py --domain design --set design_approved=true` 回写锚；若拍板前要求修改四件套，按「窄复核」纪律先审增量再拍板。
+锚已回写（`design_approved: true`）；若后续再改四件套，按「窄复核」纪律先审增量再重写锚。

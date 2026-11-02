@@ -113,6 +113,70 @@
         "spec-review-report"
       ],
       "fp": "1ee4fc4c36b6eb02537271b72c119c7fce9478c949780fa4633fd00ce1b99140"
+    },
+    {
+      "n": 3,
+      "at": "2026-11-03T02:46:37+08:00",
+      "event": "拍板落盘：Q1–Q5 按推荐项 + 增量窄复核",
+      "docs": {
+        "spec-review-report": {
+          "path": "openspec/changes/ocr-gateway-mvp/spec-review-report.md",
+          "sha256": "a30faa8b4d1b5fa740fd74cb2c7b17eae5fd38312a0aedb58195cdc2c5cc888a"
+        },
+        "proposal": {
+          "path": "openspec/changes/ocr-gateway-mvp/proposal.md",
+          "sha256": "1b18be34c617bc1df0792bec51ce8e40cf0c9be8491fa2ab3378f59a02ee7d85"
+        },
+        "design": {
+          "path": "openspec/changes/ocr-gateway-mvp/design.md",
+          "sha256": "579487146d24470b2d2372dc9048d5de049db663722acda02e842f08a34450f0"
+        },
+        "spec:account-pool-scheduling": {
+          "path": "openspec/changes/ocr-gateway-mvp/specs/account-pool-scheduling/spec.md",
+          "sha256": "f5a49d2960c35abfcb35359be24cd288b5de476e8f24c0561d6ef4f7a4c03149"
+        },
+        "spec:admin-api": {
+          "path": "openspec/changes/ocr-gateway-mvp/specs/admin-api/spec.md",
+          "sha256": "f58509e0482e945a147dd1d6ce1723ca9ec134d2ab86047b95776fd5711752f6"
+        },
+        "spec:ocr-api": {
+          "path": "openspec/changes/ocr-gateway-mvp/specs/ocr-api/spec.md",
+          "sha256": "58b44b329694d789fd6e7720049636b0fbdc9b4d534543e883645852400daf1f"
+        },
+        "spec:provider-adapters": {
+          "path": "openspec/changes/ocr-gateway-mvp/specs/provider-adapters/spec.md",
+          "sha256": "db64b570a624ac8486158a5f2e136d7c0605c013a71cea2528a737fb90e4d184"
+        },
+        "spec:quota-accounting": {
+          "path": "openspec/changes/ocr-gateway-mvp/specs/quota-accounting/spec.md",
+          "sha256": "bb2d3a1a91ce5c9b988b2feb569dd76ad06e42244b15bf0a6987bcd1509cc38e"
+        },
+        "spec:result-cache": {
+          "path": "openspec/changes/ocr-gateway-mvp/specs/result-cache/spec.md",
+          "sha256": "18b261985f864377360427b5171939a19bcfd312712052150cdd1cacba352154"
+        },
+        "tasks": {
+          "path": "openspec/changes/ocr-gateway-mvp/tasks.md",
+          "sha256": "cac5763cb72b49da030ef0db074e76c9bf6088a6a8da58ef6197a12f0c63c90a"
+        },
+        "decision-memo": {
+          "path": "openspec/changes/ocr-gateway-mvp/decision-memo.md",
+          "sha256": "151d92ee85c8d96b3209a0681ccfda13a14b14021de539b14b50c85eaf64df9f"
+        }
+      },
+      "notes": 0,
+      "dispositions": 0,
+      "changed": [
+        "spec-review-report",
+        "proposal",
+        "design",
+        "spec:account-pool-scheduling",
+        "spec:ocr-api",
+        "spec:provider-adapters",
+        "spec:quota-accounting",
+        "tasks"
+      ],
+      "fp": "95f13b359eded58c2919da06d51c2815174fdbe1bac7b892a5b355d6563acb39"
     }
   ]
 }
