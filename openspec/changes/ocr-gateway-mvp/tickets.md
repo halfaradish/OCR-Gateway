@@ -72,13 +72,13 @@
 **Blocked-by:** 3
 **范围预估：** 一个工作段内可完成（TC3 签名、腾讯适配器、跨厂商切换、错误码黄金表、测活与 reset-state）。
 
-- [ ] TC3-HMAC-SHA256 签名：固定密钥与时间戳下生成的 Authorization 与官方示例期望值一致；`host` 与 `content-type` 参与规范请求
-- [ ] 腾讯 `GeneralBasicOCR` 调用（Version `2018-11-19`、域名 `ocr.tencentcloudapi.com`、JSON 请求）；`TextDetections` 映射为文本行并保留 0–100 的 `Confidence`；多行顺序一致
-- [ ] 显式 provider 不回退：`provider=baidu` 且无可用百度账号时返回 503 且不调用腾讯；`provider=auto` 在百度不可用而腾讯可用时成功返回 `provider="tencent"`
-- [ ] 两家厂商错误码映射黄金用例：鉴权、配额、限流、5xx、输入错误逐类映射正确；腾讯 `AuthFailure.SignatureExpire` 映射为 `PROVIDER_ERROR`（冷却 30s），不置 `invalid`
-- [ ] 账号测活：用内置样图或上传图片调用指定账号，成功返回文本、延迟与厂商，失败返回错误分类；测活不写 `usage_events`、不扣账号/Key 配额、不改变账号状态
-- [ ] 账号 `reset-state`：`invalid`/`cooling`/`quota_exhausted` 账号恢复 `active` 并可参与调度
-- [ ] `[e2e]` `provider=auto`、百度候选不可用、腾讯可用 → 200 且 `provider="tencent"`；同一盘面下 `provider=baidu` → 503 且无腾讯出站请求
+- [x] TC3-HMAC-SHA256 签名：固定密钥与时间戳下生成的 Authorization 与官方示例期望值一致；`host` 与 `content-type` 参与规范请求
+- [x] 腾讯 `GeneralBasicOCR` 调用（Version `2018-11-19`、域名 `ocr.tencentcloudapi.com`、JSON 请求）；`TextDetections` 映射为文本行并保留 0–100 的 `Confidence`；多行顺序一致
+- [x] 显式 provider 不回退：`provider=baidu` 且无可用百度账号时返回 503 且不调用腾讯；`provider=auto` 在百度不可用而腾讯可用时成功返回 `provider="tencent"`
+- [x] 两家厂商错误码映射黄金用例：鉴权、配额、限流、5xx、输入错误逐类映射正确；腾讯 `AuthFailure.SignatureExpire` 映射为 `PROVIDER_ERROR`（冷却 30s），不置 `invalid`
+- [x] 账号测活：用内置样图或上传图片调用指定账号，成功返回文本、延迟与厂商，失败返回错误分类；测活不写 `usage_events`、不扣账号/Key 配额、不改变账号状态
+- [x] 账号 `reset-state`：`invalid`/`cooling`/`quota_exhausted` 账号恢复 `active` 并可参与调度
+- [x] `[e2e]` `provider=auto`、百度候选不可用、腾讯可用 → 200 且 `provider="tencent"`；同一盘面下 `provider=baidu` → 503 且无腾讯出站请求
 
 ### Task 5: 输入补全与可运营性
 

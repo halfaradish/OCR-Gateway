@@ -190,7 +190,10 @@ async def ocr_image(
     deadline = started + state.settings.request_deadline_ms / 1000.0
     request_id: str = request.state.request_id
 
-    parsed = await _parse_request(request, state)
+    try:
+        parsed = await _parse_request(request, state)
+    except InputError as exc:
+        raise ApiError(400, "BAD_REQUEST", str(exc)) from exc
     try:
         normalized = normalize_image(
             parsed.data,

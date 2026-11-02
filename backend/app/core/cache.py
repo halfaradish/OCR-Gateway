@@ -29,6 +29,8 @@ class ResultCache:
     def set(self, key: str, payload: dict[str, Any]) -> None:
         if not self.enabled:
             return
+        if not str(payload.get("text", "")):
+            return
         encoded = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         if len(encoded) > MAX_RESULT_BYTES:
             return
