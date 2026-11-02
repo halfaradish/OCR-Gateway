@@ -39,6 +39,9 @@ class KeyRateLimiter:
         return True
 
 
+MAX_TRACKED_LOGIN_IPS = 10_000
+
+
 class LoginLimiter:
     """Per-IP hard limit plus a global delay-only layer."""
 
@@ -60,9 +63,19 @@ class LoginLimiter:
 
     def record_failure(self, ip: str, now: float | None = None) -> None:
         moment = now if now is not None else time.monotonic()
-        self._per_ip[ip].append(moment)
+        self._per_ip.setdefault(ip, deque()).append(moment)
         self._global.append(moment)
         self._prune(self._global, moment)
+        # [impl-review-fix] Bound memory when a spoofed/unique-IP spray fills the per-IP map.
+        if len(self._per_ip) > MAX_TRACKED_LOGIN_IPS:
+            self._prune_all(moment)
+
+    def _prune_all(self, now: float) -> None:
+        for address in list(self._per_ip):
+            queue = self._per_ip[address]
+            self._prune(queue, now)
+            if not queue:
+                del self._per_ip[address]
 
     def record_success(self, ip: str) -> None:
         self._per_ip.pop(ip, None)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import time
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
@@ -48,7 +49,26 @@ REQUIRED_CREDENTIALS: dict[str, tuple[str, ...]] = {
 }
 
 
-def _client_ip(request: Request) -> str:
+def _client_ip(request: Request, state: AppState) -> str:
+    """[impl-review-fix] Resolve the rate-limit identity.
+
+    Behind a reverse proxy every request appears to come from the proxy, which would turn the
+    per-IP login limit into a global lockout. Only when the operator explicitly opts in
+    (`TRUST_PROXY_HEADERS=true`) do we take the first X-Forwarded-For / X-Real-IP hop, and only
+    if it parses as an IP address.
+    """
+    if state.settings.trust_proxy_headers:
+        forwarded = request.headers.get("x-forwarded-for")
+        candidate = forwarded.split(",")[0].strip() if forwarded else ""
+        if not candidate:
+            candidate = request.headers.get("x-real-ip", "").strip()
+        if candidate:
+            try:
+                ipaddress.ip_address(candidate)
+            except ValueError:
+                pass
+            else:
+                return candidate
     return request.client.host if request.client else "unknown"
 
 
@@ -124,7 +144,7 @@ def _user_out(user: User) -> dict[str, Any]:
 async def login(
     payload: LoginRequest, request: Request, state: AppState = Depends(get_state)
 ) -> dict[str, Any]:
-    ip = _client_ip(request)
+    ip = _client_ip(request, state)
     if state.login_limiter.blocked(ip):
         raise ApiError(429, "RATE_LIMITED", "too many login attempts")
     if not constant_time_equals(payload.password, state.settings.admin_password):

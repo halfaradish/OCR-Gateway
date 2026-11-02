@@ -58,6 +58,7 @@ Authorize 填入 token，即可完成成员、Key、账号、用量查询等全�
 | `URL_FETCH_TIMEOUT_SECONDS` | 否 | `10` | |
 | `URL_FETCH_MAX_BYTES` | 否 | `10485760` | |
 | `SESSION_TTL_SECONDS` | 否 | `43200` | admin token 有效期（12h） |
+| `TRUST_PROXY_HEADERS` | 否 | `false` | 反代后启用：登录限速按 `X-Forwarded-For`/`X-Real-IP` 识别客户端 IP |
 | `LOG_LEVEL` | 否 | `INFO` | |
 
 真实凭证（百度 `app_id`/`api_key`/`secret_key`、腾讯 `secret_id`/`secret_key`）只能通过本地
@@ -70,7 +71,7 @@ Authorize 填入 token，即可完成成员、Key、账号、用量查询等全�
 - **必须单 worker**：启动日志与 README 都声明该约束；检测到 `WEB_CONCURRENCY`、`UVICORN_WORKERS`
   或 `--workers` 大于 1 会拒绝启动。内存计数/注册表/缓存都只在一个事件循环内读写。
 - 启动前先跑 `alembic upgrade head`；回滚可 `alembic downgrade base`（greenfield，无历史数据）。
-- 应用不信任 `X-Forwarded-*` 做安全判断。
+- 默认不信任 `X-Forwarded-*`；只有当应用只监听回环/内网且前面是可信反代时，才设 `TRUST_PROXY_HEADERS=true`（仅用于登录限速的客户端 IP 识别，不用于鉴权）。
 
 ## 备份与恢复
 

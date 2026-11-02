@@ -17,7 +17,7 @@ from sqlalchemy import select
 
 from app.core.scheduler import ScheduleResult
 from app.db import utcnow
-from app.models import Account, QuotaCounter, UsageEvent
+from app.models import Account, ApiKey, QuotaCounter, UsageEvent
 
 TOKEN_URL = "https://aip.baidubce.com/oauth/2.0/token"
 OCR_URL = "https://aip.baidubce.com/rest/2.0/ocr/v1/general_basic"
@@ -83,6 +83,9 @@ async def test_multipart_success_and_accounting(client, admin_headers, app) -> N
         account_row = await session.get(Account, account["id"])
         assert account_row is not None
         assert account_row.ewma_latency_ms != 1000.0
+        key_row = await session.get(ApiKey, key["id"])
+        assert key_row is not None
+        assert key_row.last_used_at is not None
 
 
 async def test_base64_success(client, admin_headers) -> None:

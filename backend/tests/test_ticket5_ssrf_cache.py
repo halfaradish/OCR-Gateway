@@ -156,3 +156,19 @@ def test_cache_disabled() -> None:
     cache.set("k", {"provider": "baidu", "text": "x", "lines": []})
     assert cache.get("k") is None
     assert cache.clear() == 0
+
+
+async def test_rejects_invalid_port() -> None:
+    with pytest.raises(UrlFetchError):
+        await validate_url("http://example.com:notaport/a.png")
+
+
+def test_ipv4_mapped_ipv6_is_forbidden() -> None:
+    assert ssrf._is_forbidden(ipaddress.ip_address("::ffff:127.0.0.1"))
+    assert ssrf._is_forbidden(ipaddress.ip_address("::ffff:169.254.169.254"))
+    assert not ssrf._is_forbidden(ipaddress.ip_address("8.8.8.8"))
+
+
+async def test_rejects_ipv4_mapped_loopback() -> None:
+    with pytest.raises(UrlFetchError):
+        await validate_url("http://[::ffff:127.0.0.1]/a.png")

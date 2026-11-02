@@ -59,6 +59,14 @@ def _decode_base64(value: str, max_bytes: int) -> bytes:
 async def _parse_request(request: Request, state: AppState) -> _ParsedInput:
     content_type = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
     max_bytes = state.settings.max_upload_bytes
+    # [impl-review-fix] Reject obviously oversized bodies before parsing.
+    declared_length = request.headers.get("content-length")
+    if declared_length is not None:
+        try:
+            if int(declared_length) > max_bytes * 2:
+                raise ApiError(400, "BAD_REQUEST", "request body exceeds the size limit")
+        except ValueError as exc:
+            raise ApiError(400, "BAD_REQUEST", "invalid content-length") from exc
     if content_type == "multipart/form-data":
         try:
             form = await request.form()
@@ -175,6 +183,8 @@ async def _record_event(
             created_at=utcnow(),
         )
     )
+    # [impl-review-fix] Keep the admin-visible last_used_at in sync with recorded usage.
+    context.key.last_used_at = utcnow()
     await state.registry.persist(session)
     await session.commit()
 

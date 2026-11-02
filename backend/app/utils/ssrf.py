@@ -14,6 +14,9 @@ _METADATA_IP = ipaddress.ip_address("169.254.169.254")
 
 
 def _is_forbidden(address: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    # [impl-review-fix] IPv4-mapped IPv6 must inherit the mapped IPv4 checks.
+    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped is not None:
+        address = address.ipv4_mapped
     if address == _METADATA_IP:
         return True
     return (
@@ -38,14 +41,17 @@ def _parse_target(url: str) -> tuple[str, int, str]:
     host = parsed.hostname
     if not host:
         raise UrlFetchError("url has no host")
-    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    try:
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    except ValueError as exc:
+        raise UrlFetchError("invalid url port") from exc
     return parsed.scheme, port, host
 
 
 def _resolve(host: str, port: int) -> list[ipaddress.IPv4Address | ipaddress.IPv6Address]:
     try:
         infos = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
-    except socket.gaierror as exc:
+    except (socket.gaierror, UnicodeError, ValueError) as exc:
         raise UrlFetchError("url host cannot be resolved") from exc
     addresses: list[ipaddress.IPv4Address | ipaddress.IPv6Address] = []
     for info in infos:

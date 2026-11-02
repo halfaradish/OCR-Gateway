@@ -154,7 +154,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.exception_handler(Exception)
     async def unhandled_error_handler(request: Request, exc: Exception) -> JSONResponse:
-        logger.exception("unhandled error", exc_info=exc)
+        logger.exception("unhandled error")
         return JSONResponse(
             status_code=500,
             content={

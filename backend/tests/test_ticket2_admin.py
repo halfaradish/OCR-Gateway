@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+from collections import deque
 from datetime import datetime
 
 from conftest import ADMIN_PASSWORD, auth_headers, create_account, create_api_key, create_user
 
 from app.models import Account, UsageEvent
 from app.security import create_admin_token, verify_admin_token
-from app.state import KeyRateLimiter
+from app.state import MAX_TRACKED_LOGIN_IPS, KeyRateLimiter, LoginLimiter
 
 
 async def test_login_and_me(client) -> None:
@@ -238,3 +239,52 @@ async def test_account_qps_explicit_null(client, admin_headers) -> None:
         client, admin_headers, "baidu", "no-qps", qps_limit=None
     )
     assert account["qps_limit"] is None
+
+
+async def test_login_uses_forwarded_ip_when_trusted(app_factory, settings) -> None:
+    custom = settings.test_overrides(trust_proxy_headers=True)
+    _application, client = await app_factory(custom)
+    headers = {"X-Forwarded-For": "203.0.113.7"}
+    for _ in range(5):
+        response = await client.post(
+            "/api/admin/login", json={"password": "wrong-pass"}, headers=headers
+        )
+        assert response.status_code == 401
+    limited = await client.post(
+        "/api/admin/login", json={"password": "wrong-pass"}, headers=headers
+    )
+    assert limited.status_code == 429
+    other_ip = await client.post(
+        "/api/admin/login",
+        json={"password": "wrong-pass"},
+        headers={"X-Forwarded-For": "203.0.113.8"},
+    )
+    assert other_ip.status_code == 401
+
+
+async def test_login_ignores_forwarded_ip_by_default(client) -> None:
+    for index in range(5):
+        response = await client.post(
+            "/api/admin/login",
+            json={"password": "wrong-pass"},
+            headers={"X-Forwarded-For": f"203.0.113.{index + 1}"},
+        )
+        assert response.status_code == 401
+    sixth = await client.post(
+        "/api/admin/login",
+        json={"password": "wrong-pass"},
+        headers={"X-Forwarded-For": "203.0.113.99"},
+    )
+    assert sixth.status_code == 429
+
+
+def test_login_limiter_bounds_tracked_ips() -> None:
+    limiter = LoginLimiter()
+    now = 1000.0
+    limiter._per_ip = {
+        f"10.0.{index // 256}.{index % 256}": deque([now - 120.0])
+        for index in range(MAX_TRACKED_LOGIN_IPS + 1)
+    }
+    limiter.record_failure("203.0.113.1", now=now)
+    assert len(limiter._per_ip) <= MAX_TRACKED_LOGIN_IPS
+    assert "203.0.113.1" in limiter._per_ip

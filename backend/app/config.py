@@ -15,6 +15,25 @@ def decode_master_key(value: str) -> bytes:
     raw = value.strip()
     if not raw:
         raise ValueError("MASTER_KEY 为空")
+    # [impl-review-fix] Accept the documented `base64:` / `hex:` prefixes.
+    lowered = raw.lower()
+    for prefix in ("base64:", "b64:"):
+        if lowered.startswith(prefix):
+            try:
+                decoded = base64.b64decode(raw[len(prefix):], validate=True)
+            except Exception as exc:  # noqa: BLE001 - normalize to one clear error
+                raise ValueError("MASTER_KEY 的 base64 编码非法") from exc
+            if len(decoded) != 32:
+                raise ValueError("MASTER_KEY 必须是 32 字节")
+            return decoded
+    if lowered.startswith("hex:"):
+        try:
+            decoded = bytes.fromhex(raw[4:])
+        except ValueError as exc:
+            raise ValueError("MASTER_KEY 的 hex 编码非法") from exc
+        if len(decoded) != 32:
+            raise ValueError("MASTER_KEY 必须是 32 字节")
+        return decoded
     try:
         decoded = bytes.fromhex(raw)
     except ValueError:
@@ -59,6 +78,7 @@ class Settings(BaseSettings):
     url_fetch_timeout_seconds: float = 10.0
     url_fetch_max_bytes: int = 10 * 1024 * 1024
     session_ttl_seconds: int = 43200
+    trust_proxy_headers: bool = False
     log_level: str = "INFO"
 
     @model_validator(mode="after")

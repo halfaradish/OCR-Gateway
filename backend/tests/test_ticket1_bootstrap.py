@@ -15,7 +15,7 @@ from pydantic import ValidationError
 from sqlalchemy import create_engine, inspect, text
 
 from alembic import command
-from app.config import Settings, enforce_single_worker
+from app.config import Settings, decode_master_key, enforce_single_worker
 from app.db import Base
 from app.main import create_app
 
@@ -78,11 +78,12 @@ async def test_lifespan_refuses_multiple_workers(settings, monkeypatch) -> None:
             pass
 
 
-def _alembic_config(db_path: Path) -> Config:
+def _alembic_config(db_path: Path | None = None) -> Config:
     backend = Path(__file__).resolve().parents[1]
     config = Config(str(backend / "alembic.ini"))
     config.set_main_option("script_location", str(backend / "alembic"))
-    config.set_main_option("sqlalchemy.url", f"sqlite:///{db_path.as_posix()}")
+    if db_path is not None:
+        config.set_main_option("sqlalchemy.url", f"sqlite:///{db_path.as_posix()}")
     return config
 
 
@@ -217,3 +218,33 @@ def test_cold_start_serves_healthz(tmp_path: Path) -> None:
             process.wait(timeout=10)
         except subprocess.TimeoutExpired:
             process.kill()
+
+
+def test_master_key_accepts_prefixed_encodings() -> None:
+    key = b"k" * 32
+    assert decode_master_key("base64:" + base64.b64encode(key).decode("ascii")) == key
+    assert decode_master_key("hex:" + key.hex()) == key
+
+
+def test_env_example_master_key_is_valid() -> None:
+    root = Path(__file__).resolve().parents[2]
+    for line in (root / ".env.example").read_text(encoding="utf-8").splitlines():
+        if line.startswith("MASTER_KEY="):
+            assert len(decode_master_key(line.split("=", 1)[1])) == 32
+            break
+    else:  # pragma: no cover - example must contain the key
+        raise AssertionError("MASTER_KEY missing from .env.example")
+
+
+def test_alembic_uses_data_dir_env(tmp_path: Path, monkeypatch) -> None:
+    data_dir = tmp_path / "envdata"
+    monkeypatch.setenv("DATA_DIR", str(data_dir))
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    config = _alembic_config()
+    command.upgrade(config, "head")
+    db_path = data_dir / "ocr-gateway.db"
+    assert db_path.exists()
+    assert not (tmp_path / "unused.db").exists()
+    engine = create_engine(f"sqlite:///{db_path.as_posix()}")
+    assert "accounts" in inspect(engine).get_table_names()
+    engine.dispose()
