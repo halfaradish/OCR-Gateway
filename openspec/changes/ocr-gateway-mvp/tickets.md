@@ -60,11 +60,11 @@
 - [ ] 尝试循环：可重试失败标记账号后切下一候选，直到成功或总预算 20s 耗尽；`InputError` 不切换账号；无候选返回 503、最后一次失败为 `PROVIDER_ERROR` 返回 502、预算耗尽返回 504；0ms mock 厂商下网关自身 p99 <20ms
 - [ ] `POST /v1/ocr/image`：multipart 与 base64 JSON 二选一（同现 400）；`provider` 默认 `auto`；`language` 仅 `zh`/`en`/`auto` 并按厂商映射；成功响应含 `request_id`、`provider`、`text`、`lines[{text,confidence}]`、`latency_ms`、`cached`、`quota{unit,used}`、`warnings`；错误响应为 `{request_id,error:{code,message}}`
 - [ ] 全局并发：OCR 请求进入管线前获取全局信号量（默认 8），等待超过剩余预算时返回 503 `PROVIDER_UNAVAILABLE`，message 标注 gateway at capacity
-- [ ] 成功请求记账：账号与 Key 计数各 +1，写入一条 `usage_event`（`quota_used=1`）；缓存命中与失败记 `quota_used=0`；事件不含 OCR 原文与图片字节，`image_hash` 仅前 16 位
+- [ ] 成功请求记账：账号与 Key 计数各 +1，写入一条 `usage_event`（`quota_used=1`）；失败记 `quota_used=0`；事件不含 OCR 原文与图片字节，`image_hash` 仅前 16 位
 - [ ] 账号配额上限：日/月/总量三类，`NULL` 不限；达到上限的账号置 `quota_exhausted` 并被排除；周期键按 `Asia/Shanghai` 00:00 与 `reset_day` 计算；内存计数每 2 秒批量 upsert，启动加载，崩溃最多丢 2 秒
 - [ ] 账号状态与冷却：`AUTH_FAILED` → `invalid`（仅 reset-state 恢复）、`QUOTA_EXCEEDED` → `quota_exhausted`（周期重置恢复）、`RATE_LIMITED`/`TIMEOUT`/网络 → `cooling` 30s、5xx → `cooling` 10s；到期在下次选择时惰性恢复
 - [ ] `GET /v1/providers` 返回厂商与可用账号计数且不含凭证；`GET /v1/me` 返回当日 `requests`、`quota_used` 与限额
-- [ ] `[e2e]` 经百度（respx mock）完成 multipart 请求 → 200 且 `text`/`lines`/`quota.used=1`；相同请求第二次 → `cached=true`、`quota.used=0`；停用首选账号后由备用百度账号返回，核对 `usage_event`、账号配额与 Key 计数
+- [ ] `[e2e]` 经百度（respx mock）完成 multipart 请求 → 200 且 `text`/`lines`/`quota.used=1`；停用首选账号后由备用百度账号返回，核对 `usage_event`、账号配额与 Key 计数
 
 ### Task 4: 腾讯链路与跨厂商切换
 
@@ -82,7 +82,7 @@
 
 ### Task 5: 输入补全与可运营性
 
-**R-ID:** R-API-02, R-CAC-01, R-CAC-02, R-CAC-03, R-ADM-06, R-SCH-06
+**R-ID:** R-API-02, R-CAC-01, R-CAC-02, R-CAC-03, R-ADM-06, R-SCH-06, R-QTA-01
 **Blocked-by:** 3, 4
 **范围预估：** 一个工作段内可完成（URL/SSRF、缓存与清空、用量与日志查询、运行文档）。
 
