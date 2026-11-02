@@ -86,13 +86,13 @@
 **Blocked-by:** 3, 4
 **范围预估：** 一个工作段内可完成（URL/SSRF、缓存与清空、用量与日志查询、运行文档）。
 
-- [ ] URL 输入：仅 http/https；`getaddrinfo` 解析全部 A/AAAA 并拒绝私网/回环/链路本地/组播/保留地址与 `169.254.169.254`；逐跳复核重定向且最多 3 跳；10s 超时、10MB 上限；失败返回 400 且不回显内网细节；被拒地址不发起出站请求
-- [ ] 缓存：键为 `sha256(image_bytes)` + `language` + `provider`（或 `auto`）；命中返回 `cached=true`、`quota.used=0` 且无厂商调用；不同 provider 的键不串用
-- [ ] 缓存边界：空文本不缓存、单条结果超过 256KB 不缓存、TTL 默认 3600s、容量默认 1000 条并按 LRU 淘汰
-- [ ] 管理端清空缓存返回 `cleared` 条数；清空后相同图片请求重新调用厂商
-- [ ] 用量汇总支持 `from`/`to`（按 `Asia/Shanghai` 解释）与 `group_by=user|provider|account`；请求日志支持分页、`success`/`provider` 过滤；响应不含 OCR 原文与凭证
-- [ ] 运行文档：示例环境变量（仅占位值）、quickstart（步骤数与预计耗时）、部署（反代 HTTPS、单 worker）、环境变量表、SQLite 备份与 RPO/RTO；按文档命令可启动
-- [ ] `[e2e]` 同一公网 URL 连续两次请求 → 第二次 `cached=true`；管理端清空后第三次 `cached=false` 且重新调用厂商
+- [x] URL 输入：仅 http/https；`getaddrinfo` 解析全部 A/AAAA 并拒绝私网/回环/链路本地/组播/保留地址与 `169.254.169.254`；逐跳复核重定向且最多 3 跳；10s 超时、10MB 上限；失败返回 400 且不回显内网细节；被拒地址不发起出站请求
+- [x] 缓存：键为 `sha256(image_bytes)` + `language` + `provider`（或 `auto`）；命中返回 `cached=true`、`quota.used=0` 且无厂商调用；不同 provider 的键不串用
+- [x] 缓存边界：空文本不缓存、单条结果超过 256KB 不缓存、TTL 默认 3600s、容量默认 1000 条并按 LRU 淘汰
+- [x] 管理端清空缓存返回 `cleared` 条数；清空后相同图片请求重新调用厂商
+- [x] 用量汇总支持 `from`/`to`（按 `Asia/Shanghai` 解释）与 `group_by=user|provider|account`；请求日志支持分页、`success`/`provider` 过滤；响应不含 OCR 原文与凭证
+- [x] 运行文档：示例环境变量（仅占位值）、quickstart（步骤数与预计耗时）、部署（反代 HTTPS、单 worker）、环境变量表、SQLite 备份与 RPO/RTO；按文档命令可启动
+- [x] `[e2e]` 同一公网 URL 连续两次请求 → 第二次 `cached=true`；管理端清空后第三次 `cached=false` 且重新调用厂商
 
 ### Task 6: 实现验证收尾（聚合套件）
 
@@ -100,7 +100,7 @@
 **Blocked-by:** 1, 2, 3, 4, 5
 **范围预估：** 一个工作段内可完成（跑聚合套件、记录证据、补充运行文档核对）。
 
-- [ ] 运行本 change 命中域的全部层聚合测试套件（单元 + 集成 + 端到端）并全部通过
-- [ ] 真实百度/腾讯账号契约测试默认 skip（凭证仅本地环境变量），报告中如实记录 skip 状态
-- [ ] 0ms mock 厂商基准复跑，确认网关自身开销 p99 <20ms
-- [ ] 收尾报告按 `suite_scope.py --mode closeout` 给出的层集与命令落盘，含 `## 既有红测` 小节
+- [x] 运行本 change 命中域的全部层聚合测试套件（单元 + 集成 + 端到端）并全部通过
+- [x] 真实百度/腾讯账号契约测试默认 skip（凭证仅本地环境变量），报告中如实记录 skip 状态
+- [x] 0ms mock 厂商基准复跑，确认网关自身开销 p99 <20ms
+- [x] 收尾报告按 `suite_scope.py --mode closeout` 给出的层集与命令落盘，含 `## 既有红测` 小节
