@@ -52,19 +52,19 @@
 **Blocked-by:** 1, 2
 **范围预估：** 一个工作段内可完成（图片管线、百度适配器、归一化、注册表/排序/尝试循环、OCR 端点、记账与配额、状态冷却、providers/me）。
 
-- [ ] 图片管线：Pillow 校验真实格式，仅接受 JPEG/PNG/BMP；入口上限 10MB（解码后图片字节）；解码前拒绝超过 40M 像素或最长边超过 10000 的图片；按 EXIF 方向旋转；按厂商限制（百度 base64+urlencode 后 ≤8MB、最短边 ≥15px、最长边 ≤4096px）等比缩放/转 JPEG，仍超限返回 400
-- [ ] 百度适配器：以 `client_credentials` 获取 access_token 并在过期前 5 分钟刷新缓存；110/111 时刷新 token 重试一次，仍失败才抛 `AUTH_FAILED`；以 form-urlencoded 提交 `general_basic`；`words_result[].words` 映射为文本行；无概率时 `confidence` 为 `null`；httpx 日志不含 `access_token`
-- [ ] 结果归一化：多行按原顺序以换行连接；厂商成功但无文本时返回 200、`text=""` 且 `warnings` 含 `EMPTY_TEXT`
-- [ ] 账号注册表与候选过滤：provider 匹配、enabled、active（冷却到期与周期变化惰性恢复）、周期配额未耗尽、`in_flight < max_concurrency`、QPS 令牌可用；启动时从账号表加载 EWMA 与状态，无记录时用厂商种子 1000ms
-- [ ] 候选排序：`priority` 升序 → EWMA 升序 → `last_used_at` 升序（NULLS FIRST）→ `weight` 降序；成功请求按 0.2×本次 + 0.8×旧值更新 EWMA 并更新 `last_used_at`
-- [ ] 尝试循环：可重试失败标记账号后切下一候选，直到成功或总预算 20s 耗尽；`InputError` 不切换账号；无候选返回 503、最后一次失败为 `PROVIDER_ERROR` 返回 502、预算耗尽返回 504；0ms mock 厂商下网关自身 p99 <20ms
-- [ ] `POST /v1/ocr/image`：multipart 与 base64 JSON 二选一（同现 400）；`provider` 默认 `auto`；`language` 仅 `zh`/`en`/`auto` 并按厂商映射；成功响应含 `request_id`、`provider`、`text`、`lines[{text,confidence}]`、`latency_ms`、`cached`、`quota{unit,used}`、`warnings`；错误响应为 `{request_id,error:{code,message}}`
-- [ ] 全局并发：OCR 请求进入管线前获取全局信号量（默认 8），等待超过剩余预算时返回 503 `PROVIDER_UNAVAILABLE`，message 标注 gateway at capacity
-- [ ] 成功请求记账：账号与 Key 计数各 +1，写入一条 `usage_event`（`quota_used=1`）；失败记 `quota_used=0`；事件不含 OCR 原文与图片字节，`image_hash` 仅前 16 位
-- [ ] 账号配额上限：日/月/总量三类，`NULL` 不限；达到上限的账号置 `quota_exhausted` 并被排除；周期键按 `Asia/Shanghai` 00:00 与 `reset_day` 计算；内存计数每 2 秒批量 upsert，启动加载，崩溃最多丢 2 秒
-- [ ] 账号状态与冷却：`AUTH_FAILED` → `invalid`（仅 reset-state 恢复）、`QUOTA_EXCEEDED` → `quota_exhausted`（周期重置恢复）、`RATE_LIMITED`/`TIMEOUT`/网络 → `cooling` 30s、5xx → `cooling` 10s；到期在下次选择时惰性恢复
-- [ ] `GET /v1/providers` 返回厂商与可用账号计数且不含凭证；`GET /v1/me` 返回当日 `requests`、`quota_used` 与限额
-- [ ] `[e2e]` 经百度（respx mock）完成 multipart 请求 → 200 且 `text`/`lines`/`quota.used=1`；停用首选账号后由备用百度账号返回，核对 `usage_event`、账号配额与 Key 计数
+- [x] 图片管线：Pillow 校验真实格式，仅接受 JPEG/PNG/BMP；入口上限 10MB（解码后图片字节）；解码前拒绝超过 40M 像素或最长边超过 10000 的图片；按 EXIF 方向旋转；按厂商限制（百度 base64+urlencode 后 ≤8MB、最短边 ≥15px、最长边 ≤4096px）等比缩放/转 JPEG，仍超限返回 400
+- [x] 百度适配器：以 `client_credentials` 获取 access_token 并在过期前 5 分钟刷新缓存；110/111 时刷新 token 重试一次，仍失败才抛 `AUTH_FAILED`；以 form-urlencoded 提交 `general_basic`；`words_result[].words` 映射为文本行；无概率时 `confidence` 为 `null`；httpx 日志不含 `access_token`
+- [x] 结果归一化：多行按原顺序以换行连接；厂商成功但无文本时返回 200、`text=""` 且 `warnings` 含 `EMPTY_TEXT`
+- [x] 账号注册表与候选过滤：provider 匹配、enabled、active（冷却到期与周期变化惰性恢复）、周期配额未耗尽、`in_flight < max_concurrency`、QPS 令牌可用；启动时从账号表加载 EWMA 与状态，无记录时用厂商种子 1000ms
+- [x] 候选排序：`priority` 升序 → EWMA 升序 → `last_used_at` 升序（NULLS FIRST）→ `weight` 降序；成功请求按 0.2×本次 + 0.8×旧值更新 EWMA 并更新 `last_used_at`
+- [x] 尝试循环：可重试失败标记账号后切下一候选，直到成功或总预算 20s 耗尽；`InputError` 不切换账号；无候选返回 503、最后一次失败为 `PROVIDER_ERROR` 返回 502、预算耗尽返回 504；0ms mock 厂商下网关自身 p99 <20ms
+- [x] `POST /v1/ocr/image`：multipart 与 base64 JSON 二选一（同现 400）；`provider` 默认 `auto`；`language` 仅 `zh`/`en`/`auto` 并按厂商映射；成功响应含 `request_id`、`provider`、`text`、`lines[{text,confidence}]`、`latency_ms`、`cached`、`quota{unit,used}`、`warnings`；错误响应为 `{request_id,error:{code,message}}`
+- [x] 全局并发：OCR 请求进入管线前获取全局信号量（默认 8），等待超过剩余预算时返回 503 `PROVIDER_UNAVAILABLE`，message 标注 gateway at capacity
+- [x] 成功请求记账：账号与 Key 计数各 +1，写入一条 `usage_event`（`quota_used=1`）；失败记 `quota_used=0`；事件不含 OCR 原文与图片字节，`image_hash` 仅前 16 位
+- [x] 账号配额上限：日/月/总量三类，`NULL` 不限；达到上限的账号置 `quota_exhausted` 并被排除；周期键按 `Asia/Shanghai` 00:00 与 `reset_day` 计算；内存计数每 2 秒批量 upsert，启动加载，崩溃最多丢 2 秒
+- [x] 账号状态与冷却：`AUTH_FAILED` → `invalid`（仅 reset-state 恢复）、`QUOTA_EXCEEDED` → `quota_exhausted`（周期重置恢复）、`RATE_LIMITED`/`TIMEOUT`/网络 → `cooling` 30s、5xx → `cooling` 10s；到期在下次选择时惰性恢复
+- [x] `GET /v1/providers` 返回厂商与可用账号计数且不含凭证；`GET /v1/me` 返回当日 `requests`、`quota_used` 与限额
+- [x] `[e2e]` 经百度（respx mock）完成 multipart 请求 → 200 且 `text`/`lines`/`quota.used=1`；停用首选账号后由备用百度账号返回，核对 `usage_event`、账号配额与 Key 计数
 
 ### Task 4: 腾讯链路与跨厂商切换
 
