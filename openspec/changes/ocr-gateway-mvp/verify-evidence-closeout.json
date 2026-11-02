@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "change": "ocr-gateway-mvp",
+  "mode": "closeout",
+  "base": "df1ddead840eff2e555dffc62949daedbde05114",
+  "head": "HEAD",
+  "generated_at": "2026-11-02T20:03:15.763814+00:00",
+  "clean_tree": true,
+  "dirty_paths": [],
+  "layers": [
+    {
+      "name": "unit",
+      "command": "uv run --project backend pytest backend/tests",
+      "exit_code": 0,
+      "count": 148,
+      "sha": "1d32f3eae251cfa7fdd01e04fa03960dbb8952ba",
+      "duration_sec": 100.784,
+      "zero_run": false,
+      "stdout_tail": "============================= test session starts =============================\nplatform win32 -- Python 3.13.3, pytest-9.2.0, pluggy-1.7.0\nrootdir: D:\\Project\\plaything\\ocr-gateway\\backend\nconfigfile: pyproject.toml\nplugins: anyio-4.16.0, asyncio-1.4.1.post1, respx-0.23.1\nasyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 150 items\n\nbackend\\tests\\test_contract_real_accounts.py ss                          [  1%]\nbackend\\tests\\test_ticket1_bootstrap.py ..............                   [ 10%]\nbackend\\tests\\test_ticket2_admin.py .......................              [ 26%]\nbackend\\tests\\test_ticket3_baidu.py ............                         [ 34%]\nbackend\\tests\\test_ticket3_images.py ..........                          [ 40%]\nbackend\\tests\\test_ticket3_ocr_api.py ...............                    [ 50%]\nbackend\\tests\\test_ticket3_quota.py ........                             [ 56%]\nbackend\\tests\\test_ticket3_scheduler.py ..............                   [ 65%]\nbackend\\tests\\test_ticket4_switching.py .........                        [ 71%]\nbackend\\tests\\test_ticket4_tencent.py .............                      [ 80%]\nbackend\\tests\\test_ticket5_api.py .......                                [ 84%]\nbackend\\tests\\test_ticket5_ssrf_cache.py .......................         [100%]\n\n============================== warnings summary ===============================\ntests/test_ticket3_images.py::test_rejects_too_small_image\n  D:\\Project\\plaything\\ocr-gateway\\backend\\.venv\\Lib\\site-packages\\PIL\\Image.py:3593: DecompressionBombWarning: Image size (192 pixels) exceeds limit of 100 pixels, could be decompression bomb DOS attack.\n    warnings.warn(\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n============ 148 passed, 2 skipped, 1 warning in 99.39s (0:01:39) =============\n",
+      "stderr_tail": ""
+    }
+  ],
+  "skipped_layers": [],
+  "mapping": {
+    "README.md": "docs",
+    "backend/alembic.ini": "backend",
+    "backend/alembic/env.py": "backend",
+    "backend/app/api/admin.py": "backend",
+    "backend/app/api/public.py": "backend",
+    "backend/app/config.py": "backend",
+    "backend/app/main.py": "backend",
+    "backend/app/state.py": "backend",
+    "backend/app/utils/ssrf.py": "backend",
+    "backend/pyproject.toml": "backend",
+    "backend/tests/test_ticket1_bootstrap.py": "backend",
+    "backend/tests/test_ticket2_admin.py": "backend",
+    "backend/tests/test_ticket3_ocr_api.py": "backend",
+    "backend/tests/test_ticket5_ssrf_cache.py": "backend",
+    "backend/uv.lock": "backend",
+    "openspec/changes/ocr-gateway-mvp/code-review-report.md": "backend",
+    "openspec/changes/ocr-gateway-mvp/impl-reports/task6-closeout.md": "backend",
+    "openspec/changes/ocr-gateway-mvp/tasks.md": "backend",
+    "openspec/changes/ocr-gateway-mvp/tickets.md": "backend",
+    "openspec/issues/open/T1.md": "backend",
+    "openspec/issues/open/T2.md": "backend"
+  },
+  "ok": true
+}
