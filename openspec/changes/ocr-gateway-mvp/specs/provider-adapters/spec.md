@@ -18,8 +18,8 @@
 - **THEN** 适配器输出的 `lines[].confidence` 为 `null`
 
 #### Scenario: token 鉴权失败
-- **WHEN** 百度返回 access_token 无效或过期错误
-- **THEN** 适配器抛出 `AUTH_FAILED` 分类
+- **WHEN** 百度返回 access_token 无效或过期错误（110/111）
+- **THEN** 适配器刷新 token 并重试一次；仍失败才抛出 `AUTH_FAILED` 分类 `[spec-review-amendment D7]`
 
 ### Requirement: R-ADP-02 腾讯通用印刷体识别适配
 系统 SHALL 调用 `GeneralBasicOCR`（Version `2018-11-19`、域名 `ocr.tencentcloudapi.com`），使用 TC3-HMAC-SHA256 签名，并把 `TextDetections[]` 映射为文本行且保留 Confidence。
@@ -44,7 +44,7 @@
 - **THEN** 返回 200，`text=""`，`warnings` 含 `EMPTY_TEXT`
 
 ### Requirement: R-ADP-04 厂商错误分类
-适配器 SHALL 把厂商响应分类为 `AUTH_FAILED`、`QUOTA_EXCEEDED`、`RATE_LIMITED`、`TIMEOUT`、`PROVIDER_ERROR` 或 `InputError`；分类 MUST 依据厂商文档错误码与 HTTP 状态，并由黄金用例覆盖。
+适配器 SHALL 把厂商响应分类为 `AUTH_FAILED`、`QUOTA_EXCEEDED`、`RATE_LIMITED`、`TIMEOUT`、`PROVIDER_ERROR` 或 `InputError`；分类 MUST 依据厂商文档错误码与 HTTP 状态，并由黄金用例覆盖；码值映射表见 `design.md` 附录（含官方 URL 与核对日期）。`[spec-review-amendment D31]`
 
 #### Scenario: 配额耗尽
 - **WHEN** 厂商返回配额或余额不足错误码

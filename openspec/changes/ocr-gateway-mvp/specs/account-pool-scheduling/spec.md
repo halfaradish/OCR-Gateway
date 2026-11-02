@@ -29,7 +29,7 @@
 - **THEN** 300ms 的账号先被使用
 
 ### Requirement: R-SCH-03 故障切换与总预算
-对可重试失败，调度器 SHALL 标记账号并继续下一个候选，直到成功或 `REQUEST_DEADLINE_MS` 耗尽；输入错误 MUST NOT 切换；无候选可用返回 503，预算耗尽返回 504。
+对可重试失败，调度器 SHALL 标记账号并继续下一个候选，直到成功或 `REQUEST_DEADLINE_MS` 耗尽；输入错误 MUST NOT 切换；无候选可用返回 503，候选全部失败且最后一次失败为 `PROVIDER_ERROR` 返回 502，预算耗尽返回 504。`[spec-review-amendment D1/D5]`
 
 #### Scenario: 主账号 5xx 切换备用
 - **WHEN** 首选账号返回 5xx
@@ -38,6 +38,10 @@
 #### Scenario: 输入错误不回退
 - **WHEN** 首选账号返回图片格式错误
 - **THEN** 直接返回 400，不调用备用账号
+
+#### Scenario: 厂商持续 5xx
+- **WHEN** 候选账号都返回 5xx 且总预算未耗尽
+- **THEN** 返回 502 `PROVIDER_ERROR`，不返回 503
 
 ### Requirement: R-SCH-04 状态与冷却
 失败 SHALL 按分类转移状态：`AUTH_FAILED` → `invalid`（仅管理员重置）、`QUOTA_EXCEEDED` → `quota_exhausted`（周期重置恢复）、`RATE_LIMITED`/`TIMEOUT`/网络 → `cooling` 30s、5xx → `cooling` 10s；到期 MUST 在下次选择时惰性恢复。

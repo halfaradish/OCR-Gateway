@@ -7,7 +7,7 @@
 ## ADDED Requirements
 
 ### Requirement: R-API-01 单张图片识别
-系统 SHALL 接受 multipart 文件或 JSON base64 二选一，将图片交给调度器识别并返回归一化结果；同一请求同时提供两种输入 MUST 返回 400。
+系统 SHALL 接受 multipart 文件或 JSON base64 二选一，将图片交给调度器识别并返回归一化结果；同一请求同时提供两种输入 MUST 返回 400。`language` 只接受 `zh`（默认）/`en`/`auto`，其它值 MUST 返回 400，并按厂商映射表传给适配器。`[spec-review-amendment D4]`
 
 #### Scenario: multipart 识别成功
 - **WHEN** 客户端携带 Bearer Key 上传 `file` 且未指定 provider
@@ -23,6 +23,10 @@
 
 #### Scenario: 不支持的 provider
 - **WHEN** 请求的 `provider` 不在 `auto`、`baidu`、`tencent` 之内（如 `local`）
+- **THEN** 系统返回 400 `BAD_REQUEST`，不调用任何厂商
+
+#### Scenario: 不支持的语言
+- **WHEN** 请求的 `language` 不在 `zh`、`en`、`auto` 之内
 - **THEN** 系统返回 400 `BAD_REQUEST`，不调用任何厂商
 
 ### Requirement: R-API-02 URL 图片输入
@@ -41,15 +45,19 @@
 - **THEN** 系统返回 400 `BAD_REQUEST`
 
 ### Requirement: R-API-03 图片规范化
-系统 SHALL 用 Pillow 校验真实图片内容并只接受 JPEG/PNG/BMP；入口上限 10MB；MUST 按 EXIF 方向旋转，并在超过厂商限制时等比缩放/转 JPEG，仍超限返回 400。
+系统 SHALL 用 Pillow 校验真实图片内容并只接受 JPEG/PNG/BMP；入口上限 10MB（按解码后的图片字节数）；MUST 在解码前拒绝 >40M 像素或最长边 >10000 的图片；MUST 按 EXIF 方向旋转，并按厂商限制（百度：base64+urlencode 后 ≤8MB、最短边 ≥15px、最长边 ≤4096px）等比缩放/转 JPEG，仍超限返回 400。`[spec-review-amendment D8/D10/D11]`
 
 #### Scenario: 超限自动缩放
 - **WHEN** 上传 9MB 的 PNG 且 `provider=auto`
-- **THEN** 系统缩放到百度限制（Base64 ≤8MB、最长边 ≤4096px）后提交厂商并返回 200
+- **THEN** 系统缩放到百度限制（base64+urlencode 后 ≤8MB、最短边 ≥15px、最长边 ≤4096px）后提交厂商并返回 200
 
 #### Scenario: 伪造图片
 - **WHEN** 上传内容无法被 Pillow 解码（即使扩展名为 .png）
 - **THEN** 系统返回 400 `BAD_REQUEST`
+
+#### Scenario: 像素炸弹
+- **WHEN** 上传的图片声明像素数超过 40M（如 12000×12000）
+- **THEN** 系统在解码前返回 400 `BAD_REQUEST`，不分配完整位图
 
 #### Scenario: 超过入口上限
 - **WHEN** 请求体超过 10MB
@@ -80,6 +88,10 @@
 #### Scenario: 全部候选不可用
 - **WHEN** `auto` 请求没有任何可用账号
 - **THEN** 返回 503 `PROVIDER_UNAVAILABLE`
+
+#### Scenario: 厂商持续异常
+- **WHEN** 所有候选都返回 5xx/协议错误，且预算未耗尽
+- **THEN** 返回 502 `PROVIDER_ERROR` `[spec-review-amendment D5]`
 
 #### Scenario: 总预算耗尽
 - **WHEN** 尝试所有候选后超过 `REQUEST_DEADLINE_MS`

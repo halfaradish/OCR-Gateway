@@ -35,7 +35,8 @@
 
 ## Compliance
 
-- 遵守 `docs/tech-selection.md` 已定稿决策；偏离项（Bearer 管理鉴权、无 `settings` 表、无匿名模式）在 `decision-memo.md` D4/D5/D10 记录理由，不静默例外。
+- 遵守 `docs/tech-selection.md` 已定稿决策；偏离项（厂商范围 4→2、批量/本地 OCR 延后、Bearer 管理鉴权、无 `settings` 表、无匿名模式、无 Docker/Compose）在 `decision-memo.md` D1/D3/D4/D5/D10 与本文 Non-Goals 记录理由，不静默例外。`[spec-review-amendment D18]`
+- 数据流：仅 URL 输入会主动出站拉取图片；图片与识别请求会发送给所选厂商（百度/腾讯），不向其他第三方发送；日志与库中不落原文。`[spec-review-amendment D18]`
 - 对外合约遵守技术选型的响应结构（`text + lines[{text, confidence}]`，不统一 bbox）与错误码表。
 - 安全：凭证 AES-256-GCM、API Key 只存 SHA-256、默认不落 OCR 原文、URL 输入 SSRF 防护、上传体积/格式校验。
 - 真实凭证仅本地保管，MUST NOT 进入仓库、日志或任何产物；仓库只保留占位符。
@@ -64,10 +65,21 @@
 
 ## 假设
 
-- 百度/腾讯免费额度在 MVP 使用期内有效且按账号计；官方未公布固定数额，配额模板以官网为准、可编辑。
-- 两家 API 行为与 2026-11-03 官方文档一致（百度 `general_basic`；腾讯 `GeneralBasicOCR` / `2018-11-19`）。
-- 使用规模 ≤5 人、日均 <500 次，单实例 SQLite 足够。
-- 运营者可用 `/docs`/curl 管理；真实凭证只存本地，不进仓。
+- 百度/腾讯免费额度在 MVP 使用期内有效且按账号计；官方未公布固定数额，配额模板以官网为准、可编辑。**若不成立**：账号级 `quota_exhausted` 会提前触发，需增加账号或下调规模前提。
+- 两家 API 行为与 2026-11-03 官方文档一致（百度 `general_basic`；腾讯 `GeneralBasicOCR` / `2018-11-19`）。**若不成立**：适配器签名/字段映射失效，需按官方变更修适配器并补黄金用例。
+- 使用规模 ≤5 人、日均 <500 次，单实例 SQLite 足够。**若不成立**：需改 Postgres/多实例（`design.md` Non-Goals 已给可证伪阈值）。
+- 运营者可用 `/docs`/curl 管理；真实凭证只存本地，不进仓。**若不成立**：管理面不可用，需回补面板（技术选型 M3）。
+
+## 开放问题
+
+无（D1–D14 已关闭；容量口径与默认限流待设计门拍板）。`[spec-review-amendment D26]`
+
+## 利益相关方
+
+- **成员（≤5 人）**：公共 API 消费者；需知晓 Key 限额与缓存语义。
+- **账号贡献者**：其厂商账号额度进入共享池；需知晓并同意额度被共享（D1/C1）。
+- **运营者/管理员**：用 `/docs` 完成全部管理动作；需知晓单 worker 约束与备份方式。
+- **厂商（百度/腾讯）**：外部依赖；无需 sign-off，但受其配额/风控/文档变更影响。`[spec-review-amendment D26]`
 
 ## 外部成本
 
@@ -78,6 +90,6 @@
 
 - 新增 `backend/`（`app/`、`tests/`、`alembic/`、`pyproject.toml`）、`.env.example`、`README.md`；`.gitignore` 已就绪。
 - 对外新增 HTTP 契约：`/v1/ocr/image`、`/v1/providers`、`/v1/me`、`/healthz`、`/api/admin/*`。
-- 依赖：`fastapi`、`uvicorn[standard]`、`httpx`、`orjson`、`pydantic-settings`、`sqlalchemy[asyncio]`、`aiosqlite`、`alembic`、`cryptography`、`argon2-cffi`、`itsdangerous`、`cachetools`、`Pillow`、`python-multipart`；dev：`pytest`、`pytest-asyncio`、`respx`、`ruff`、`mypy`。
+- 依赖：`fastapi`、`uvicorn[standard]`、`httpx`、`orjson`、`pydantic-settings`、`sqlalchemy[asyncio]`、`aiosqlite`、`alembic`、`cryptography`、`itsdangerous`、`cachetools`、`Pillow`、`python-multipart`；dev：`pytest`、`pytest-asyncio`、`respx`、`ruff`、`mypy`。
 - 数据：SQLite 文件与日志落在 `data/`（已 gitignore）；无既有系统迁移。
 - 运维：单实例；TLS 由反代终结，应用只信任反代头。

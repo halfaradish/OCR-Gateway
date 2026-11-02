@@ -7,7 +7,7 @@
 ## ADDED Requirements
 
 ### Requirement: R-ADM-01 管理员登录与令牌
-系统 SHALL 用 `ADMIN_PASSWORD` 校验登录并返回签名 Bearer token（默认 12h）；所有 `/api/admin/*` MUST 校验 token，缺失/无效/过期返回 401；登录失败 MUST 限速（5 次/分钟）。
+系统 SHALL 用 `ADMIN_PASSWORD` 校验登录并返回签名 Bearer token（默认 12h）；除 `/api/admin/login` 外的所有 `/api/admin/*` MUST 校验 token，缺失/无效/过期返回 401；登录失败 MUST 限速（5 次/分钟，按 IP + 全局双层，全局层只延迟不永久阻断）。`[spec-review-amendment D16/D20]`
 
 #### Scenario: 登录成功
 - **WHEN** 提交正确密码
@@ -60,6 +60,10 @@
 #### Scenario: 重置 invalid 账号
 - **WHEN** 对 `invalid` 账号调用 reset-state
 - **THEN** 状态为 `active` 并可参与调度
+
+#### Scenario: 测活不产生副作用
+- **WHEN** 管理员对账号测活
+- **THEN** 不写 `usage_events`、不扣账号/Key 配额、不改变账号状态 `[spec-review-amendment D24]`
 
 ### Requirement: R-ADM-06 用量与日志查询
 管理员 SHALL 能按时间与维度查询用量汇总、分页查询请求日志；日志 MUST NOT 返回 OCR 原文与凭证。

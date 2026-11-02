@@ -30,20 +30,20 @@
 
 ## 3. 百度链路与调度
 
-- [ ] 3.1 实现共享 `httpx.AsyncClient` 与图片管线（Pillow 真实格式校验、EXIF 旋转、JPEG/PNG/BMP 白名单、10MB 入口、按厂商限制缩放转码）；验证伪造图片 400、超限 400、EXIF 旋转与缩放单测通过。
+- [ ] 3.1 实现共享 `httpx.AsyncClient` 与图片管线（Pillow 真实格式校验、解码前像素上限、EXIF 旋转、JPEG/PNG/BMP 白名单、10MB 入口、按厂商限制缩放转码）；验证伪造图片 400、超限 400、像素炸弹 400、EXIF 旋转与缩放单测通过。`[spec-review-amendment D8]`
   - R-ID: R-API-03
-- [ ] 3.2 实现百度适配器（OAuth token 缓存与过期前刷新、`general_basic` form 调用、`words_result` 映射、错误分类）；验证 `respx` 测试 token 复用一次、无概率时 confidence 为 null、鉴权错误分类正确。
+- [ ] 3.2 实现百度适配器（OAuth token 缓存与过期前刷新、110/111 刷新重试一次、`general_basic` form 调用、`words_result` 映射、错误分类、httpx 日志脱敏）；验证 `respx` 测试 token 复用一次、无概率时 confidence 为 null、鉴权错误分类正确、日志不含 `access_token`。`[spec-review-amendment D7/D9]`
   - R-ID: R-ADP-01
 - [ ] 3.3 实现结果归一化与 `EMPTY_TEXT` 警告；验证多行顺序与空结果返回 200 的单元测试。
   - R-ID: R-ADP-03
-- [ ] 3.4 实现账号注册表内存态与候选过滤（provider、enabled、state、周期配额、in_flight、QPS 令牌）；验证冷却、并发已满、配额耗尽三类账号被排除。
-  - R-ID: R-SCH-01
+- [ ] 3.4 实现账号注册表内存态、启动时从账号表加载 EWMA/状态与候选过滤（provider、enabled、state、周期配额、in_flight、QPS 令牌）；验证冷却、并发已满、配额耗尽三类账号被排除，重启后 EWMA 恢复。`[spec-review-amendment D23]`
+  - R-ID: R-SCH-01, R-SCH-06
 - [ ] 3.5 实现候选排序与 EWMA 更新（priority → EWMA → last_used_at → weight）；验证优先级分层、同层低延迟优先、成功请求更新 EWMA 的单元测试。
   - R-ID: R-SCH-02
-- [ ] 3.6 实现调度尝试循环（总 deadline、可重试切换、InputError 不切换、503/504）；验证 `respx` 集成测试；同时以 0ms mock 跑基准，确认网关自身 p99 <20ms。
+- [ ] 3.6 实现调度尝试循环（总 deadline、可重试切换、InputError 不切换、503/504/502 区分）；验证 `respx` 集成测试；同时以 0ms mock 跑基准，确认网关自身 p99 <20ms。`[spec-review-amendment D1/D5]`
   - R-ID: R-SCH-03
-- [ ] 3.7 实现 `POST /v1/ocr/image` 的 multipart 与 base64 输入、provider 参数、统一响应与错误 envelope；验证两种输入成功、双输入 400、响应字段完整。
-  - R-ID: R-API-01
+- [ ] 3.7 实现 `POST /v1/ocr/image` 的 multipart 与 base64 输入、provider 参数、统一响应与错误 envelope；验证两种输入成功、双输入 400、响应字段完整。`[spec-review-amendment D23]`
+  - R-ID: R-API-01, R-API-05
 - [ ] 3.8 实现成功请求记账（账号与 Key 计数、usage_event 写入、quota_used=1）与失败不扣；验证成功 +1、失败 0、usage_event 内容不含原文。
   - R-ID: R-QTA-01
 - [ ] 3.9 实现账号日/月/总量配额上限与 `quota_exhausted` 过滤；验证日额度耗尽后账号不再被选中、三项 NULL 不受限。
@@ -82,7 +82,7 @@
   - R-ID: R-CAC-03
 - [ ] 5.5 实现用量汇总与请求日志查询（group_by、分页、过滤、无原文）；验证按厂商聚合计数与第二页分页。
   - R-ID: R-ADM-06
-- [ ] 5.6 实现单 worker 约束检测（`WEB_CONCURRENCY>1` 启动告警）与运行文档（`.env.example`、README 的启动/部署/环境变量）；验证按文档命令可启动、告警可见。
+- [ ] 5.6 实现单 worker 约束检测（`WEB_CONCURRENCY`/`UVICORN_WORKERS`/`--workers` >1 拒绝启动）与运行文档（`.env.example`、README 的 quickstart/部署/环境变量/备份，quickstart 给步骤数与预计耗时）；验证按文档命令可启动、告警可见。`[spec-review-amendment D17/D27]`
   - R-ID: R-SCH-06
 
 ## 6. 集成验收
