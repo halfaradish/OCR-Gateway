@@ -7,7 +7,7 @@ ship-gate:
 # Verify 报告 · ocr-gateway-mvp
 
 > ⚠️ 单 session 自证：测试由主 session 触发；同模型、不同上下文，非独立验证。
-证据: verify-evidence-closeout.json @ 1d32f3e；verify-evidence-retest.json @ 95339c8（两 SHA 之间 `git diff -- . ':!openspec'` 为空，代码内容一致）
+证据: verify-evidence-closeout.json @ 0475da5；verify-evidence-retest.json @ 0db87a3（两 SHA 之间 `git diff -- . ':!openspec'` 为空，代码内容一致）
 
 ## 结论
 
@@ -98,8 +98,8 @@ closeout 与 retest 的 `unit` 层均 exit=0、count=148、0 failed；ruff/mypy 
 
 ## 证据与命令
 
-- closeout: `python verify_runner.py --root . --change ocr-gateway-mvp --base df1ddea --head HEAD --mode closeout` → `unit` exit=0 count=148 @ `1d32f3e`。
-- retest: `python verify_runner.py --root . --change ocr-gateway-mvp --base df1ddea --head HEAD --mode retest` → `unit` exit=0 count=148 @ `95339c8`。
+- closeout: `python verify_runner.py --root . --change ocr-gateway-mvp --base df1ddea --head 0475da5 --mode closeout` → `unit` exit=0 count=148 @ `0475da5`。
+- retest: `python verify_runner.py --root . --change ocr-gateway-mvp --base df1ddea --head 0db87a3 --mode retest` → `unit` exit=0 count=148 @ `0db87a3`。
 - 静态：`uv run --project backend ruff check backend` → 0；`uv run --project backend mypy backend/app` → 0。
-- 两证据 SHA 之间 `git diff --stat 1d32f3e..95339c8 -- . ':!openspec'` 为空，代码内容一致；差异仅为
+- 两证据 SHA 之间 `git diff --stat 0475da5..0db87a3 -- . ':!openspec'` 为空，代码内容一致；差异仅为
   openspec 证据文件提交。
