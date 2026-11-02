@@ -47,6 +47,29 @@ async def app(settings: Settings):
 
 
 @pytest.fixture
+async def app_factory():
+    created = []
+
+    async def factory(settings: Settings):
+        engine = make_engine(settings.database_url)
+        async with engine.begin() as connection:
+            await connection.run_sync(Base.metadata.create_all)
+        await engine.dispose()
+        application = create_app(settings)
+        context = application.router.lifespan_context(application)
+        await context.__aenter__()
+        transport = httpx.ASGITransport(app=application)
+        session = httpx.AsyncClient(transport=transport, base_url="http://testserver")
+        created.append((application, session, context))
+        return application, session
+
+    yield factory
+    for _application, session, context in created:
+        await session.aclose()
+        await context.__aexit__(None, None, None)
+
+
+@pytest.fixture
 async def client(app):
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as session:
@@ -115,3 +138,26 @@ async def create_account(
 
 def auth_headers(key: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {key}"}
+
+
+def make_image_bytes(
+    fmt: str = "PNG",
+    size: tuple[int, int] = (120, 60),
+    text: str = "hello",
+    exif_orientation: int | None = None,
+) -> bytes:
+    from io import BytesIO
+
+    from PIL import Image, ImageDraw
+
+    image = Image.new("RGB", size, "white")
+    draw = ImageDraw.Draw(image)
+    draw.text((8, 8), text, fill="black")
+    buffer = BytesIO()
+    if exif_orientation is not None:
+        exif = Image.Exif()
+        exif[274] = exif_orientation
+        image.save(buffer, format=fmt, exif=exif)
+    else:
+        image.save(buffer, format=fmt)
+    return buffer.getvalue()

@@ -21,10 +21,16 @@ class SchedulerError(Exception):
     status_code: int = 500
     code: str = "INTERNAL_ERROR"
 
-    def __init__(self, message: str, provider: str | None = None) -> None:
+    def __init__(
+        self,
+        message: str,
+        provider: str | None = None,
+        account_id: int | None = None,
+    ) -> None:
         super().__init__(message)
         self.message = message
         self.provider = provider
+        self.account_id = account_id
 
 
 class NoCandidate(SchedulerError):
@@ -74,16 +80,20 @@ class Scheduler:
         deadline = time.monotonic() + self._deadline_seconds
         last_error: RetryableError | None = None
         last_provider: str | None = None
+        last_account_id: int | None = None
         tried = 0
 
         for account in candidates:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
-                raise DeadlineExceeded("request deadline exhausted", last_provider)
+                raise DeadlineExceeded(
+                    "request deadline exhausted", last_provider, last_account_id
+                )
             if not self._registry.acquire(account):
                 continue
             tried += 1
             last_provider = account.provider
+            last_account_id = account.id
             started = time.monotonic()
             try:
                 timeout = min(account.timeout_ms / 1000.0, remaining)
@@ -93,7 +103,12 @@ class Scheduler:
                 vendor_latency = int((time.monotonic() - started) * 1000)
                 del vendor_latency
                 self._registry.mark_failure(
-                    account, exc.kind, exc.message, exc.cooldown_seconds, utcnow()
+                    account,
+                    exc.kind,
+                    exc.message,
+                    exc.cooldown_seconds,
+                    utcnow(),
+                    self._quota,
                 )
                 last_error = exc
                 continue
@@ -113,10 +128,12 @@ class Scheduler:
             )
 
         if tried == 0:
-            raise NoCandidate("no available account", last_provider)
+            raise NoCandidate("no available account", last_provider, last_account_id)
         if last_error is not None and last_error.kind is ErrorKind.PROVIDER_ERROR:
-            raise UpstreamFailed(last_error.message, last_provider)
-        raise NoCandidate("all candidate accounts failed", last_provider)
+            raise UpstreamFailed(last_error.message, last_provider, last_account_id)
+        raise NoCandidate(
+            "all candidate accounts failed", last_provider, last_account_id
+        )
 
 
 __all__ = [

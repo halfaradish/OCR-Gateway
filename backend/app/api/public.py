@@ -60,7 +60,10 @@ async def _parse_request(request: Request, state: AppState) -> _ParsedInput:
     content_type = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
     max_bytes = state.settings.max_upload_bytes
     if content_type == "multipart/form-data":
-        form = await request.form()
+        try:
+            form = await request.form()
+        except Exception as exc:  # noqa: BLE001 - malformed multipart is a client error
+            raise ApiError(400, "BAD_REQUEST", "invalid multipart body") from exc
         file = form.get("file")
         image_base64 = _as_str(form.get("image_base64"))
         image_url = _as_str(form.get("image_url"))
@@ -258,7 +261,7 @@ async def ocr_image(
             latency_ms=latency,
             quota_used=0,
             cached=False,
-            account_id=None,
+            account_id=exc.account_id,
             image_hash_value=image_digest,
         )
         raise ApiError(exc.status_code, exc.code, exc.message) from exc

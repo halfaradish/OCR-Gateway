@@ -68,6 +68,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             timeout=httpx.Timeout(connect=3.0, read=8.0, write=8.0, pool=3.0),
             limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
             follow_redirects=False,
+            trust_env=False,
         )
         adapters: dict[str, ProviderAdapter] = {
             "baidu": BaiduAdapter(http_client),

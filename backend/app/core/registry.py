@@ -12,6 +12,11 @@ from app.models import Account
 from app.providers.base import AccountRuntime, ErrorKind
 from app.security import decrypt_credentials
 
+AUTH_FAILED_COOLDOWN = 30.0
+PROVIDER_ERROR_COOLDOWN = 10.0
+MAX_COOLDOWN_SECONDS = 300.0
+MAX_PROVIDER_COOLDOWN_SECONDS = 60.0
+
 
 class AccountRegistry:
     """In-process account runtime state (single event loop, no locks)."""
@@ -212,6 +217,7 @@ class AccountRegistry:
         message: str,
         cooldown_seconds: float | None,
         now: datetime,
+        quota: QuotaManager | None = None,
     ) -> None:
         account.last_error_code = kind.value
         account.last_error_message = message[:500]
@@ -222,18 +228,26 @@ class AccountRegistry:
             account.state = "quota_exhausted"
             account.cooldown_until = None
             account.exhausted_reason = "vendor"
-            if account.quota_total is not None:
-                account.exhausted_period_key = "total"
-            else:
-                account.exhausted_period_key = daily_key(now)
+            total_exhausted = (
+                quota is not None
+                and account.quota_total is not None
+                and quota.used(account, "total", now) >= account.quota_total
+            )
+            account.exhausted_period_key = "total" if total_exhausted else daily_key(now)
         else:
             account.state = "cooling"
-            default = 10.0 if kind is ErrorKind.PROVIDER_ERROR else 30.0
+            default = (
+                PROVIDER_ERROR_COOLDOWN
+                if kind is ErrorKind.PROVIDER_ERROR
+                else AUTH_FAILED_COOLDOWN
+            )
             seconds = cooldown_seconds if cooldown_seconds is not None else default
-            if kind is ErrorKind.PROVIDER_ERROR:
-                seconds = min(max(seconds, 1.0), 60.0)
-            else:
-                seconds = min(max(seconds, 1.0), 300.0)
+            ceiling = (
+                MAX_PROVIDER_COOLDOWN_SECONDS
+                if kind is ErrorKind.PROVIDER_ERROR
+                else MAX_COOLDOWN_SECONDS
+            )
+            seconds = min(max(seconds, 1.0), ceiling)
             account.cooldown_until = now + timedelta(seconds=seconds)
         self._dirty.add(account.id)
 
