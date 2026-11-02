@@ -1,0 +1,26 @@
+# sdflow-lite 最小 config（init 只写一次；已有则保留）
+# 作用：选自定义 schema + 把四件套强制槽位注入 `openspec instructions --json` 的 rules 载荷。
+schema: sdflow-spec-driven
+context: |
+  ## 本项目｜tech stack / 约定
+  - 后端：Python 3.12 + FastAPI + uvicorn，uv 管理依赖（`backend/pyproject.toml`）
+  - 存储：SQLite（aiosqlite）+ SQLAlchemy[asyncio] + alembic
+  - 前端：React + Vite + TypeScript + Tailwind + shadcn/ui
+  - 测试：pytest / pytest-asyncio / respx；`backend/tests/{unit,api,contract}`，contract 默认 skip
+  - OCR：多厂商网关（百度/腾讯/阿里/华为）+ 本地 RapidOCR（可选 extra `[local]`）
+  - 质量：ruff + mypy；技术决策详见 `docs/tech-selection.md`
+rules:
+  proposal:
+    - 无条件必含小节：`## Why`、`## Success Metrics`、`## Non-Goals`、`## Compliance`（不适用写 N/A）
+    - 按触发词评估并加节：需求优先级(P0/P1/P2)、利益相关方、开放问题、假设、外部成本
+  specs:
+    - 每个 Requirement 必挂 `#### Scenario`；Requirement 有稳定 ID；验收标准可观察、可测试
+    - 新能力 delta spec MUST 以 `## Purpose` 开头（≥50 字符）
+  design:
+    - 无条件必含 `## Compliance`（遵守或显式豁免，禁沉默例外）
+    - 按触发词加节：数据模型/生命周期、失败模式+可观测性、NFR 数字化、安全与数据保护、决策记录
+    - 非平凡变更至少一张组件/依赖图
+  tasks:
+    - 每个任务标注对应 Requirement ID（specs ↔ tasks 双向追溯）
+    - 命中测试计划触发词则产出测试覆盖图（code path → 测试类型）
+    - 单任务控制在可独立验证的小粒度

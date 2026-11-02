@@ -1,0 +1,23 @@
+# 本地数据与密钥
+.env
+.env.*
+!.env.example
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# 前端
+node_modules/
+frontend/dist/
+
+# 其它
+.DS_Store

@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "test_suites": {
+    "domains": {
+      "docs": {
+        "paths": ["docs/", "README.md", "AGENTS.md"],
+        "layers": {}
+      },
+      "backend": {
+        "default": true,
+        "paths": ["backend/", "Dockerfile", "docker-compose.yml", ".env.example"],
+        "layers": {
+          "unit": {
+            "quick": "uv run --project backend pytest backend/tests -q",
+            "full": "uv run --project backend pytest backend/tests",
+            "count_regex": "(\\d+) passed"
+          }
+        }
+      }
+    }
+  }
+}
