@@ -95,7 +95,7 @@ memo: ok
 | D15 | multipart 也接受 `image_base64` 文本字段（与 `file` 同时出现 → 400） | F-32 |
 | D16 | 登录限速按 IP + 全局双层；全局层只延迟不永久阻断 | F-29 |
 | D17 | 单 worker 守卫改为 fail-loud：检测 `WEB_CONCURRENCY`、`UVICORN_WORKERS` 与 `--workers`，>1 拒绝启动 | F-30 |
-| D18 | Compliance 补 D1/D3/D13；补「图片会发往百度/腾讯」的第三方数据声明 | F-02 |
+| D18 | Compliance 补 D1/D3 + 无 Docker；补「图片会发往百度/腾讯」的第三方数据声明 | F-02 |
 | D19 | `/healthz` 不鉴权（供反代探活）；其余公共 API 强制 Bearer | F-11 |
 | D20 | R-ADM-01 改为「除 `/api/admin/login` 外」 | F-12 |
 | D21 | 删除腾讯凭证示例中的 `region: null`；注明 Region 可选、MVP 不传 | F-13 |
@@ -141,7 +141,7 @@ memo: ok
 - 建议：见 Q1。
 
 **F-02 [中][高] Compliance 偏离清单不完整 + 第三方数据声明缺失**
-- 证据：`proposal.md:38`「偏离项（Bearer 管理鉴权、无 `settings` 表、无匿名模式）在 `decision-memo.md` D4/D5/D10 记录理由」；但 `docs/tech-selection.md:18`（首批四家）、`:28`（含批量）、`:27`（Docker Compose 优先）分别被 D1/D3/D13 偏离，未列入该枚举。
+- 证据：`proposal.md:38`「偏离项（Bearer 管理鉴权、无 `settings` 表、无匿名模式）在 `decision-memo.md` D4/D5/D10 记录理由」；但 `docs/tech-selection.md:18`（首批四家）、`:28`（含批量）、`:27`（Docker Compose 优先）分别被 D1/D3 与 proposal Non-Goals（无 Docker）偏离，未列入该枚举。
 - 影响：读者会以为偏离只有三项；审计时「不静默例外」的声明不成立。另：`proposal.md:40` 只说「默认不落 OCR 原文」，未显式声明「图片会发送给百度/腾讯」这一第三方数据流（BASE-21）。
 - 建议：D18。
 
@@ -410,7 +410,7 @@ memo: ok
 | 文件 | 改动 |
 | --- | --- |
 | `design.md` | 尝试循环区分 503/504（D1）；`period_key` 月周期改为起始日 + `quota_total` 不自动恢复（D2）；`usage_events` 只记进入调度的请求（D3）；`language` 枚举与映射（D4）；`PROVIDER_ERROR` 502（D5）；百度 OAuth body 错误（D6）；百度 110/111 刷新重试（D7）；像素上限（D8）；httpx 日志脱敏（D9）；8MB+urlencode / 15px（D10）；`MAX_UPLOAD_BYTES` 语义（D11）；token 超时预算（D12）；Retry-After 上限（D13）；状态持久化时机（D14）；multipart `image_base64`（D15）；登录限速双层（D16）；单 worker fail-loud（D17）；`/healthz` 不鉴权（D19）；region 删除（D21）；`from`/`to`（D25）；SQLite pragma + 缓存内存（D30）；错误码映射附录（D31）；备份/RPO（D29）；幂等/并发超额（D28） |
-| `proposal.md` | Compliance 补 D1/D3/D13 + 第三方数据声明（D18）；假设补失效条款 + 开放问题/利益相关方（D26）；移除 `argon2-cffi`（D22） |
+| `proposal.md` | Compliance 补 D1/D3 + 无 Docker + 第三方数据声明（D18）；假设补失效条款 + 开放问题/利益相关方（D26）；移除 `argon2-cffi`（D22） |
 | `specs/ocr-api/spec.md` | R-API-01 补 `language` 枚举与场景（D4）；R-API-03 补像素上限与最短边场景（D8/D10）；R-API-05 补 502/504 场景（D1/D5） |
 | `specs/account-pool-scheduling/spec.md` | R-SCH-03 补 502/504 语义与场景（D1/D5） |
 | `specs/quota-accounting/spec.md` | 未应用（待 Q2 拍板）：R-QTA-04 口径改为 `quota_used` |
