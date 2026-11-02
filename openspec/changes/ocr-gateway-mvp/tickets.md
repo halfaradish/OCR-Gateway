@@ -22,14 +22,14 @@
 **Blocked-by:** none
 **范围预估：** 一个工作段内可完成（工程骨架、配置、五张表迁移、健康检查、单 worker 守卫）。
 
-- [ ] `uv sync` 可用；`ruff check` 与 `mypy` 全绿；测试命令可发现并运行至少一个冒烟用例
-- [ ] 全部环境变量按设计默认值加载；`MASTER_KEY` 缺失或非 32 字节、`ADMIN_PASSWORD` 缺失或短于 8 字符时，进程拒绝启动并输出明确原因
-- [ ] SQLite 以 WAL 与 `synchronous=NORMAL` 打开；Alembic 初始 revision 建出 users、api_keys、accounts、usage_events、quota_counters 及设计所列索引与外键；`upgrade head` 与 `downgrade base` 往返成功
-- [ ] `usage_events` 表结构可承载 `request_id`、user/key/account 关联、provider、success、error_code、latency_ms、quota_used、cached、image_hash、created_at，且不含 OCR 原文或图片字节列
-- [ ] `GET /healthz` 在数据库可用时返回 200（含 `status`、`db`、`version`），数据库不可用时返回 503 且 `db=error`（ASGITransport 测试，1s 超时）
-- [ ] 启动日志与运行文档声明单 worker；`WEB_CONCURRENCY`、`UVICORN_WORKERS` 或命令行 `--workers` 大于 1 时拒绝启动（fail-loud）
-- [ ] 配置与测试夹具不含任何真实凭证；凭证只从环境变量读取，示例环境变量文件只含占位值
-- [ ] `[e2e]` 按迁移后的配置冷启动应用进程，`GET /healthz` 返回 200
+- [x] `uv sync` 可用；`ruff check` 与 `mypy` 全绿；测试命令可发现并运行至少一个冒烟用例
+- [x] 全部环境变量按设计默认值加载；`MASTER_KEY` 缺失或非 32 字节、`ADMIN_PASSWORD` 缺失或短于 8 字符时，进程拒绝启动并输出明确原因
+- [x] SQLite 以 WAL 与 `synchronous=NORMAL` 打开；Alembic 初始 revision 建出 users、api_keys、accounts、usage_events、quota_counters 及设计所列索引与外键；`upgrade head` 与 `downgrade base` 往返成功
+- [x] `usage_events` 表结构可承载 `request_id`、user/key/account 关联、provider、success、error_code、latency_ms、quota_used、cached、image_hash、created_at，且不含 OCR 原文或图片字节列
+- [x] `GET /healthz` 在数据库可用时返回 200（含 `status`、`db`、`version`），数据库不可用时返回 503 且 `db=error`（ASGITransport 测试，1s 超时）
+- [x] 启动日志与运行文档声明单 worker；`WEB_CONCURRENCY`、`UVICORN_WORKERS` 或命令行 `--workers` 大于 1 时拒绝启动（fail-loud）
+- [x] 配置与测试夹具不含任何真实凭证；凭证只从环境变量读取，示例环境变量文件只含占位值
+- [x] `[e2e]` 按迁移后的配置冷启动应用进程，`GET /healthz` 返回 200
 
 ### Task 2: 管理端鉴权与实体管理
 

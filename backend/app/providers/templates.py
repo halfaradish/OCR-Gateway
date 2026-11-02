@@ -22,4 +22,4 @@ QUOTA_TEMPLATES: dict[str, dict[str, Any]] = {
     },
 }
 
-DISCLAIMER = "参考额度以厂商官网为准，不自动套用到账号；创建账号时请按实际情况填写。"
+DISCLAIMER = "参考额度以官网为准，不自动套用到账号；创建账号时请按实际情况填写。"
