@@ -21,3 +21,4 @@ frontend/dist/
 
 # 其它
 .DS_Store
+.zcode/
