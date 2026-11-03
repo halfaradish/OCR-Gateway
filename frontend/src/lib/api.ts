@@ -109,8 +109,8 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
   const method = (options.method ?? "GET").toUpperCase();
   if (response.status === 403 && !SAFE_METHODS.has(method)) {
     // Stale CSRF cookie (another tab logged in): refresh it once, then retry the write.
-    await fetch("/api/admin/me", { credentials: "same-origin" });
     try {
+      await fetch("/api/admin/me", { credentials: "same-origin" });
       response = await perform(path, options);
     } catch {
       throw new ApiError(0, "NETWORK_ERROR", "无法连接网关，请确认服务正在运行。");

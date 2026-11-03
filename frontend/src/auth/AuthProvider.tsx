@@ -8,11 +8,14 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { toast } from "sonner";
 
-import { apiFetch, SessionExpiredError, sessionEvents } from "@/lib/api";
+import { ApiError, apiFetch, SessionExpiredError, sessionEvents } from "@/lib/api";
 import type { LoginResponse, MeResponse } from "@/types";
 
 type AuthStatus = "booting" | "authed" | "anon" | "error";
+
+const SESSION_EXPIRED_MESSAGE = "登录已过期，请重新登录。";
 
 interface AuthContextValue {
   status: AuthStatus;
@@ -35,11 +38,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStatus("booting");
     setBootError(null);
     try {
-      const me = await apiFetch<MeResponse>("/api/admin/me");
+      // Boot must not emit the global "session expired" event: an anonymous first visit is normal.
+      const me = await apiFetch<MeResponse>("/api/admin/me", { skipAuthRedirect: true });
       setUsername(me.username);
       setStatus("authed");
     } catch (error) {
-      if (error instanceof SessionExpiredError) {
+      if (
+        error instanceof SessionExpiredError ||
+        (error instanceof ApiError && error.status === 401)
+      ) {
         setUsername(null);
         setStatus("anon");
         return;
@@ -58,6 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       queryClient.clear();
       setUsername(null);
       setStatus("anon");
+      toast.error(SESSION_EXPIRED_MESSAGE);
     };
     sessionEvents.addEventListener("expired", onExpired);
     return () => sessionEvents.removeEventListener("expired", onExpired);

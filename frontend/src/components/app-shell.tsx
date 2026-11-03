@@ -9,7 +9,7 @@ import {
   Users,
 } from "lucide-react";
 import { useState } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, ScrollRestoration, useNavigate } from "react-router-dom";
 
 import { useAuth } from "@/auth/AuthProvider";
 import { Button } from "@/components/ui/button";
@@ -64,6 +64,7 @@ export function AppShell() {
 
   return (
     <div className="min-h-screen">
+      <ScrollRestoration />
       <aside className="fixed inset-y-0 left-0 hidden w-[208px] border-r border-line bg-paper px-4 py-5 md:block xl:w-[232px]">
         <div className="mb-8 px-3">
           <p className="text-h2 font-medium leading-tight text-navy">OCR Gateway</p>

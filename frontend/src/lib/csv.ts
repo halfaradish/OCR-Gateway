@@ -25,5 +25,6 @@ export function downloadCsv(filename: string, header: string[], rows: string[][]
   document.body.append(anchor);
   anchor.click();
   anchor.remove();
-  URL.revokeObjectURL(url);
+  // Some browsers read the blob after the click handler returns.
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
