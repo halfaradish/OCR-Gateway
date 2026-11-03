@@ -1,0 +1,9 @@
+{
+  "ok": false,
+  "change": "docker-deploy-e2e",
+  "archive_dir": "openspec\\changes\\docker-deploy-e2e",
+  "checked_at": "2026-11-03T07:17:23.357902+00:00",
+  "missing": [
+    "deployment: 主 spec 不存在（openspec\\specs\\deployment\\spec.md），delta 一条都没同步"
+  ]
+}
