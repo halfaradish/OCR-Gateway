@@ -1,0 +1,7 @@
+{
+  "ok": true,
+  "change": "docker-deploy-e2e",
+  "archive_dir": "openspec\\changes\\archive\\2026-11-03-docker-deploy-e2e",
+  "checked_at": "2026-11-03T07:21:00.667052+00:00",
+  "missing": []
+}
