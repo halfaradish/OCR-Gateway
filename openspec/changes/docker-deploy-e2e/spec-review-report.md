@@ -1,3 +1,9 @@
+---
+ship-gate:
+  design_approved: true
+  reviewed_sha: 1af7c2ea0552691e5f63d658b1b2cf9e637d5e5fa458b671af5e06a4dc09f56d
+  reviewed_manifest: MTAwNjQ0IGJsb2IgOWEwMjFiNzUyYjY5ODNmY2I2ZDk3YjRlN2RkYzhiZmJmN2ZmM2NkNQlvcGVuc3BlYy9jaGFuZ2VzL2RvY2tlci1kZXBsb3ktZTJlL2RlY2lzaW9uLW1lbW8ubWQAMTAwNjQ0IGJsb2IgMWEzMWQyZTgzYjAxZDY1MjI4ZDllOGNlMmUzZWNlMGM4NTYzY2M2MglvcGVuc3BlYy9jaGFuZ2VzL2RvY2tlci1kZXBsb3ktZTJlL2Rlc2lnbi5tZAAxMDA2NDQgYmxvYiA5ZGI4MjRjM2MyOTVmMjMwZWYyOWQwYzdiZTc2MmRhOGI0MjI2YjU5CW9wZW5zcGVjL2NoYW5nZXMvZG9ja2VyLWRlcGxveS1lMmUvcHJvcG9zYWwubWQAMTAwNjQ0IGJsb2IgNzVkMmNjMTgwY2IzYzQ2ZmU3NDAzOGEwNzYxOGIyODJiN2NhNDVkZglvcGVuc3BlYy9jaGFuZ2VzL2RvY2tlci1kZXBsb3ktZTJlL3NwZWNzL2RlcGxveW1lbnQvc3BlYy5tZA==
+---
 > ⚠️ **单 session 自查**：逐镜由主 session 完成；同模型、不同上下文，非独立评审。
 > 报告头部记 `dispatch: single-session`（本仓无 fresh-subagent 派发能力）。
 >

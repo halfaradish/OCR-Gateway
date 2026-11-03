@@ -111,6 +111,47 @@
         "tasks"
       ],
       "fp": "c4546a41891da1df700b85138dd7d8d154ad5ed6f7580b0803794a00a85f89c1"
+    },
+    {
+      "n": 4,
+      "at": "2026-11-03T12:51:31+08:00",
+      "event": "设计门批准：Q1/Q2/Q3=A，写入 design_approved 锚",
+      "docs": {
+        "spec-review-report": {
+          "path": "openspec/changes/docker-deploy-e2e/spec-review-report.md",
+          "sha256": "8bfbdcf09dffb94cc8673fb97f16f9f4b83eddef894202c5da393a617677f41b"
+        },
+        "proposal": {
+          "path": "openspec/changes/docker-deploy-e2e/proposal.md",
+          "sha256": "c8c1aac96c95414530ae6cdadb2304a6229235107f2d63ee0cad32f896afee96"
+        },
+        "design": {
+          "path": "openspec/changes/docker-deploy-e2e/design.md",
+          "sha256": "c9b5633b8bf47e597aa8d92eb1c6056059b7572f21e6f0be7f8fdc6e538b37a2"
+        },
+        "spec:deployment": {
+          "path": "openspec/changes/docker-deploy-e2e/specs/deployment/spec.md",
+          "sha256": "5e6ee27a59d52f028fdc740a8110d1f6631260b2504c479a4d7b455f24fa05f7"
+        },
+        "tasks": {
+          "path": "openspec/changes/docker-deploy-e2e/tasks.md",
+          "sha256": "fade1e2b4df7defc9744e72981febd0ef04564d3514f50fa58cdeb8545782fe8"
+        },
+        "decision-memo": {
+          "path": "openspec/changes/docker-deploy-e2e/decision-memo.md",
+          "sha256": "31952c2b3cd3cf9ef7e4ba676cbed5199d0352647581cd50ac64ac93e8ba32e3"
+        }
+      },
+      "notes": 0,
+      "dispositions": 0,
+      "changed": [
+        "spec-review-report",
+        "proposal",
+        "design",
+        "spec:deployment",
+        "tasks"
+      ],
+      "fp": "2ec309934d6a96b7f7d8fb83927f187754c6fd08f5309ddbaa7b214356f3e4cd"
     }
   ]
 }
