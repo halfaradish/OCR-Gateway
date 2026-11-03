@@ -40,6 +40,8 @@ suite_scope: {"base": "2a549d1df780dfbaf675fdcfbe1ebab9d8d7d248", "head": "HEAD"
   那串 `A` 在 `PIL/ImageFont.py` 中有同形长串（二进制/源码误报，非凭证），因此以「示例值出现次数 0 +
   历史无 ENV 注入 + 上下文无 `.env`」作为证据组合。
 - **离线机器上的测试命令**：`openspec/sdflow-lite.json` 的 unit 层用 `uv run --project backend pytest`；
-  本机默认索引不可达时需带 `UV_DEFAULT_INDEX`（或 `--offline` 且缓存已热）。收尾 verify 时会以该环境
-  变量运行，不改动配置口径。
+  本机默认索引不可达时需带 `UV_DEFAULT_INDEX`（或 `--offline` 且缓存已热）。**实测坑**：非 frozen 的
+  `uv run` 带自定义索引会把 `backend/uv.lock` 的下载 URL 改写为该镜像（违反 ADR-0001）——本次已即时
+  还原（提交 `5a0e608`），后续统一以 `UV_FROZEN=1 UV_DEFAULT_INDEX=<mirror>` 运行，锁文件哈希不变
+  （`f8b5874c…` 运行前后一致）。收尾 verify 沿用同一环境变量口径，不改配置内的命令文本。
 - 构建耗时：首次含依赖下载约数分钟，缓存后代码层迭代为秒级（与 design Decisions 的预期一致）。
