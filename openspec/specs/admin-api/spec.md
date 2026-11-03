@@ -1,7 +1,7 @@
 # admin-api Specification
 
 ## Purpose
-提供无前端 SPA 的管理面：管理员通过 Bearer token 完成成员、Key、账号、用量、日志与配额模板的全部运营动作。
+提供管理面 API：管理员通过 cookie + CSRF（浏览器面板）或 Bearer（脚本与 `/docs`）完成成员、Key、账号、用量、日志、设置与总览的全部运营动作。
 
 ## Requirements
 

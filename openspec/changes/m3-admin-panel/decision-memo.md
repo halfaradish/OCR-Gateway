@@ -2,8 +2,8 @@
 schema_version: 1
 change: m3-admin-panel
 branch: feat/m3-admin-panel
-generated_at: 2026-11-04T00:38:42+08:00
-decision_hash: eefc16faa4b9
+generated_at: 2026-11-04T01:46:16+08:00
+decision_hash: fc96103a5333
 ---
 
 # 决策纪要 · m3-admin-panel
@@ -22,7 +22,7 @@ decision_hash: eefc16faa4b9
 - **D6 成员与 Key 合并为单页** — 依据：`docs/tech-selection.md:499` 的页面定义是「成员与 Key」；成员是配额归属实体、Key 挂在成员下，同一操作上下文；**砍掉的候选**：拆成两个顶级导航项（成员只有名字/启停，单页会空）。
 - **D7 前端栈按技术选型：React 18 + TypeScript + Vite + Tailwind v4 + shadcn/ui + React Query + Recharts** — 依据：`docs/tech-selection.md:15`、`:111`；本机 npm 官方源不可达、`registry.npmmirror.com` 可达（`npm view react --registry=...` 成功）；Radix / React Router / React Query / Recharts 的 peer 范围均覆盖 React 18（npm view 输出）；**砍掉的候选**：React 19（偏离已定稿选型，无收益）、手写组件库（重复造轮子）。
 - **D8 同源静态托管 + 镜像多阶段构建** — 依据：`docker-compose.yml` 单端口 8000；cookie `SameSite=Lax` 与 CSRF 双提交依赖同源；`Dockerfile` 目前无 Node 阶段，面板不进入镜像则部署后不可用；**砍掉的候选**：独立前端容器/域名（多一套反代与 CORS，违背「面板和 API 同域」的技术选型）、只在 dev 可用（交付不完整）。
-- **D9 用量与总览的数据面补齐** — 依据：现有 `/usage/summary` 无时间序列、`/logs` 无时间过滤与总数、`/accounts` 无已用配额（`backend/app/api/admin.py:93-117`、`:495-575`）；总览与图表需要这些数据；**方案**：新增 `GET /api/admin/usage/series`、`GET /api/admin/overview`，扩展 `/logs`（from/to + total）与 `/accounts`（quota_usage），不引入新存储；**砍掉的候选**：前端多次拉全量日志自行聚合（分页语义错误、性能差）。
+- **D9 用量与总览的数据面补齐** — 依据：现有 `/usage/summary` 无时间序列、`/logs` 无时间过滤/总数/显示名称、`/accounts` 无已用配额与贡献者名称（`backend/app/api/admin.py:93-117`、`:495-575`）；总览与图表需要这些数据；**方案**：新增 `GET /api/admin/usage/series`、`GET /api/admin/overview`，扩展 `/logs`（from/to + total + 名称）、`/usage/summary`（label + 平均延迟）与 `/accounts`（quota_usage + owner_name），不引入新存储；**砍掉的候选**：前端多次拉全量日志自行聚合（分页语义错误、性能差）、前端另拉 users/accounts 做名称映射（请求瀑布与缓存失效复杂）。
 - **D10 缓存设置变更时清空缓存** — 依据：`TTLCache` 的 ttl/maxsize 在构造时固定（`backend/app/core/cache.py:13-17`），热改 TTL 无法只作用于新条目；重建缓存并清空是最可预测的语义；**砍掉的候选**：仅对新条目生效（实现复杂、行为不可解释）、要求重启（设置页价值打折）。
 - **D11 用量页 CSV 导出在前端完成** — 依据：`docs/tech-selection.md:500` 要求 CSV 导出；导出内容就是当前筛选后的序列/汇总表，无需新增后端接口；**砍掉的候选**：后端 `?format=csv`（多一套响应协商与测试，收益低）。
 
@@ -33,7 +33,7 @@ decision_hash: eefc16faa4b9
 - **C3 当前没有面板、没有静态托管、镜像没有前端阶段** — 验证方式：`ls frontend`（不存在）、`grep -rn "StaticFiles|HTMLResponse|FileResponse" backend/app`（无结果）、通读 `Dockerfile`；证据锚：`.gitignore:18-20` 已预留 `node_modules/` 与 `frontend/dist/`，说明目录结构是计划内、只是未落地。
 - **C4 运行时设置没有存储，参数在启动时固化** — 验证方式：`backend/app/models.py` 无 settings 模型、`backend/alembic/versions/` 只有 `0001_initial.py`；证据锚：`backend/app/config.py:58-82` 全为环境变量，`backend/app/main.py:84-95` 构造 `ResultCache` / `Scheduler`，`backend/app/core/scheduler.py:56-73` 在构造时固化 deadline，`backend/app/core/cache.py:13-17` 在构造时固化 TTL/容量。
 - **C5 设置项的真实消费点** — 验证方式：逐项 grep；证据锚：`default_timeout_ms` 仅在 `backend/app/config.py:70`，而账号创建默认值硬编码在 `backend/app/schemas.py:41`；`request_deadline_ms` 在 `config.py:71` 与 `scheduler.py:56-73`；`cache_*` 在 `config.py:72-74` 与 `main.py:84-88`；`session_ttl_seconds` 在 `config.py:80` 与 `deps.py:56`。
-- **C6 用量/日志/账号接口的数据缺口** — 验证方式：读 `backend/app/api/admin.py` 相关端点；证据锚：`_account_out` 无已用配额（`:93-117`），`usage_summary` 只返回整段聚合行（`:495-535`），`list_logs` 无时间过滤、无 total（`:536-575`）；`QuotaManager.used()` 已能按日/月/总量取值（`backend/app/core/quota.py:61-63`）。
+- **C6 用量/日志/账号接口的数据缺口** — 验证方式：读 `backend/app/api/admin.py` 相关端点；证据锚：`_account_out` 无已用配额与贡献者名称（`:93-117`），`usage_summary` 只返回整段聚合行、无 label（`:495-535`），`list_logs` 无时间过滤、无 total、无成员/账号名称（`:536-575`）；`QuotaManager.used()` 已能按日/月/总量取值（`backend/app/core/quota.py:61-63`）。
 - **C7 npm 与 Docker 构建链路的可达性** — 验证方式：`npm view react version`（官方源超时）、`npm view react version --registry=https://registry.npmmirror.com`（19.3.1 成功）、`docker pull node:22-bookworm-slim`（成功，digest `sha256:4b150b48...`）；证据锚：本机 Docker 配置了 8 个 registry mirror；构建必须像 `UV_DEFAULT_INDEX` 一样把 npm 镜像参数化（`openspec/specs/deployment/spec.md:99-112` R-DEP-07）。
 - **C8 前端依赖覆盖 React 18** — 验证方式：`npm view <pkg> peerDependencies --registry=...`；证据锚：`@radix-ui/react-dialog` `^16.8 || ^17 || ^18 || ^19`，`react-router-dom@7.18.5` `react >=18`，`lucide-react` `^16.5.1 || ... || ^18 || ^19`，`sonner` `^18 || ^19`，`recharts@3.10.1` `^16.8 || ^17 || ^18 || ^19`；React 18 在支持范围内。
 - **C9 现状无安全响应头** — 验证方式：`grep -rn "Content-Security-Policy|X-Content-Type-Options|Referrer-Policy" backend/app`（无结果）；证据锚：`backend/app/main.py:119` 只写 `X-Request-ID`；`docs/tech-selection.md:489` 要求面板 CSP/`X-Content-Type-Options`/`Referrer-Policy`，本 change 必须补。
