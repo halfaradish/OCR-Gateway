@@ -32,12 +32,12 @@
 
 验收标准：
 
-- [ ] 以空数据卷启动后 `/healthz` 返回 200，且库内存在 `accounts`、`api_keys`、`users`、`quota_counters`、`usage_events` 五张表
-- [ ] 数据目录不可写时容器以非零码退出，日志中不出现 uvicorn 开始监听端口的信息
-- [ ] 在同一已迁移卷上二次启动：迁移无升级输出，`/healthz` 仍返回 200
-- [ ] 不提供 `MASTER_KEY`（或传非 32 字节值）启动：容器非零退出且日志含配置校验错误；不提供 `ADMIN_PASSWORD`（或短于 8 字符）同样失败
-- [ ] 以 `WEB_CONCURRENCY=2` 启动：容器非零退出且日志含单实例约束的拒绝原因
-- [ ] 迁移命令可在任意工作目录运行且幂等（同一 `DATABASE_URL` 下二次执行无变更）
+- [x] 以空数据卷启动后 `/healthz` 返回 200，且库内存在 `accounts`、`api_keys`、`users`、`quota_counters`、`usage_events` 五张表
+- [x] 数据目录不可写时容器以非零码退出，日志中不出现 uvicorn 开始监听端口的信息
+- [x] 在同一已迁移卷上二次启动：迁移无升级输出，`/healthz` 仍返回 200
+- [x] 不提供 `MASTER_KEY`（或传非 32 字节值）启动：容器非零退出且日志含配置校验错误；不提供 `ADMIN_PASSWORD`（或短于 8 字符）同样失败
+- [x] 以 `WEB_CONCURRENCY=2` 启动：容器非零退出且日志含单实例约束的拒绝原因
+- [x] 迁移命令可在任意工作目录运行且幂等（同一 `DATABASE_URL` 下二次执行无变更）
 
 ### Task 3: 编排与运行身份（S3）
 
