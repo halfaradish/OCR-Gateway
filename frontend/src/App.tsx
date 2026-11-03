@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
+import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { Toaster } from "sonner";
 
 import { AuthProvider } from "@/auth/AuthProvider";
@@ -25,95 +25,89 @@ function ShellFallback() {
   );
 }
 
-function AppRoutes() {
-  const location = useLocation();
-  return (
-    <Routes>
-      <Route
-        path="/login"
-        element={
-          <RouteBoundary fallbackHeight={240}>
-            <LoginPage />
+const router = createBrowserRouter([
+  {
+    path: "/login",
+    element: (
+      <RouteBoundary fallbackHeight={240}>
+        <LoginPage />
+      </RouteBoundary>
+    ),
+  },
+  {
+    element: (
+      <RequireAuth>
+        <AppShell />
+      </RequireAuth>
+    ),
+    children: [
+      {
+        index: true,
+        element: (
+          <RouteBoundary fallbackHeight={260}>
+            <OverviewPage />
           </RouteBoundary>
-        }
-      />
-      <Route
-        element={
-          <RequireAuth>
-            <AppShell />
-          </RequireAuth>
-        }
-      >
-        <Route
-          index
-          element={
-            <RouteBoundary key={location.pathname} fallbackHeight={260}>
-              <OverviewPage />
-            </RouteBoundary>
-          }
-        />
-        <Route
-          path="accounts"
-          element={
-            <RouteBoundary key={location.pathname}>
-              <AccountsPage />
-            </RouteBoundary>
-          }
-        />
-        <Route
-          path="members"
-          element={
-            <RouteBoundary key={location.pathname}>
-              <MembersPage />
-            </RouteBoundary>
-          }
-        />
-        <Route
-          path="usage"
-          element={
-            <RouteBoundary key={location.pathname}>
-              <UsagePage />
-            </RouteBoundary>
-          }
-        />
-        <Route
-          path="logs"
-          element={
-            <RouteBoundary key={location.pathname}>
-              <LogsPage />
-            </RouteBoundary>
-          }
-        />
-        <Route
-          path="settings"
-          element={
-            <RouteBoundary key={location.pathname}>
-              <SettingsPage />
-            </RouteBoundary>
-          }
-        />
-      </Route>
-      <Route
-        path="*"
-        element={
-          <RouteBoundary fallbackHeight={160}>
-            <NotFoundPage />
+        ),
+      },
+      {
+        path: "accounts",
+        element: (
+          <RouteBoundary>
+            <AccountsPage />
           </RouteBoundary>
-        }
-      />
-    </Routes>
-  );
-}
+        ),
+      },
+      {
+        path: "members",
+        element: (
+          <RouteBoundary>
+            <MembersPage />
+          </RouteBoundary>
+        ),
+      },
+      {
+        path: "usage",
+        element: (
+          <RouteBoundary>
+            <UsagePage />
+          </RouteBoundary>
+        ),
+      },
+      {
+        path: "logs",
+        element: (
+          <RouteBoundary>
+            <LogsPage />
+          </RouteBoundary>
+        ),
+      },
+      {
+        path: "settings",
+        element: (
+          <RouteBoundary>
+            <SettingsPage />
+          </RouteBoundary>
+        ),
+      },
+    ],
+  },
+  {
+    path: "*",
+    element: (
+      <RouteBoundary fallbackHeight={160}>
+        <NotFoundPage />
+      </RouteBoundary>
+    ),
+  },
+]);
 
 export function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <Suspense fallback={<ShellFallback />}>
-          <AppRoutes />
-        </Suspense>
-        <Toaster position="top-right" richColors closeButton />
-      </AuthProvider>
-    </BrowserRouter>
+    <AuthProvider>
+      <Suspense fallback={<ShellFallback />}>
+        <RouterProvider router={router} />
+      </Suspense>
+      <Toaster position="bottom-right" richColors closeButton />
+    </AuthProvider>
   );
 }

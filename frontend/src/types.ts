@@ -211,11 +211,12 @@ export interface SettingsUpdateResponse {
 }
 
 export interface QuotaTemplate {
-  provider: string;
+  code: string;
   name: string;
-  quota_daily?: number | null;
-  quota_monthly?: number | null;
-  notes?: string | null;
+  capability: string;
+  reference_quota: { daily: number | null; monthly: number | null; total: number | null };
+  credential_fields: string[];
+  notes: string;
 }
 
 export interface QuotaTemplatesResponse {

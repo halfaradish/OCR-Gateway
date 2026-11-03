@@ -1,10 +1,310 @@
-import { PageHeader } from "@/components/page-header";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { toast } from "sonner";
+import { z } from "zod";
 
-export default function Placeholder() {
+import { PageHeader } from "@/components/page-header";
+import { ErrorState } from "@/components/states";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { FieldError, Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
+import { ApiError, apiFetch } from "@/lib/api";
+import { formatNumber } from "@/lib/time";
+import { LeaveConfirmDialog, useUnsavedChanges } from "@/lib/unsaved-changes";
+import type {
+  QuotaTemplatesResponse,
+  SettingsResponse,
+  SettingsUpdateResponse,
+} from "@/types";
+
+const settingsSchema = z.object({
+  cache_enabled: z.boolean(),
+  cache_ttl_seconds: z
+    .string()
+    .regex(/^\d+$/, "缓存 TTL 必须是整数。")
+    .refine((value) => Number(value) >= 60 && Number(value) <= 86400, "缓存 TTL 需在 60 到 86400 秒之间。"),
+  cache_max_entries: z
+    .string()
+    .regex(/^\d+$/, "缓存容量必须是整数。")
+    .refine((value) => Number(value) >= 10 && Number(value) <= 2000, "缓存容量需在 10 到 2000 条之间。"),
+  request_deadline_ms: z
+    .string()
+    .regex(/^\d+$/, "请求总预算必须是整数。")
+    .refine(
+      (value) => Number(value) >= 1000 && Number(value) <= 20000,
+      "请求总预算需在 1000 到 20000 毫秒之间。",
+    ),
+  default_timeout_ms: z
+    .string()
+    .regex(/^\d+$/, "账号默认超时必须是整数。")
+    .refine(
+      (value) => Number(value) >= 1000 && Number(value) <= 60000,
+      "账号默认超时需在 1000 到 60000 毫秒之间。",
+    ),
+});
+
+type SettingsValues = z.infer<typeof settingsSchema>;
+
+export default function SettingsPage() {
+  const queryClient = useQueryClient();
+
+  const settingsQuery = useQuery({
+    queryKey: ["settings"],
+    queryFn: () => apiFetch<SettingsResponse>("/api/admin/settings"),
+  });
+  const templatesQuery = useQuery({
+    queryKey: ["quota-templates"],
+    queryFn: () => apiFetch<QuotaTemplatesResponse>("/api/admin/quota-templates"),
+    staleTime: 5 * 60_000,
+  });
+
+  const form = useForm<SettingsValues>({
+    resolver: zodResolver(settingsSchema),
+    defaultValues: {
+      cache_enabled: true,
+      cache_ttl_seconds: "3600",
+      cache_max_entries: "1000",
+      request_deadline_ms: "20000",
+      default_timeout_ms: "8000",
+    },
+  });
+
+  const editable = settingsQuery.data?.editable;
+  useEffect(() => {
+    if (!editable) return;
+    form.reset({
+      cache_enabled: editable.cache_enabled,
+      cache_ttl_seconds: String(editable.cache_ttl_seconds),
+      cache_max_entries: String(editable.cache_max_entries),
+      request_deadline_ms: String(editable.request_deadline_ms),
+      default_timeout_ms: String(editable.default_timeout_ms),
+    });
+  }, [editable, form]);
+
+  const blocker = useUnsavedChanges(form.formState.isDirty);
+
+  const save = useMutation({
+    scope: { id: "settings" },
+    mutationFn: (values: SettingsValues) =>
+      apiFetch<SettingsUpdateResponse>("/api/admin/settings", {
+        method: "PUT",
+        body: {
+          cache_enabled: values.cache_enabled,
+          cache_ttl_seconds: Number(values.cache_ttl_seconds),
+          cache_max_entries: Number(values.cache_max_entries),
+          request_deadline_ms: Number(values.request_deadline_ms),
+          default_timeout_ms: Number(values.default_timeout_ms),
+        },
+      }),
+    onSuccess: (result) => {
+      form.reset({
+        cache_enabled: result.settings.cache_enabled,
+        cache_ttl_seconds: String(result.settings.cache_ttl_seconds),
+        cache_max_entries: String(result.settings.cache_max_entries),
+        request_deadline_ms: String(result.settings.request_deadline_ms),
+        default_timeout_ms: String(result.settings.default_timeout_ms),
+      });
+      void queryClient.invalidateQueries({ queryKey: ["settings"] });
+      void queryClient.invalidateQueries({ queryKey: ["overview"] });
+      toast.success("设置已保存");
+      if (result.cache_cleared) {
+        toast.info("缓存参数已变更，缓存已清空");
+      }
+    },
+    onError: (error) => {
+      if (error instanceof ApiError && error.fields.length > 0) {
+        for (const field of error.fields) {
+          if (field.field in settingsSchema.shape) {
+            form.setError(field.field as keyof SettingsValues, { message: field.message });
+          }
+        }
+      }
+      toast.error(error instanceof Error ? error.message : "保存失败，请重试。");
+    },
+  });
+
+  const clearCache = useMutation({
+    scope: { id: "settings" },
+    mutationFn: () => apiFetch<{ cleared: number }>("/api/admin/cache/clear", { method: "POST" }),
+    onSuccess: (result) => {
+      void queryClient.invalidateQueries({ queryKey: ["overview"] });
+      toast.success(`已清空 ${formatNumber(result.cleared)} 条缓存`);
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "清空失败。"),
+  });
+
+  if (settingsQuery.isPending) {
+    return (
+      <div className="space-y-4" aria-busy="true">
+        <Skeleton className="h-9 w-40" />
+        <Skeleton className="h-64 w-full" />
+        <Skeleton className="h-40 w-full" />
+      </div>
+    );
+  }
+  if (settingsQuery.isError || !settingsQuery.data) {
+    return (
+      <ErrorState
+        description={settingsQuery.error instanceof Error ? settingsQuery.error.message : undefined}
+        onRetry={() => void settingsQuery.refetch()}
+      />
+    );
+  }
+
+  const readonly = settingsQuery.data.readonly;
+
   return (
     <div>
-      <PageHeader title="设置" description="运行时设置会出现在这里。" />
-      <p className="text-meta text-muted">该页面由后续切片实现。</p>
+      <PageHeader
+        title="设置"
+        description="保存后立即生效；缓存参数变更会清空现有缓存。"
+        actions={
+          <Button onClick={() => clearCache.mutate()} disabled={clearCache.isPending}>
+            {clearCache.isPending ? "清空中…" : "清空缓存"}
+          </Button>
+        }
+      />
+
+      <form
+        onSubmit={form.handleSubmit((values) => save.mutate(values))}
+        className="max-w-[720px] space-y-10"
+        noValidate
+      >
+        <section aria-labelledby="editable-heading">
+          <h2 id="editable-heading" className="mb-3 text-h2 font-medium text-ink">
+            可编辑
+          </h2>
+          <div className="space-y-4 border-t border-line pt-4">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-body text-ink">结果缓存</p>
+                <p className="text-meta text-muted">关闭后不再写入新条目，已缓存结果仍可命中。</p>
+              </div>
+              <Controller
+                control={form.control}
+                name="cache_enabled"
+                render={({ field }) => (
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                    aria-label="启用结果缓存"
+                  />
+                )}
+              />
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <Label htmlFor="cache_ttl_seconds">缓存 TTL（秒）</Label>
+                <Input
+                  id="cache_ttl_seconds"
+                  className="mt-1.5"
+                  {...form.register("cache_ttl_seconds")}
+                />
+                <FieldError>{form.formState.errors.cache_ttl_seconds?.message}</FieldError>
+              </div>
+              <div>
+                <Label htmlFor="cache_max_entries">缓存容量（条）</Label>
+                <Input
+                  id="cache_max_entries"
+                  className="mt-1.5"
+                  {...form.register("cache_max_entries")}
+                />
+                <FieldError>{form.formState.errors.cache_max_entries?.message}</FieldError>
+              </div>
+              <div>
+                <Label htmlFor="request_deadline_ms">请求总预算（毫秒）</Label>
+                <Input
+                  id="request_deadline_ms"
+                  className="mt-1.5"
+                  {...form.register("request_deadline_ms")}
+                />
+                <FieldError>{form.formState.errors.request_deadline_ms?.message}</FieldError>
+              </div>
+              <div>
+                <Label htmlFor="default_timeout_ms">账号默认超时（毫秒）</Label>
+                <Input
+                  id="default_timeout_ms"
+                  className="mt-1.5"
+                  {...form.register("default_timeout_ms")}
+                />
+                <FieldError>{form.formState.errors.default_timeout_ms?.message}</FieldError>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button type="submit" variant="primary" disabled={save.isPending || !form.formState.isDirty}>
+                {save.isPending ? "保存中…" : "保存设置"}
+              </Button>
+              <Button
+                onClick={() => form.reset()}
+                disabled={save.isPending || !form.formState.isDirty}
+              >
+                撤销修改
+              </Button>
+            </div>
+          </div>
+        </section>
+
+        <section aria-labelledby="readonly-heading">
+          <h2 id="readonly-heading" className="mb-3 text-h2 font-medium text-ink">
+            只读
+          </h2>
+          <dl className="grid gap-x-8 gap-y-3 border-t border-line pt-4 text-meta md:grid-cols-2">
+            {[
+              ["API 鉴权", readonly.api_auth_enabled ? "已启用" : "已关闭"],
+              ["版本", readonly.version],
+              ["上传上限", `${formatNumber(Math.round(readonly.max_upload_bytes / 1024 / 1024))} MB`],
+              ["最大像素", `${formatNumber(readonly.max_image_pixels)} px`],
+              ["并发上限", formatNumber(readonly.max_concurrent_requests)],
+              ["会话时长", `${formatNumber(readonly.session_ttl_seconds)} 秒`],
+              ["面板产物", readonly.frontend_built ? "已就绪" : "未构建"],
+            ].map(([label, value]) => (
+              <div key={label} className="flex gap-3">
+                <dt className="w-24 shrink-0 text-muted">{label}</dt>
+                <dd className="text-ink">{value}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      </form>
+
+      <section className="mt-10" aria-labelledby="templates-heading">
+        <h2 id="templates-heading" className="mb-3 text-h2 font-medium text-ink">
+          配额模板
+        </h2>
+        {templatesQuery.isPending ? (
+          <Skeleton className="h-24 w-full" />
+        ) : templatesQuery.isError ? (
+          <ErrorState
+            description="无法加载配额模板。"
+            onRetry={() => void templatesQuery.refetch()}
+          />
+        ) : (
+          <div className="border-t border-line pt-4">
+            <p className="mb-4 text-meta text-warn">{templatesQuery.data.disclaimer}</p>
+            <div className="grid gap-6 md:grid-cols-2">
+              {templatesQuery.data.providers.map((template) => (
+                <div key={template.code}>
+                  <p className="text-body text-ink">{template.name}</p>
+                  <p className="mt-1 text-meta text-muted">
+                    日 {template.reference_quota.daily ?? "不限"} · 月{" "}
+                    {template.reference_quota.monthly === null
+                      ? "不限"
+                      : formatNumber(template.reference_quota.monthly)}{" "}
+                    · 总量 {template.reference_quota.total ?? "不限"}
+                  </p>
+                  <p className="mt-1 text-micro text-muted">{template.notes}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
+
+      <LeaveConfirmDialog blocker={blocker} />
     </div>
   );
 }
