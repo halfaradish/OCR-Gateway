@@ -1,0 +1,116 @@
+{
+  "v": 1,
+  "page": "design-gate.html",
+  "revisions": [
+    {
+      "n": 1,
+      "at": "2026-11-03T12:16:27+08:00",
+      "event": "首次生成",
+      "docs": {
+        "spec-review-report": {
+          "path": "openspec/changes/docker-deploy-e2e/spec-review-report.md",
+          "sha256": "4880046802ad34c67c9b86e42f0130b5268a9c4f640a1c9d8e4e3826a80bba9d"
+        },
+        "proposal": {
+          "path": "openspec/changes/docker-deploy-e2e/proposal.md",
+          "sha256": "f2eeecb872ce72886535115bda7fff1c7a17544c2e9a360ed4461f6767291f8e"
+        },
+        "design": {
+          "path": "openspec/changes/docker-deploy-e2e/design.md",
+          "sha256": "c5a57151a17e8a9265410a719fe6c65a374112cf6e5c9b7bea8caa8290096918"
+        },
+        "spec:deployment": {
+          "path": "openspec/changes/docker-deploy-e2e/specs/deployment/spec.md",
+          "sha256": "e7966c1a63fb713db2733994a93294c3e596de4b7c1d97e176fa8459bc89b30a"
+        },
+        "tasks": {
+          "path": "openspec/changes/docker-deploy-e2e/tasks.md",
+          "sha256": "8fc1d9d993d8d9d21aa08ae4977f229150ba4aa78aedb78eac6b9b1770d98c97"
+        },
+        "decision-memo": {
+          "path": "openspec/changes/docker-deploy-e2e/decision-memo.md",
+          "sha256": "31952c2b3cd3cf9ef7e4ba676cbed5199d0352647581cd50ac64ac93e8ba32e3"
+        }
+      },
+      "notes": 0,
+      "dispositions": 0,
+      "changed": [],
+      "fp": "da25235b72a9d2b5e182fec5e28b7bfcb26935e846e10233eb49a1308d0c76ca"
+    },
+    {
+      "n": 2,
+      "at": "2026-11-03T12:17:04+08:00",
+      "event": "修正报告引用行号 config.py:71",
+      "docs": {
+        "spec-review-report": {
+          "path": "openspec/changes/docker-deploy-e2e/spec-review-report.md",
+          "sha256": "a9339cd42ebe3f3eda924d7ea5035038d159784c9399ecd9e97859372a0c7348"
+        },
+        "proposal": {
+          "path": "openspec/changes/docker-deploy-e2e/proposal.md",
+          "sha256": "f2eeecb872ce72886535115bda7fff1c7a17544c2e9a360ed4461f6767291f8e"
+        },
+        "design": {
+          "path": "openspec/changes/docker-deploy-e2e/design.md",
+          "sha256": "c5a57151a17e8a9265410a719fe6c65a374112cf6e5c9b7bea8caa8290096918"
+        },
+        "spec:deployment": {
+          "path": "openspec/changes/docker-deploy-e2e/specs/deployment/spec.md",
+          "sha256": "e7966c1a63fb713db2733994a93294c3e596de4b7c1d97e176fa8459bc89b30a"
+        },
+        "tasks": {
+          "path": "openspec/changes/docker-deploy-e2e/tasks.md",
+          "sha256": "8fc1d9d993d8d9d21aa08ae4977f229150ba4aa78aedb78eac6b9b1770d98c97"
+        },
+        "decision-memo": {
+          "path": "openspec/changes/docker-deploy-e2e/decision-memo.md",
+          "sha256": "31952c2b3cd3cf9ef7e4ba676cbed5199d0352647581cd50ac64ac93e8ba32e3"
+        }
+      },
+      "notes": 0,
+      "dispositions": 0,
+      "changed": [
+        "spec-review-report"
+      ],
+      "fp": "47a27ccc1e87e6bb28425a1cc904011bd9d6535597ff7805eee7f9542c80d464"
+    },
+    {
+      "n": 3,
+      "at": "2026-11-03T12:17:37+08:00",
+      "event": "统一 uv export --no-hashes 与报告措辞",
+      "docs": {
+        "spec-review-report": {
+          "path": "openspec/changes/docker-deploy-e2e/spec-review-report.md",
+          "sha256": "a700c497a1b7126f81a90068da63a6b2432ad37406e4721d3a420323ce313c8b"
+        },
+        "proposal": {
+          "path": "openspec/changes/docker-deploy-e2e/proposal.md",
+          "sha256": "f2eeecb872ce72886535115bda7fff1c7a17544c2e9a360ed4461f6767291f8e"
+        },
+        "design": {
+          "path": "openspec/changes/docker-deploy-e2e/design.md",
+          "sha256": "c5a57151a17e8a9265410a719fe6c65a374112cf6e5c9b7bea8caa8290096918"
+        },
+        "spec:deployment": {
+          "path": "openspec/changes/docker-deploy-e2e/specs/deployment/spec.md",
+          "sha256": "e7966c1a63fb713db2733994a93294c3e596de4b7c1d97e176fa8459bc89b30a"
+        },
+        "tasks": {
+          "path": "openspec/changes/docker-deploy-e2e/tasks.md",
+          "sha256": "ee60ceaac817734e1607ae70d4e485248e1ede730ff853665c2a74162ad57d7e"
+        },
+        "decision-memo": {
+          "path": "openspec/changes/docker-deploy-e2e/decision-memo.md",
+          "sha256": "31952c2b3cd3cf9ef7e4ba676cbed5199d0352647581cd50ac64ac93e8ba32e3"
+        }
+      },
+      "notes": 0,
+      "dispositions": 0,
+      "changed": [
+        "spec-review-report",
+        "tasks"
+      ],
+      "fp": "c4546a41891da1df700b85138dd7d8d154ad5ed6f7580b0803794a00a85f89c1"
+    }
+  ]
+}

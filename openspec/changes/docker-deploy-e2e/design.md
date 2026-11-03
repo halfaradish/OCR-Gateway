@@ -31,7 +31,7 @@
 本 change 的**决策全文、砍掉的候选与承重约束**见 [`decision-memo.md`](./decision-memo.md)；跨 change 复用的技术裁决见 ADR-0001。本节只记**设计层**的选择：
 
 - **多阶段构建 + 依赖层独立** — 依赖层只 COPY `pyproject.toml` / `uv.lock`，代码层再 COPY `app/` 与 `alembic/`。理由：代码改动不会让依赖层缓存失效，本机首次构建后迭代是秒级。备选：单阶段（每次改代码都重装依赖，离线环境下代价极高）。
-- **依赖安装走 `uv export --frozen` → `uv pip install --index-url`** — 见 ADR-0001。理由：保留锁文件的版本精确性，同时不把区域镜像写进被跟踪的 `uv.lock`。
+- **依赖安装走 `uv export --frozen --no-emit-project` → `uv pip install --index-url`** — 见 ADR-0001。理由：保留锁文件的版本精确性，同时不把区域镜像写进被跟踪的 `uv.lock`。`[spec-review-amendment]` `uv export` 默认会输出 `-e .`，依赖层只有 `pyproject.toml`/`uv.lock` 时会构建失败，故 MUST 加 `--no-emit-project`；构建阶段 MUST 先创建 `/app/.venv`（或显式 `UV_SYSTEM_PYTHON=1`），并显式安装固定版本的 uv。
 - **迁移放在 entrypoint，而不是 compose 的 `command`** — entrypoint 内顺序执行「迁移 → 启动」，迁移失败即 `exit`，不会出现「uvicorn 起来了但表不存在」的中间态。备选：compose 里用两个 service / 依赖 `depends_on`（多一层编排、且 `depends_on` 只保证启动顺序不保证成功）。
 - **healthcheck 用 `python -c` 而非 `curl`/`wget`** — `python:3.12-slim` 不含 curl/wget，装它们只为探活不划算。用标准库 `urllib.request` 请求 `/healthz`，非 200 即非零退出。
 - **数据卷用 bind mount `./data`** — 与 `README.md` 既有的备份脚本（`sqlite3 data/ocr-gateway.db ".backup ..."`）路径一致，运维无需改习惯。备选：命名卷（备份需先进容器取文件，反而更绕）。
@@ -55,12 +55,16 @@
 │  │                                                             │  │
 │  │  GET /healthz ◀──── healthcheck（python urllib，10s/3s/5）   │  │
 │  └─────────────────────────────────────────────────────────────┘  │
-│        ▲ env_file: .env（MASTER_KEY / ADMIN_PASSWORD / 镜像源）    │
+│        ▲ env_file: .env（MASTER_KEY / ADMIN_PASSWORD，运行期）    │
+│        ▲ build.args: UV_DEFAULT_INDEX（构建期，.env 插值）        │
 │        ▲ volume: ./data ──▶ /data                                 │
 └───────────────────────────────────────────────────────────────────┘
    出站（运行期）：aip.baidubce.com、ocr.tencentcloudapi.com
    构建期：registry mirror（python:3.12-slim）+ PyPI mirror（38 个锁定包）
 ```
+
+`[spec-review-amendment]` `env_file` 只注入运行期容器环境，**不会**成为构建参数；构建期镜像源 MUST 经
+compose `build.args: UV_DEFAULT_INDEX: ${UV_DEFAULT_INDEX:-}`（Compose 从项目根 `.env` 插值）传入。
 
 ## 失败模式与可观测性
 
@@ -73,6 +77,7 @@
 | 构建期 mirror 不可达 | 构建中断 | 无部分镜像产出 | 构建日志中的 `Failed to fetch` |
 | 锁与导出不一致 | 依赖版本漂移 | `--frozen` 保证导出一致，不一致即失败 | 构建日志 |
 | 运行期厂商不可用 | 请求返回 502/503/504 | 既有调度器逻辑（本次不改） | 响应 `error.code` + `request_id` |
+| 容器停止时仍有在途请求 | 请求被截断 | compose `stop_grace_period: 25s`（大于 `REQUEST_DEADLINE_MS=20000`），给 uvicorn 留出优雅退出窗口 | 退出码 + 日志 |
 
 **可观测性基线**：应用已有结构化请求日志（`backend/app/main.py:120-131`，含 `request_id`/`latency_ms`）与 `/healthz`；本 change 新增的是**容器层**信号——compose healthcheck 状态、容器退出码、以及日志轮转（`max-size`/`max-file`）防止磁盘被写满。
 
@@ -87,14 +92,14 @@
 ## 安全与数据保护
 
 - **凭证**：只经 `env_file` / 环境变量注入；`.dockerignore` 必须排除 `.env`、`data/`、`docs/`（本地凭证文档所在目录）；镜像层 MUST NOT 含任何真实凭证（验收含镜像内容扫描）。
-- **运行身份**：非 root 用户运行；`/data` 目录归属该用户。
+- **运行身份**：非 root 用户运行；`/data` 目录归属该用户。`[spec-review-amendment]` bind mount 下镜像构建期的 `chown /data` **不作用于宿主目录**；Linux 上宿主 `./data` 通常由 root 创建，非 root 容器用户迁移时会 EACCES。权限模型（entrypoint root→chown→drop / 命名卷 / 宿主侧 chown）待设计门 Q1 拍板。
 - **网络暴露**：容器只暴露应用端口，不终结 TLS（D13）；生产由外层反代终结 HTTPS。
 - **数据**：`/data` 内是 SQLite 明文（与现状一致）；`usage_events` 仍不落 OCR 原文（C7），本 change 不改变这一点。
 - **构建供应链**：基础镜像经 mirror 拉取并固定 digest（`sha256:b18b261e...`）；依赖版本由 `uv.lock` 锁定。
 
 ## 切片与依赖
 
-本 change 拆 5 个垂直切片。**真正的 `Blocked-by` 台账在 `tickets.md`**，本节只是语义来源。
+本 change 拆 5 个垂直切片。**真正的 `Blocked-by` 台账在 `tickets.md`**（由 `/sdflow-lite-ship` 出票阶段生成），本节只是语义来源。`[spec-review-amendment]` 注明 `tickets.md` 当前尚不存在，避免读者误以为遗漏。
 
 | 切片 | 交付行为 | 依赖 |
 | --- | --- | --- |
@@ -120,7 +125,7 @@
 - **构建强依赖 mirror** → 缓解：镜像源参数化（`ARG UV_DEFAULT_INDEX`），并文档化取值；mirror 不可达时构建快速失败而非产出半成品。
 - **entrypoint 内跑迁移意味着容器需要写权限** → 缓解：`/data` 显式归属非 root 用户；迁移失败即退出，不留中间态。
 - **`restart: unless-stopped` 与 fail-fast 的交互** → 取舍：配置错误或迁移持续失败会形成**重启循环**（Docker 退避重试）。接受理由：循环期间不进入服务态、退出码与日志可见；修复配置后自动恢复，无需人工 `up`。若要抑制循环需引入额外守卫，与「一键起」的简单性相悖。
-- **非 root + Windows bind mount 的权限行为未验证（A1）** → 缓解：若验收失败，降级为命名卷或调整 uid，并把结论回写到 design。
+- **非 root + Windows bind mount 的权限行为未验证（A1）** → 缓解：若验收失败，降级为命名卷或调整 uid，并把结论回写到 design。`[spec-review-amendment]` A1 只覆盖 Windows Docker Desktop；目标态「搬到任意 Linux 服务器」的 bind mount 权限未覆盖，见安全与数据保护节与 Q1。
 - **`uv export` 与 `uv.lock` 之间靠 `--frozen` 维持一致** → 缓解：`--frozen` 不一致即报错；升级依赖时仍用 `uv lock` 正常维护锁文件。
 - **healthcheck 只探数据库连通性** → 取舍：不额外探厂商可用性（会把外部故障误判为容器不健康，触发无意义重启）。
 - **bind mount 在 Windows 上 I/O 较慢** → 取舍：规模极小（日均 <500 次），可接受；若后续变慢再评估命名卷。
@@ -142,4 +147,4 @@
 
 ## Open Questions
 
-- 镜像 tag 策略（语义化版本 vs 日期戳 vs 仅 `latest`）——可延后，不影响 specs、方案或任务拆分；当前按 `0.1.0` + `latest` 双打。
+- 镜像 tag / 目标平台策略（语义化版本 vs 日期戳 vs 仅 `latest`；`linux/amd64` vs 多架构）——负责人：人；截止：设计 HARD-GATE（Q3）。当前默认 `0.1.0` + `latest`、仅 `linux/amd64`，待拍板确认。`[spec-review-amendment]` 补 owner/截止，消除「可延后」与「当前双打」的自相矛盾（BASE-15）。

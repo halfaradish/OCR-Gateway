@@ -1,0 +1,1827 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-uCuTNEBti90WtiNsCN4ctlsqhZhzypUD2cwLKSyjwSo=' 'sha256-FSABriFXkgtWqYjdaUCLMt+1JjS0f6DiLHtsLshWzS8=' https://cdn.jsdelivr.net/npm/mermaid@12.2.0/dist/mermaid.min.js; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>设计门评审 · docker-deploy-e2e</title>
+<style>
+:root {
+  --fg: #1f2328;
+  --muted: #59636e;
+  --line: #d8dee4;
+  --bg: #ffffff;
+  --bg-soft: #f6f8fa;
+  --accent: #0b5c63;
+  --warn-bg: #fff4d6;
+  --warn-fg: #6b4e00;
+  --err-bg: #fde8e8;
+  --err-fg: #8a1c1c;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  color: var(--fg);
+  background: var(--bg);
+  font: 16px/1.7 system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  display: grid;
+  grid-template-columns: 18rem minmax(0, 1fr);
+  align-items: start;
+}
+body.has-notes { grid-template-columns: 18rem minmax(0, 1fr) 20rem; }
+.skip-link {
+  position: absolute; left: -999px; top: 0;
+  background: var(--accent); color: #fff; padding: .5rem 1rem; z-index: 10;
+}
+.skip-link:focus { left: 0; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+#toc-wrap {
+  position: sticky; top: 0; height: 100vh; overflow: auto;
+  padding: 1rem; border-right: 1px solid var(--line); background: var(--bg-soft);
+  font-size: .9rem; line-height: 1.5;
+}
+#toc-wrap summary { display: none; font-weight: 600; cursor: pointer; }
+#toc-title { margin: 0 0 .5rem; font-size: 1rem; }
+#toc ul { list-style: none; margin: 0; padding: 0; }
+#toc > ul > li { margin: .6rem 0; }
+#toc a { text-decoration: none; display: block; padding: .1rem 0; overflow-wrap: anywhere; }
+#toc a:hover { text-decoration: underline; }
+#toc .doc-link { font-weight: 600; }
+#toc .lvl-2 { padding-left: .8rem; }
+#toc .lvl-3 { padding-left: 1.6rem; color: var(--muted); }
+
+main { padding: 1.5rem 2rem 4rem; max-width: 56rem; min-width: 0; }
+.page-title { margin: 0 0 .4rem; font-size: 1.6rem; line-height: 1.3; }
+.page-meta { margin: 0 0 1.5rem; color: var(--muted); font-size: .85rem; overflow-wrap: anywhere; }
+.page-meta:empty { display: none; }
+.doc { margin: 0 0 3rem; padding-bottom: 1rem; border-bottom: 1px solid var(--line); }
+.doc-head {
+  display: flex; flex-wrap: wrap; gap: .25rem .75rem; align-items: baseline;
+  margin-bottom: 1rem; color: var(--muted); font-size: .85rem;
+}
+.doc-label { color: var(--fg); font-weight: 700; font-size: .95rem; }
+.doc-path { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow-wrap: anywhere; }
+.doc-body h1, .doc-body h2, .doc-body h3, .doc-body h4 { line-height: 1.3; scroll-margin-top: 1rem; }
+.doc-body h1 { font-size: 1.5rem; margin-top: 1.5rem; }
+.doc-body h2 { font-size: 1.25rem; margin-top: 2rem; padding-bottom: .25rem; border-bottom: 1px solid var(--line); }
+.doc-body h3 { font-size: 1.08rem; margin-top: 1.5rem; }
+.doc-body p, .doc-body li { overflow-wrap: anywhere; }
+.doc-body blockquote { margin: 1rem 0; padding: .1rem 1rem; border-left: 3px solid var(--line); color: var(--muted); }
+.doc-body code {
+  font: .88em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  background: var(--bg-soft); padding: .1em .35em; border-radius: 3px;
+}
+.doc-body pre {
+  background: var(--bg-soft); border: 1px solid var(--line); border-radius: 4px;
+  padding: .8rem 1rem; overflow-x: auto; line-height: 1.5;
+}
+.doc-body pre code { background: none; padding: 0; font-size: .85rem; }
+.doc-body pre.raw-html { white-space: pre-wrap; overflow-wrap: anywhere; }
+.table-wrap { overflow-x: auto; margin: 1rem 0; }
+.doc-body table { border-collapse: collapse; font-size: .92rem; }
+.doc-body th, .doc-body td { border: 1px solid var(--line); padding: .35rem .7rem; text-align: left; vertical-align: top; }
+.doc-body th { background: var(--bg-soft); }
+.doc-body img { max-width: 100%; }
+.doc-body hr { border: 0; border-top: 1px solid var(--line); margin: 2rem 0; }
+.doc-meta { margin: 0 0 1rem; font-size: .85rem; color: var(--muted); }
+.doc-meta summary { cursor: pointer; }
+.doc-meta pre {
+  margin: .4rem 0 0; padding: .5rem .8rem; background: var(--bg-soft); border: 1px solid var(--line); border-radius: 4px;
+  overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--fg);
+}
+.doc-error {
+  background: var(--err-bg); color: var(--err-fg); padding: .6rem 1rem; border-radius: 4px; margin-bottom: .75rem;
+}
+.mermaid-note {
+  background: var(--warn-bg); color: var(--warn-fg); padding: .35rem .8rem; border-radius: 4px;
+  margin: 1rem 0 .25rem; font-size: .85rem;
+}
+.mermaid-fig { overflow-x: auto; margin: 1rem 0; }
+.mermaid-fig svg { max-width: 100%; height: auto; }
+
+#sdflow-notes {
+  position: sticky; top: 0; height: 100vh; overflow: auto;
+  padding: 1rem; border-left: 1px solid var(--line); background: var(--bg-soft);
+}
+#sdflow-notes[hidden] { display: none; }
+
+.notice {
+  grid-column: 1 / -1;
+  background: var(--warn-bg); color: var(--warn-fg); padding: .5rem 1rem; border-bottom: 1px solid var(--line);
+}
+main:focus { outline: none; }
+mark.sdflow-hl {
+  background: #ffe58a; color: inherit;
+  text-decoration: underline; text-decoration-color: #9a3412; text-decoration-thickness: 2px; text-underline-offset: 2px;
+}
+mark.sdflow-hl.flash { background: #ffc94d; }
+mark.sdflow-saved-hl {
+  background: #e6f4f1; color: inherit; border: 2px dashed var(--accent); border-radius: 2px; padding: 0 1px;
+  -webkit-box-decoration-break: clone; box-decoration-break: clone;
+}
+/* 跨节点意见按段绘制：左边框只在首段、右边框只在末段，段间不出现竖线。 */
+mark.sdflow-saved-hl[data-seg="first"] { border-right-width: 0; border-top-right-radius: 0; border-bottom-right-radius: 0; padding-right: 0; }
+mark.sdflow-saved-hl[data-seg="mid"] { border-left-width: 0; border-right-width: 0; border-radius: 0; padding-left: 0; padding-right: 0; }
+mark.sdflow-saved-hl[data-seg="last"] { border-left-width: 0; border-top-left-radius: 0; border-bottom-left-radius: 0; padding-left: 0; }
+mark.sdflow-saved-hl.flash { background: #b8e0d8; }
+#sdflow-annotate {
+  position: fixed; z-index: 15; font: inherit; font-size: .9rem;
+  background: var(--accent); color: #fff; border: 0; border-radius: 4px; padding: .35rem .8rem; cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .25);
+}
+#sdflow-annotate[hidden] { display: none; }
+.sdflow-btn {
+  font: inherit; font-size: .85rem; padding: .3rem .7rem; cursor: pointer;
+  background: #fff; color: var(--fg); border: 1px solid var(--line); border-radius: 4px;
+}
+.sdflow-btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.sdflow-btn:disabled { color: #8c959f; background: var(--bg-soft); border-color: var(--line); cursor: not-allowed; }
+.overlay {
+  position: fixed; inset: 0; z-index: 20; background: rgba(31, 35, 40, .4);
+  display: flex; align-items: center; justify-content: center; padding: 1rem;
+}
+.overlay[hidden] { display: none; }
+.dlg-panel {
+  background: #fff; border-radius: 6px; padding: 1rem 1.25rem; width: min(40rem, 100%);
+  max-height: 90vh; overflow: auto; box-shadow: 0 8px 32px rgba(0, 0, 0, .3);
+}
+.dlg-panel h2 { margin: 0 0 .5rem; font-size: 1.1rem; }
+.dlg-quote {
+  margin: 0 0 .75rem; padding: .3rem .8rem; border-left: 3px solid var(--line); color: var(--muted);
+  max-height: 7rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .9rem;
+}
+.dlg-panel textarea {
+  width: 100%; font: inherit; font-size: .95rem; padding: .5rem; border: 1px solid var(--line); border-radius: 4px; resize: vertical;
+}
+.dlg-hint { margin: .4rem 0 .75rem; color: var(--muted); font-size: .8rem; }
+.dlg-error { margin: .4rem 0 0; color: var(--warn-fg); font-size: .85rem; }
+.dlg-error:empty { margin: 0; }
+.dlg-panel textarea[aria-invalid="true"] { border-color: var(--warn-fg); }
+.notes-hint { margin: 0 0 .5rem; color: var(--muted); font-size: .85rem; }
+.notes-hint:empty { margin: 0; }
+.dlg-actions { display: flex; gap: .5rem; justify-content: flex-end; }
+#sdflow-notes h2 { margin: 0 0 .5rem; font-size: 1rem; }
+.notes-actions { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: .75rem; }
+.notes-empty { color: var(--muted); font-size: .85rem; margin: 0 0 .75rem; }
+.notes-list { list-style: none; margin: 0; padding: 0; }
+.note-item { border: 1px solid var(--line); background: #fff; border-radius: 4px; padding: .5rem .7rem; margin-bottom: .6rem; font-size: .85rem; line-height: 1.5; }
+.note-head { color: var(--muted); font-size: .8rem; overflow-wrap: anywhere; }
+.saved-group { margin-top: 1rem; }
+.saved-group h3 { margin: 0 0 .5rem; font-size: .95rem; }
+.note-item.saved-item { border-style: dashed; border-color: var(--accent); }
+.note-badge { display: inline-block; margin-left: .4rem; padding: 0 .4rem; border-radius: 3px; background: var(--bg-soft); border: 1px solid var(--line); color: var(--muted); font-size: .75rem; }
+.note-quote { margin: .3rem 0; padding-left: .6rem; border-left: 3px solid #ffe58a; color: var(--muted); overflow-wrap: anywhere; white-space: pre-wrap; max-height: 5rem; overflow: auto; }
+.note-comment { white-space: pre-wrap; overflow-wrap: anywhere; }
+.note-disposition { margin-top: .3rem; color: var(--muted); font-size: .8rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+.note-actions { display: flex; gap: .4rem; margin-top: .4rem; }
+.review-section { margin: 0 0 3rem; padding-bottom: 1rem; border-bottom: 1px solid var(--line); }
+.review-section h2 { margin: 0 0 .75rem; font-size: 1.25rem; line-height: 1.3; scroll-margin-top: 1rem; }
+.review-section h3 { margin: 1.25rem 0 .5rem; font-size: 1.05rem; }
+.review-section .notes-list .note-item { font-size: .9rem; }
+.rev-item div { overflow-wrap: anywhere; }
+.rev-item div:first-child { font-weight: 600; }
+.sdflow-empty { color: var(--muted); margin: 0; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+@media (max-width: 899px) {
+  body, body.has-notes { display: block; }
+  #toc-wrap {
+    position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--line);
+  }
+  #toc-wrap summary { display: block; }
+  #toc-title { display: none; }
+  main { padding: 1rem 1rem 3rem; }
+  #sdflow-notes { position: static; height: auto; border-left: 0; border-top: 1px solid var(--line); }
+}
+</style>
+</head>
+<body>
+<a class="skip-link" href="#main">跳到正文</a>
+<nav id="toc-wrap" aria-label="目录">
+<details id="toc-details" open>
+<summary>目录</summary>
+<h2 id="toc-title">目录</h2>
+<div id="toc"></div>
+</details>
+</nav>
+<main id="main">
+<h1 class="page-title">设计门评审 · docker-deploy-e2e</h1>
+<p class="page-meta" id="sdflow-gen-meta"></p>
+<div id="docs"></div>
+</main>
+<aside id="sdflow-notes" aria-label="意见" hidden></aside>
+<script type="application/json" id="sdflow-docs">[{"label":"spec-review-report","path":"openspec/changes/docker-deploy-e2e/spec-review-report.md","text":"\u003e ⚠️ **单 session 自查**：逐镜由主 session 完成；同模型、不同上下文，非独立评审。\n\u003e 报告头部记 `dispatch: single-session`（本仓无 fresh-subagent 派发能力）。\n\u003e\n\u003e 评审对象：`openspec/changes/docker-deploy-e2e/` 四件套 @ `4a9ebbf`（下称 **C1**）。\n\u003e 本报告同批 amendments 产出 **C2**；对 C2 的窄复核见 §7。\n\u003e 决策纪要机械门：`check_decision_memo.py` → `{\"ok\": true}`，exit 0。\n\n# 设计评审报告 · docker-deploy-e2e\n\n## 拍板三问\n\n\u003e 人在设计 HARD-GATE 逐项勾选；每问的自答只指回锚点，不替代人的判断。\n\n**Q-scope 范围划界认不认？**\n自答：锚 `proposal.md` `## Non-Goals`（24–31 行）+ `design.md` `## Goals / Non-Goals`（15–27 行）——范围是\n「compose 单服务 + 启动期自动迁移 + 最小加固 + 真机 E2E」；明确不做反代/TLS、多实例/Postgres、完整加固、\n业务逻辑改动；E2E 只验证既有能力，不重定义。范围自洽，未见蔓延（5 个切片落在 3–6 票预算内）。\n[ ] 认 [ ] 不认\n\n**Q-deps 依赖/顺序认不认？**\n自答：锚 `design.md` `## 切片与依赖`（95–105 行）——S1→S2→S3→S4→S5，S5 依赖 S3/S4。顺序本身合理；\n但 **S1 的构建命令有 4 个会直接打断出镜像的缺陷**（D1 `uv export` 输出 `-e .`、D2 无 venv、D3 构建期\n镜像源无通路、D14 uv 自身未安装），必须先在 tasks/ADR 修正再出票。\n[ ] 认 [ ] 不认\n\n**Q-risk 风险赌注与对策认不认？**\n自答：锚 `design.md` `## Risks / Trade-offs`（118–126 行）+ `proposal.md` `## 假设`（47–53 行）——主要赌注是\nregistry/PyPI mirror 可达（A2）与 A1「非 root + bind mount 在 Windows Docker Desktop 下权限可用」。\nA1 **只覆盖 Windows，未覆盖目标 Linux 服务器**（Q1）；90s 指标未排除首次构建（Q2）；镜像平台/发布未定义（Q3）。\n[ ] 认 [ ] 不认\n\n## 决策登记区\n\n### [自动决策]（默认采纳，人可在设计门覆盖）\n\n| ID | 决策 | 依据（主审亲验锚） |\n| --- | --- | --- |\n| **D1** | `uv export` 必须加 `--no-emit-project` | 亲验：`uv export --frozen --no-dev --format requirements-txt --no-hashes \\| head -3` → 首个依赖项行是 `-e .`；加 `--no-emit-project` 后无 `-e .`、38 个 `==` 项。tasks 1.2 的依赖层只 COPY `pyproject.toml`+`uv.lock`，`-e .` 会在无 `app/` 的层里构建失败。 |\n| **D2** | 构建期创建 `/app/.venv`（推荐）或显式 `UV_SYSTEM_PYTHON=1`；多阶段下 MUST 把 venv COPY 到运行时层，entrypoint 用 venv 内 console scripts | 亲验：无 venv 时 `uv pip install --dry-run --no-deps .` → `error: No virtual environment found; run 'uv venv' ... or pass '--system'`。`python:3.12-slim` 默认无 venv；ADR-0001 的三条命令未记录该步。多阶段构建不会自动把构建阶段的 venv 带进运行时层。 |\n| **D3** | compose 必须用 `build.args: UV_DEFAULT_INDEX: ${UV_DEFAULT_INDEX:-}` 传构建期镜像源 | Docker/Compose 语义：`env_file` 只注入运行期容器环境，**不会**成为构建参数；design 组件图把「镜像源」列在 `env_file` 行（design:58），tasks 3.1 的 compose 字段（tasks:34）无 `build.args` ⇒ 一键起路径在离线环境构建失败。 |\n| **D4** | `.dockerignore` 模式改为 `**/.venv`、`**/tests`、`**/data`、`**/__pycache__`、`**/.pytest_cache`、`**/.ruff_cache`、`**/.mypy_cache` | 亲验：`du -sh backend/.venv` → 150M；Docker 的 `.dockerignore` 模式相对**构建上下文根**匹配，`.venv/` 不匹配 `backend/.venv`。tasks 1.1（tasks:8）当前写法会把 150M venv 与测试送进上下文。 |\n| **D5** | 凭证扫描改为「对停止态容器/镜像层扫全文件系统 + 用 `.env` 实际值匹配」，不只 `/app` + `AKID` | tasks 1.5（tasks:16）的 `grep -rl \"AKID\\|MASTER_KEY=\" /app` 覆盖不到百度密钥（无 `AKID` 前缀），也只扫 `/app`；R-DEP-04（spec:56–68）要求「镜像内不含百度或腾讯密钥的任何取值」。注意避开 `/proc/*/environ` 的运行时假阳性。 |\n| **D6** | 验收证据不得原样粘贴 `docker compose config` 输出 | tasks 3.1/5.8 用 `docker compose config` 验证，Compose 会渲染解析后的 `MASTER_KEY`/`ADMIN_PASSWORD` 明文；改为 `docker compose config \\| grep -E 'DATA_DIR\\|restart\\|healthcheck\\|logging'` 之类的过滤输出。 |\n| **D7** | compose 增加 `stop_grace_period: 25s`（或 uvicorn `--timeout-graceful-shutdown 20`） | `REQUEST_DEADLINE_MS=20000`（`backend/app/config.py:71`）与 `httpx.Timeout`（`backend/app/main.py:69`）允许 20s 在途请求；Docker 默认 10s 后 SIGKILL，`docker compose down` 会截断在途 OCR 请求。配额最多丢 2s 是已接受 RPO，但请求被硬切不在 RPO 口径内。 |\n| **D8** | compose 日志配置显式写 `driver: json-file` | `max-size`/`max-file` 只对所选日志驱动生效；宿主机默认驱动不是 json-file 时这两项静默无效。tasks 3.4（tasks:40）只写两项。 |\n| **D9** | R-DEP-02 改为「编排以 `/healthz` 为探测入口」并引用 R-API-06，不重述状态码契约 | `specs/deployment/spec.md:28–40` 与 `openspec/specs/ocr-api/spec.md:103` 形成两个真相源；`proposal.md:63` 自己声明「端点契约仍由 R-API-06 拥有」。 |\n| **D10** | R-DEP-05 场景改为「配额计数与用量事件（`usage_events`）落在卷内；进程日志经 stdout 由容器日志驱动轮转」 | 亲验：`backend/app/logging_setup.py:26` 是 `StreamHandler(sys.stdout)`，没有文件 handler；`specs/deployment/spec.md:77–82` 写「请求日志落在挂载卷内」与代码不符/歧义；`README.md` 环境变量表把 `DATA_DIR` 描述为「SQLite 与日志目录」也不准确。 |\n| **D11** | tasks 1.3 的 `uv pip install --no-deps .` 补 `--index-url \"$UV_DEFAULT_INDEX\"` | ADR-0001 Decision 第 3 步已写 `--index-url`，tasks 1.3（tasks:12）漏了；离线环境构建后端 `hatchling` 会去默认 PyPI 拉取而失败。 |\n| **D12** | tasks 4.3 的「保留原有断言针」清单补 `uv sync` | 亲验：`backend/tests/test_ticket5_api.py:287–300` 现有断言含 `\"uv sync\"`；tasks 4.3（tasks:51）列的 10 个针不含它。若 README 备选路径仍保留 `uv sync`，断言应保留。 |\n| **D13** | compose 显式 `environment: DATABASE_URL: \"\"`；`.env.example` 保留 `DATA_DIR=./data` 并注明 compose 覆盖为 `/data` | `backend/app/config.py:89`：`DATABASE_URL` 非空时优先于 `DATA_DIR` 推导。若 `.env` 残留宿主机用的非空 `DATABASE_URL`，容器会把库写到 `/app/data`（容器层），重建即丢。tasks 4.2 的「补容器内 `DATA_DIR=/data` 说明」若被理解成改示例值，会反过来破坏 uv 备选路径。 |\n| **D14** | 构建阶段显式安装并固定 uv 版本（如 `pip install --index-url \"$UV_DEFAULT_INDEX\" uv==0.13.6`） | `python:3.12-slim` 不含 uv；design/tasks 未写 uv 从哪来。`COPY --from=ghcr.io/astral-sh/uv` 依赖 ghcr.io 可达，本机 Docker Hub 直连已不可达（C7），不能假定。固定版本同时补「构建可复现」的一环。 |\n| **D15** | tasks 1.2 落基础镜像 digest（`FROM python:3.12-slim@sha256:b18b...`） | design:93 说「固定 digest」，tasks 1.2 只写 tag；不落 digest 则 R-DEP-07 的可复现性少一环。 |\n| **D16** | design Open Questions 补 owner/截止，并注明 `tickets.md` 由 ship 出票阶段生成 | design:145 的 tag 问题无负责人/截止（BASE-15），且「可延后」与同句「当前按 0.1.0+latest 双打」自相矛盾；design:97 引用 `tickets.md`，该文件当前不存在（由 `/sdflow-lite-ship` 生成）。 |\n| **D17** | 决策纪要「无 TG-23 命中」的偏差只记录、不改 memo | memo:48 称「本次无 TG-23 命中」，但 D1/D3/D4/D5 都记录了 ≥2 候选，按 BASE-12 属 TG-23 命中。memo 的 `decision_hash` 由 `check_decision_memo.py` 按正文重算，直接编辑会使机械门失败；建议后续 change 重跑 memo 时补三镜/主次判定，本 change 不阻塞。 |\n| **D18** | proposal Impact 的 `.dockerignore` 清单补 `docs/` | proposal:12 列了 `.venv`、`data/`、`tests/`、`openspec/`，漏了 `docs/`；`docs/已开通的 OCR 服务信息.md` 是本地真实凭证文档（`.git/info/exclude` 末行），design:89 与 tasks 1.1 都已要求排除，proposal 应与之一致。 |\n| **D19** | proposal Compliance 补一句第三方数据声明 | BASE-21 要求显式声明「数据是否发往第三方 + 脱敏策略」；现 proposal:33–39 只写 C7（不落 OCR 原文）。补：图片发往百度/腾讯属既有产品行为，本 change 不改变；E2E 用公网样例图，不含 PII。 |\n| **D20** | 为无对应验证任务的场景补注释或显式接受 | R-DEP-07 负向（无索引→构建失败）、R-DEP-02 DB 不可用→503、R-DEP-08 日志实际轮转，均无对应验证任务（tasks 1.2/3.2/3.4 只验正向或配置存在）。至少在测试覆盖图里标注「配置级验证，接受」。 |\n| **D21** | README 新 quickstart 补 TTHW 推导（步骤/命令数 + 每步耗时假设 + 标注「估算」） | DX-01 触发：本 change 重写首次上手路径。现 README「约 5 分钟」是裸数字无推导；tasks 4.1 未要求补推导。 |\n| **D22** | README 注明 uv 备选路径的前置条件（PyPI 可达；离线时需 `UV_DEFAULT_INDEX` 且可能改写 `uv.lock`） | 本机 `pypi.org` 不可达（proposal:5）；`uv sync --frozen` 因锁文件 URL 失败（ADR-0001）。备选路径若不在文档里写清前置，读者会重复踩坑。 |\n| **D23** | proposal Non-Goal「不覆盖 `TRUST_PROXY_HEADERS=true` 真机路径」补可证伪假设 | BASE-13 要求每条 defer 附可证伪假设；该条只有「已有 mock 测试」的理由。补：若上线后发现反代场景必须真机验收才能确认登录限速 IP 识别，则证伪。 |\n\n### [需拍板]（设计门逐项勾选）\n\n#### Q1 · 非 root + bind mount 的 `/data` 权限模型\n\n- **事实**：design:90 要求「非 root 用户运行；`/data` 目录归属该用户」；tasks 3.3 要求 `docker compose exec ocr-gateway id -u` 不为 0 且迁移/刷盘无权限错误；compose 用 bind mount `./data:/data`（tasks:34）。\n- **为什么会在目标态爆炸**：镜像构建期的 `chown /data` **不作用于宿主 bind mount 目录**。Linux 上 `./data` 由 Docker 以 root:root 创建（或由宿主用户拥有），容器内 uid 10001 迁移时 EACCES → fail-fast 重启循环。Windows Docker Desktop 的权限映射较宽松，**本机验收可能绿，而「搬到任意 Linux 服务器」（D1 的理由）失败**——这正是「现状不能给目标松绑」。\n- **选项**：\n  - **A（推荐）** entrypoint 以 root 启动 → `chown -R app:app /data` → `exec setpriv --reuid=app --regid=app --init-groups uvicorn ...`。系统镜：需 root 启动 + `setpriv`（debian slim 的 util-linux 自带）；可回退。用户镜：行为不变。开发循环镜：entrypoint 多 2 行，`id -u` 在降权后验证。\n  - **B** 命名卷 `ocr-data:/data`。Docker 用镜像内 `/data` 的属主初始化新卷，权限天然正确；代价是备份要 `docker cp`/进容器，与 README 的 `sqlite3 data/...` 习惯不一致（design 已因备份选 bind）。\n  - **C** 文档要求宿主 `sudo chown -R 10001:10001 ./data`（或 compose `user: \"${UID}:${GID}\"`）。零镜像改动，但「一键起」多一步手工，Windows 无 uid。\n- **主次判定**：系统镜（目标 Linux 可搬迁）\u003e 开发循环镜（entrypoint 复杂度）\u003e 用户镜（备份习惯）⇒ 推荐 A；若人更看重备份习惯，选 C + 文档。\n- **推荐未亲验**：Linux 侧行为未在本机实测（Windows 只能验 Windows 映射）；依据是 Docker bind mount 语义 + tasks 3.3 文本。\n- **拍板**：`[ ] A  [ ] B  [ ] C`\n\n#### Q2 · 90s 冷启动指标是否排除首次镜像构建\n\n- **事实**：proposal:20「干净 checkout 上 … `docker compose up -d` 后 ≤90s 内 `/healthz` 返回 200」；tasks 5.1「清空 `data/` 后 `docker compose up -d` 到 `healthy` 的总耗时 ≤90s」。\n- **问题**：镜像未构建时 `docker compose up -d` 会先构建（38 个依赖包 + 镜像层，分钟级），90s 不可满足；若镜像已构建，90s 是合理口径。两种解读产出**实质不同的验收产物**。\n- **选项**：A（推荐）明确「镜像已构建」前提，冷启动 ≤90s；首次构建单列（建议 ≤10min 或只记录不设上限）。B 把构建纳入 90s（不可行）。C 取消 90s，只记录实测。\n- **主次判定**：系统镜（指标可判定）\u003e 用户镜（首次体验）\u003e 开发循环镜（验收脚本）⇒ 推荐 A。\n- **拍板**：`[ ] A  [ ] B  [ ] C`\n\n#### Q3 · 镜像目标平台 / 命名 / 发布\n\n- **事实**：本 change 产出容器镜像（BE-10 触发）；design:145 说 tag「当前按 `0.1.0` + `latest` 双打」，但 tasks 无任何 tag/publish/平台任务；本机 daemon `os=linux arch=x86_64`（C7）。\n- **问题**：不定义平台，「搬到任意 Linux 服务器」对 arm64 不成立；不定义命名/tag，出票后无法验收「镜像可回滚」（design:141 说回滚靠固定 tag，但无任务产出 tag）。\n- **选项**：A（推荐）只支持 `linux/amd64`，镜像名 `ocr-gateway:0.1.0` + `latest`，不发布 registry，arm64 作为 non-goal。B buildx 多架构（amd64+arm64），代价：构建时间翻倍、需 QEMU，超出「一键起」。C 发布到 registry（需命名空间/凭证），本次不做。\n- **主次判定**：系统镜（可搬迁范围）\u003e 开发循环镜（构建复杂度）\u003e 用户镜（服务器架构）⇒ 推荐 A。\n- **拍板**：`[ ] A  [ ] B  [ ] C`\n\n### [已裁掉]（原始发现 + 裁掉理由，供复核「裁得对不对」）\n\n| ID | 原始发现 | 裁掉理由 |\n| --- | --- | --- |\n| **X1** | 场景未覆盖「迁移中途失败后的卷状态」（BASE-01 边界） | Alembic 在 SQLite 上单事务执行；R-DEP-01 的「迁移失败→不服务」已覆盖可观察行为；卷半迁移状态不是本 change 的验收面。 |\n| **X2** | 外部计费服务成本估算缺失（BASE-26/TG-24） | proposal A4 + 人 2026-11-03 已批准消耗少量额度；一次性 E2E（个位数调用），无月度预算意义。 |\n| **X3** | proposal `What Changes` 混入实现细节（BASE-22） | proposal 的 `What Changes` 允许点名产物（Dockerfile/compose）；「怎么做」在 design。不构成返工风险。 |\n| **X4** | `.env` 缺失时 compose 报错未写入失败模式表 | Migration Plan 第 1 步已要求 `cp .env.example .env`；Compose 自身的 missing env_file 报错足够明确。 |\n| **X5** | healthcheck 只探 DB，不探厂商（A2 失败模式） | design:125 已显式作为 trade-off 接受（探厂商会把外部故障误判为容器不健康）；不再重复。 |\n| **X6** | 迁移耗时无 metrics（BE-07） | 容器退出码 + alembic stderr + 启动日志已可观测；规模下加 metrics 属过度设计（通则④）。 |\n| **X7** | 构建期 mirror 拉取失败无重试/退避（BE-08） | 构建失败是 fail-fast，无部分镜像；Docker 构建本身可重跑，加应用层重试无收益。 |\n| **X8** | 配置错误导致 restart 循环（A2） | design:122 已显式接受（循环期间不服务、退出码/日志可见、修复后自愈）；属已知取舍。 |\n| **X9** | Windows bind mount I/O 较慢（A2） | design:126 已显式接受（日均 \u003c500 次）；规模下不构成风险。 |\n| **X10** | 400MB 镜像上限可能乐观（A2） | tasks 1.3 会在构建后 `docker image inspect` 实测；未实测前不预判失败。 |\n| **X11** | 引用行号轻微漂移（如 design:77 写 `main.py:180-193`，实际 healthz 从 181 行起） | 纯装饰性，不影响任何结论；不为此改四件套。 |\n| **X12** | `docs/已开通的 OCR 服务信息.md` 只被本地 `.git/info/exclude` 忽略，未进 `.gitignore` | 既有仓库卫生问题，不是本 change 引入；`.dockerignore` 已排除 `docs/`。建议另开 chore 把该模式加入 `.gitignore`。 |\n\n## 0. 评审范围与镜 roster\n\n- 四件套齐备：`openspec status --change docker-deploy-e2e --json` → `isPlanningComplete: true`；`openspec validate docker-deploy-e2e --strict` → valid。\n- 命中触发词：TG-01（后端服务）、TG-08（构建期外部依赖）、TG-15（新 codepath：entrypoint）、TG-16（NFR）、\n  TG-17（信任边界/凭证）、TG-18（测试计划）、TG-19（多需求）、TG-21（开放问题）、TG-22（假设）、\n  TG-23（≥2 方案）、TG-28（配置面/README）。未命中：TG-04（无 schema 迁移）、TG-25（无版本化契约套件）、\n  TG-27（无外部 LLM 产出消费）。\n- 镜 roster（8 镜）：广审 **strategy** / **plan-eng**；领域 **backend** / **devex**；对抗 **A1 隐藏假设** /\n  **A2 失败模式与乐观估计** / **A3 目标态 vs 现状**；接地 **G**。\n- 工作树：评审开始时 `git status --porcelain` 为空（HEAD `4a9ebbf`）。\n\n## 1. strategy 镜（base 计划级）\n\n- **S1 · 90s 成功指标口径歧义**（中，置信高）— `proposal.md:20` / `tasks.md:60`。指标未排除首次镜像构建；\n  `compose up` 在镜像缺失时会先构建。→ **Q2**。\n- **S2 · 决策纪要自称无 TG-23，但记录了多组 ≥2 候选**（低中，置信高）— `decision-memo.md:48`\n  「本次无 TG-23 命中」；同文 D1/D3/D4/D5 均列「砍掉的候选」。按 BASE-12，TG-23 命中时三镜 + 主次判定\n  MUST 书面写入。→ **D17**（memo 有 hash 机械门，不在本报告直接改）。\n- **S3 · Open Questions 无 owner/截止，且与已写默认值自相矛盾**（低，置信高）— `design.md:145`。\n  「可延后」与「当前按 0.1.0 + latest 双打」并存；BASE-15 要求负责人 + 决策截止。→ **D16**。\n- **S4 · proposal 的 `.dockerignore` 清单漏 `docs/`**（低，置信高）— `proposal.md:12` vs `design.md:89` /\n  `tasks.md:8`；`docs/已开通的 OCR 服务信息.md` 是本地真实凭证文档。→ **D18**。\n- **S5 · 合规声明缺「数据发往第三方」**（低，置信高）— `proposal.md:33–39` 只写 C7（不落 OCR 原文）；\n  BASE-21 要求显式声明第三方数据与脱敏策略。→ **D19**。\n- **S6 · 「不覆盖 `TRUST_PROXY_HEADERS` 真机路径」缺可证伪假设**（低，置信高）— `proposal.md:30`；\n  BASE-13 要求每条 defer 附可证伪假设。→ **D23**。\n- **S7 · design 引用尚不存在的 `tickets.md`**（低，置信高）— `design.md:97`；该文件由\n  `/sdflow-lite-ship` 出票阶段生成（`SKILL.md:265`）。建议注明「出票后生成」。→ **D16**。\n- **通过项**：范围/YAGNI（无顺手重构、无「以后可能用得上」的抽象）；需求优先级 P0/P1/P2 齐；\n  假设列表 A1–A5 齐；非目标有可证伪假设（除 S6）；切片 5 个落在 3–6 票预算内（BASE-31）。\n\n## 2. plan-eng 镜（base 工程级）\n\n- **E1 · `uv export` 默认输出 `-e .`，依赖层必失败**（高，置信高）— tasks:10 / ADR-0001 Decision 第 1 步。\n  亲验：`uv export --frozen --no-dev --format requirements-txt --no-hashes | head -3` → `-e .`；\n  加 `--no-emit-project` 后 38 个 `==` 项、无项目行。依赖层只 COPY `pyproject.toml` + `uv.lock`（tasks:10），\n  `-e .` 需要 `app/` 源码与 hatchling 构建。→ **D1**。\n- **E2 · `uv pip install` 在无 venv 的 slim 镜像内直接报错**（高，置信高）— ADR-0001 Decision 第 2/3 步。\n  亲验：`uv pip install --dry-run --no-deps .` 在无 venv 目录 → `error: No virtual environment found; run\n  'uv venv' ... or pass '--system'`。`python:3.12-slim` 默认无 venv，ADR/tasks 未记录创建步骤。→ **D2**。\n- **E3 · 构建期镜像源没有 compose 通路**（高，置信高）— `design.md:58` 把「镜像源」列在 `env_file` 行；\n  `tasks.md:34` 的 compose 字段无 `build.args`。Compose 的 `env_file` 只注入运行期环境，构建参数必须走\n  `build.args`（Compose 可用 `.env` 做 `${...}` 插值）。⇒ `docker compose up -d` 在离线环境构建失败，\n  「一键起」主路径不成立。→ **D3**。\n- **E4 · uv 自身如何进入构建镜像未定义，版本未固定**（中高，置信高）— `design.md:33–34` / `tasks.md:10`；\n  `python:3.12-slim` 不含 uv；`COPY --from=ghcr.io/astral-sh/uv` 依赖 ghcr.io 可达（本机 Docker Hub 直连已不可达，\n  C7 明确不能假定）。→ **D14**。\n- **E5 · `.dockerignore` 模式不匹配嵌套路径**（中，置信高）— `tasks.md:8` 的 `.venv/`、`tests/`、`data/` 只匹配\n  上下文根；`backend/.venv` 实存 **150M**（亲验 `du -sh`），`backend/tests` 也会进上下文。→ **D4**。\n- **E6 · 凭证扫描不足以证明 R-DEP-04**（中，置信高）— `tasks.md:16` 只扫 `/app` 且只匹配 `AKID`/`MASTER_KEY=`；\n  百度密钥无 `AKID` 前缀，且「镜像内」不等于 `/app`。→ **D5**。\n- **E7 · `docker compose config` 会把凭证明文带进验收证据**（中，置信中高；无 compose 文件可亲验，语义为\n  Compose 既有行为）— `tasks.md:34` / `tasks.md:74`。→ **D6**。\n- **E8 · 缺少 `stop_grace_period` / uvicorn graceful shutdown**（中，置信高）— `backend/app/config.py:76`\n  允许 20s 预算，`backend/app/main.py:69` 的 read timeout 8s；Docker 默认 10s 后 SIGKILL。→ **D7**。\n- **E9 · 日志轮转未指定驱动**（中，置信高）— `tasks.md:40` 只写 `max-size`/`max-file`；非 json-file 驱动下\n  两项静默无效。→ **D8**。\n- **E10 · 基础镜像 digest 未落到任务**（低中，置信高）— `design.md:93` 说固定 digest，`tasks.md:10` 只写 tag。\n  → **D15**。\n- **E11 · tasks 1.3 的项目安装缺 `--index-url`**（中，置信高）— `tasks.md:12` vs ADR Decision 第 3 步；\n  离线环境 hatchling 从默认 PyPI 拉取失败。→ **D11**。\n- **E12 · tasks 4.3 的断言针清单漏 `uv sync`**（低中，置信高）— `tasks.md:51` vs\n  `backend/tests/test_ticket5_api.py:288`。→ **D12**。\n- **E13 · 三个负向场景无验证任务**（低，置信高）— R-DEP-07 无索引→构建失败（tasks 1.2 只验正向）、\n  R-DEP-02 DB 不可用→503（tasks 3.2 只验 healthy）、R-DEP-08 实际轮转（tasks 3.4 只验配置存在）。→ **D20**。\n- **E14 · R-DEP-02 与 R-API-06 重复定义 `/healthz`**（中低，置信高）— `specs/deployment/spec.md:28–40` vs\n  `openspec/specs/ocr-api/spec.md:103`；proposal:63 自己说契约归 R-API-06。→ **D9**。\n- **E15 · R-DEP-05「请求日志落在卷内」与代码不符/歧义**（中低，置信高）— `specs/deployment/spec.md:77–82`；\n  `backend/app/logging_setup.py:26` 是 stdout handler。→ **D10**。\n- **E16 · `DATABASE_URL` 非空会覆盖 `/data`**（中低，置信高）— `backend/app/config.py:89`；`.env.example:5`\n  留空，但宿主机用的 `.env` 可能残留非空值。→ **D13**。\n- **E17 · `.env.example` 的 `DATA_DIR` 容器/宿主机语义未写清**（中低，置信中高）— `.env.example:4` 是 `./data`，\n  tasks 4.2 说「补容器内 `DATA_DIR=/data` 说明」；若改成 `/data` 会破坏 uv 备选路径。→ **D13**。\n\n## 3. 领域镜\n\n### 3.1 backend 镜（BE-01…BE-11）\n\n- **B1 · BE-09 优雅退出**（中）— 同 E8；`docker compose down` 的 SIGTERM 默认 10s 后 SIGKILL，20s 预算内的\n  在途请求被截断。→ **D7**。\n- **B2 · BE-10 分发管道**（中）— 新产物是容器镜像，但 tasks 无目标平台（amd64/arm64）、无命名/tag、无发布\n  规划；design:145 说回滚靠固定 tag（design:141），但无任务产出 tag。→ **Q3**。\n- **B3 · BE-11 RTO/RPO**（通过）— design:84 沿用既有口径（重启 \u003c5s、配额最多丢 2s），与 README 一致；\n  90s 冷启动是首次启动指标，不是 RTO，不冲突。\n- **B4 · BE-04 失败模式表**（通过）— design:67–75 覆盖缺配置、迁移失败、端口占用、DB 不可用、mirror 不可达、\n  锁/导出一致性、厂商不可用；每条有检测/处理/可观测信号。\n- **B5 · BE-03 凭证边界**（部分）— 只经 `env_file`/环境变量注入、非 root、镜像扫描方向正确；扫描方法不足\n  见 E6/D5。\n- **B6 · BE-07 可观测性**（通过）— 既有结构化请求日志（`backend/app/main.py:114–131`）+ `/healthz` + 容器层\n  信号（compose healthcheck/退出码/日志轮转）；本 change 的新 codepath 是 entrypoint，其失败经退出码与\n  alembic stderr 可观测。\n- **B7 · BE-05 / BE-06 / BE-01 / BE-02**（N/A）— 无 schema 变更、无跨服务写、无 API 契约变更（R-DEP-02 的\n  重复定义见 E14，不是行为变更）。\n\n### 3.2 devex 镜（TG-28）\n\n- **DX1 · DX-01 TTHW**（中低，置信高）— 本 change 重写首次上手路径（README quickstart/部署段），但\n  design/tasks 未要求「步骤数/命令数 + 每步耗时假设 + 估算值 + 标注『估算』」；现 README「约 5 分钟」是\n  裸数字。→ **D21**。\n- **DX2 · DX-02 错误文案**（N/A）— 未新增/修改面向用户的错误文案；容器失败信息来自既有\n  `ValidationError`/alembic/uvicorn。\n- **DX3 · DX-03 命名/默认值**（通过，除 E17）— `UV_DEFAULT_INDEX` 沿用 uv 自身环境变量名；默认留空的理由\n  在 D3/ADR-0001 写明；`DATA_DIR` 的容器/宿主机双语义见 E17/D13。\n- **DX4 · DX-04 升级路径**（N/A）— 未废弃/变更既有 CLI/配置键的语义；`.env.example` 的 `DATA_DIR=./data`\n  保持宿主机默认。\n- **DX5 · DX-05 skill DX**（N/A）— 不涉及 SKILL.md。\n- **DX6 · uv 备选路径的离线前置未写**（中低，置信高）— 本机 `pypi.org` 不可达（proposal:5），\n  `uv sync --frozen` 因锁文件 URL 失败（ADR-0001）；README 若不写前置，读者会重复踩坑。→ **D22**。\n\n## 4. 对抗镜\n\n### 4.1 A1 · 隐藏假设（默认 refuted=true）\n\n- **A1-1**「依赖层只 COPY `pyproject.toml`+`uv.lock` 后 `uv export`/`uv pip install` 可用」— **证伪**：\n  `-e .` + 无 venv（E1/E2）。\n- **A1-2**「镜像期 `chown /data` 对 bind mount 生效」— **证伪**（Linux 语义）：宿主目录属主不被镜像改变\n  （Q1）。\n- **A1-3**「`env_file` 能把 `UV_DEFAULT_INDEX` 传给构建」— **证伪**：`env_file` 只作用于运行期（E3）。\n- **A1-4**「`python:3.12-slim` 自带 uv」— **证伪**：需显式安装（E4）。\n- **A1-5**「`.dockerignore` 的 `.venv/` 能排除 `backend/.venv`」— **证伪**：模式相对上下文根（E5）。\n- **A1-6**「镜像可搬到任意 Linux 服务器」— **部分证伪**：平台（amd64/arm64）与 `/data` 权限都未覆盖\n  （Q1/Q3）。\n- **A1-7**「`uv.lock` 的 38 个锁定项 = `uv export` 的全部输出」— **证伪**：输出还含 `-e .`；memo 的\n  「38 个 `==` 项」只数了包行（C1 证据）。这解释了为什么 memo 的容器实测没暴露 E1——测试时源码在场。\n\n### 4.2 A2 · 失败模式与乐观估计\n\n- **A2-1 · 90s 乐观估计**（中）— 未排除首次构建（S1/Q2）。\n- **A2-2 · restart 循环**（已接受）— design:122 已显式接受；不重复。\n- **A2-3 · SIGTERM 截断在途请求**（中）— E8/D7。\n- **A2-4 · 验收证据泄露凭证**（中）— E7/D6。\n- **A2-5 · healthcheck 只探 DB**（已接受）— design:125 显式 trade-off。\n- **A2-6 · 日志驱动未指定**（中）— E9/D8。\n- **A2-7 · `.env` 的 `DATABASE_URL` 覆盖 `/data`**（中低）— E16/D13。\n- **A2-8 · Windows bind mount I/O 慢**（已接受）— design:126。\n- **A2-9 · 400MB 镜像上限**（未实测）— tasks 1.3 会实测；不预判。\n\n### 4.3 A3 · 目标态 vs 现状（本地绿 ≠ 目标可用）\n\n- **A3-1 · 本机 Windows 验收会掩盖 Linux 权限问题**（高）— A1 假设只覆盖 Windows；目标态是「搬到任意\n  Linux 服务器」（D1）。→ **Q1**。\n- **A3-2 · 本机镜像构建成功 ≠ 目标平台可运行**（中）— 未定义 arm64/amd64 支持面。→ **Q3**。\n- **A3-3 · E2E 使用公网样例图 + 真实凭证**（通过）— A3/A4 已验证/已批准；SSRF 策略要求公网图（C8），\n  验收图 200/1581730 bytes 已验。\n- **A3-4 · 镜像扫描只扫 `/app` 会给出假绿**（中）— E6/D5。\n\n## 5. 接地镜（G）\n\n逐条核验 spec/design/tasks 中的代码事实；以下为亲验结果（命令输出或 `file:line`）：\n\n| 事实 | 结论 |\n| --- | --- |\n| `uv export` 默认含 `-e .` | **不符**：命令输出首行 `-e .`；`--no-emit-project` 后消失（E1）。 |\n| `uv pip install` 无 venv 可用 | **不符**：报 `No virtual environment found`（E2）。 |\n| `backend/.venv` 是否存在/大小 | **存在，150M**（E5）。 |\n| 日志写 `DATA_DIR` | **不符**：`backend/app/logging_setup.py:26` 是 stdout handler（E15）。 |\n| `R-API-06` 存在 | **相符**：`openspec/specs/ocr-api/spec.md:103`（E14）。 |\n| 现有文档测试含 `uv sync` | **相符**：`backend/tests/test_ticket5_api.py:288`（E12）。 |\n| `docs/已开通的 OCR 服务信息.md` 存在且仅本地忽略 | **相符**：`.git/info/exclude` 末行；`git status --ignored` 可见（D18/X12）。 |\n| `uv.lock` 1292 处 `files.pythonhosted.org`、仅 `pypi.org/simple` | **相符**：`grep -c` = 1292；`grep -o 'registry = ...' \\| sort -u` = 仅 pypi.org（ADR-0001 依据成立）。 |\n| Docker 版本 | **相符**：`Docker version 29.4.3`、`Compose v5.1.3`（D1 依据成立）。 |\n| `backend/app/main.py` 行号 | **基本相符**：`app = create_app()` 204、`httpx.Timeout` 69、healthz 181–193、mkdir 55、`select(Account)` 60；design 的 180–193 有 1 行漂移（X11）。 |\n| `backend/app/config.py` 行号 | **基本相符**：必填字段 66–67、`MAX_CONCURRENT_REQUESTS` 77、`database_url` 推导 89–92、`enforce_single_worker` 108–130。 |\n| `backend/alembic` 行号 | **相符**：`alembic.ini:2` `script_location = %(here)s/alembic`；`env.py:29–42` URL 解析；`0001_initial.py:16` `revision = '01b12c86bd76'`；`env.py` 的 `_ensure_sqlite_parent` 从 56 行起、mkdir 在 63 行（design 说「56 行会自动建父目录」略有压缩）。 |\n| `docs/tech-selection.md:634` M5「一键起服务」 | **相符**。 |\n| `R-ADM-02/03/04`、`R-API-01/02`、`R-CAC-01`、`R-QTA-01/05`、`R-SCH-03/05` | **全部存在**（`openspec/specs/*/spec.md`）。 |\n\n**接地结论**：核心代码事实成立；**构建链的三个命令事实不成立**（E1/E2/E3），这是本报告最高优先级的发现。\n\n## 6. 合并裁决\n\n- 合并去重后 23 条有效发现；同问题多镜命中已合并（E1/A1-1/G、E2/A1-1/G、E3/A1-3、E5/A1-5、\n  E8/B1/A2-3、E14/B7、E15/G 等）。\n- 引文抽查：本报告所有 `file:line` 均亲开文件核对；命令类证据（uv export/uv pip install/du/docker version/\n  grep）均为本轮实际输出。**未亲验**项已在对应条目标注（Q1 的 Linux 侧、E7 的 compose 渲染、Q3 的平台）。\n- 对抗裁决：A1 的 7 条隐藏假设中 6 条证伪/部分证伪；A2 的 9 条中 4 条落为有效发现、4 条为已接受取舍、\n  1 条未实测；A3 的 4 条中 3 条落为有效发现、1 条通过。\n- 反静默压制：全部 23 条 + 12 条已裁掉项均在册；无静默丢弃。\n\n**裁决汇总**\n\n| 处置 | 条目 |\n| --- | --- |\n| **阻塞级（必须先改再出票）** | D1（`-e .`）、D2（venv）、D3（build.args）、D14（uv 获取） |\n| **高优先（影响目标态正确性）** | Q1（bind mount 权限）、Q2（90s 口径）、Q3（平台/tag）、D5（凭证扫描）、D7（graceful shutdown） |\n| **中优先（实现期返工）** | D4、D6、D8、D9、D10、D11、D12、D13、D15、D20 |\n| **低优先（文档/流程）** | D16–D19、D21–D23 |\n| **已裁掉** | X1–X12 |\n\n## 7. 窄复核（对 C2 amendments 的增量）\n\n\u003e 本报告 findings 针对 C1（`4a9ebbf`）；本报告同批 amendments 产出 C2。按 skill 的「拍板前窄复核」纪律，\n\u003e 对增量逐项复核如下（只审增量，不重跑全镜）。\n\n- **C2 变更面**：`proposal.md`（Impact/Compliance/Non-Goal 补句）、`design.md`（构建决策/组件图/安全/失败模式/\n  Open Questions）、`specs/deployment/spec.md`（R-DEP-02/R-DEP-05 措辞）、`tasks.md`（1.1–1.5、2.1、3.1、\n  3.3–3.4、4.1–4.3、5.1、5.8、覆盖图）、`openspec/adr/0001-...md`（`--no-emit-project`/venv/uv pin）。\n- **复核结果**：\n  - D1/D2/D14 的修正在 tasks 1.2/1.3/2.1 与 ADR-0001 三处一致（`--no-emit-project`、`/app/.venv`、\n    venv 跨阶段 COPY、entrypoint 用 venv console scripts、`uv==0.13.6`）；未引入「依赖层 COPY `app/`」的倒退。\n  - D3/D13 的 compose 字段在 tasks 3.1 与 design 组件图一致（`build.args`、`environment: DATABASE_URL: \"\"`）；\n    `.env.example` 保持 `DATA_DIR=./data`，未破坏 uv 备选路径。\n  - D9/D10 的 spec 措辞与 `openspec/specs/ocr-api/spec.md:103`、`backend/app/logging_setup.py:26` 对读一致；\n    R-DEP-02 不再重述状态码，R-DEP-05 改为 `usage_events` + stdout 日志。\n  - D4/D5/D6/D7/D8/D11/D12/D15/D20 均为任务级加固，未新增需求、未扩大范围。\n  - Q1/Q2/Q3 保持**未决**，C2 只在 design 加「待拍板」注记，没有替人做选择。\n- **窄复核结论**：C2 与 C1 的发现一致，未发现新增矛盾；可以进入设计 HARD-GATE。\n\n## 8. T/S 残差\n\n- 本仓 `openspec/config.yaml` 的 rules 只覆盖少量槽位；已逐条人工核对：\n  - proposal：`## Why`、`## Success Metrics`、`## Non-Goals`、`## Compliance` 齐；需求优先级、假设齐。\n  - design：`## Compliance` 齐；失败模式+可观测性、NFR 数字化、安全与数据保护、决策记录齐；组件/依赖图齐。\n  - specs：每个 Requirement 挂 Scenario；稳定 ID；`## Purpose` ≥50 字符。\n  - tasks：每个任务挂 R-ID；测试覆盖图齐；任务粒度可独立验证。\n- **无 T/S 机械失败项**；但本仓没有 T/S 自动扫描脚本，以上为**指令层人工核验**，不是机械保证\n  （MUST NOT 声称有锚行机械核验）。\n- 决策纪要机械门：`ok: true`（`check_decision_memo.py`，exit 0）。\n\n## 9. 结论与建议\n\n1. **不建议按 C1 直接出票**：S1 的构建链有 4 个阻塞级缺陷（D1/D2/D3/D14），会在第一次 `docker compose up`\n   就失败；这些不是「边角失败模式」，而是目标态主路径。\n2. **C2 已修**可机械修正的条目（见 §7），并把 3 个需要人判断的问题留在设计门：\n   Q1（非 root + bind mount 权限模型）、Q2（90s 指标口径）、Q3（平台/tag/发布）。\n3. **建议进入设计 HARD-GATE**：人过本报告拍板后，按 Q1–Q3 的选择补最后一轮修订，再出票。\n4. 出票前请确认：D1/D2/D3/D14 的修正确实落到 tasks 1.2/1.3 与 ADR-0001；`docker compose up -d` 的\n   `build.args` 通路已存在；`.dockerignore` 用 `**/` 模式。\n\n---\n\n*报告生成：单 session 自查 · dispatch: single-session · 评审对象 C1 `4a9ebbf` · amendments 产出 C2*\n"},{"label":"proposal","path":"openspec/changes/docker-deploy-e2e/proposal.md","text":"# Proposal\n\n## Why\n\n`ocr-gateway-mvp` 已于 2026-11-03 归档，但服务**从未真实运行过**：本机既无 `.env` 也无 `data/`，README 的 quickstart（`uv sync --project backend`）在当前离线环境直接失败（`pypi.org` 不可达，curl exit 28），而契约测试只证明**适配器**可用——网关 HTTP 路径（鉴权、调度、配额、缓存、跨厂商切换）从未对真实厂商跑过一次。没有可复现的部署产物，「MVP 完成」目前只是代码层面的结论，不是可交付的服务。\n\n## What Changes\n\n- 新增多阶段 `Dockerfile`：依赖层（`uv export --frozen` → `uv pip install --index-url \u003cARG\u003e`）与代码层分离；运行时镜像不含 dev 依赖与测试；非 root 用户运行。\n- 新增 `docker-compose.yml`：单服务、healthcheck 消费 `/healthz`、数据卷、`env_file` 注入凭证、`restart: unless-stopped`、日志轮转（`max-size`/`max-file`）。\n- 新增容器 entrypoint：先执行 `alembic upgrade head`（幂等），再以 `uvicorn --workers 1` 启动；迁移失败即退出（fail-fast）。\n- 新增 `.dockerignore`：排除 `.venv`、`data/`、`tests/`、`openspec/`、`docs/` 等，避免把本机环境与凭证目录带进构建上下文。`[spec-review-amendment]` 补 `docs/`：本地真实凭证文档位于该目录（`docs/已开通的 OCR 服务信息.md`，仅 `.git/info/exclude` 本地忽略）。\n- 修改 `README.md`：部署段以「compose 一键起」为主、本机 uv 路径为备选；补镜像源参数说明与 Caddy/Nginx 配置片段。\n- 修改 `.env.example`：补构建期变量（`UV_DEFAULT_INDEX`）与容器内 `DATA_DIR` 绝对路径的说明。\n- 新增真机端到端验收记录（落在本 change 目录）：起服务 → 建成员/Key/百度+腾讯账号 → 三种输入 + 缓存 + 配额 + 切厂商逐项结果。\n- **不改** `backend/app/**` 业务逻辑（除非启动路径暴露部署相关缺陷，见 Non-Goals 的可证伪假设）。\n\n## Success Metrics\n\n- **一键起可用** — 基准：干净 checkout 上 `uv sync` 因 PyPI 不可达失败、且无 `data/` 目录 → 目标：`docker compose up -d` 后 ≤90s 内 `/healthz` 返回 200 且 `docker compose ps` 显示 `healthy` — 度量方式：验收记录中的启动时间戳 + `curl -i /healthz` 原始输出。\n- **真机端到端通过** — 基准：网关 HTTP 路径的真实厂商调用次数为 0 → 目标：验收清单全部场景通过、0 失败 — 度量方式：逐项结果表 + 真 Key 响应中的 `provider`/`text`/`quota`/`cached` 字段。\n- **镜像不含凭证** — 基准：不存在镜像产物 → 目标：镜像文件系统内 `MASTER_KEY`、`ADMIN_PASSWORD`、百度/腾讯密钥出现次数为 0 — 度量方式：对镜像内容执行 `grep -r` 扫描并记录命令与输出。\n\n## Non-Goals\n\n- **不带反向代理**（D4）— 可证伪假设：反代属部署环境、不在产品仓内。若验收发现 `TRUST_PROXY_HEADERS=true` 的路径存在非反代无法暴露的缺陷，则该假设被证伪。\n- **不做完整生产加固**（D5）— 可证伪假设：≤5 人、日均 \u003c500 次规模下 read-only rootfs / CPU 内存限额 / 自定义 seccomp 的收益低于维护成本。若上线后出现内存无界增长或需要容器隔离，则证伪。\n- **不做多实例 / Postgres** — 可证伪假设：规模前提 D14（≤5 人、日均 \u003c500 次）未变。若并发或数据量突破该前提则证伪。\n- **不改业务逻辑** — 可证伪假设：现有代码无需改动即可容器化。若启动路径暴露相对路径、CWD 耦合等**部署正确性**缺陷，则证伪，且这类缺陷在本 change 内修（不属于越界）。\n- **不覆盖 `TRUST_PROXY_HEADERS=true` 的真机路径** — 已有 mock 测试（`backend/tests/test_ticket2_admin.py::test_login_uses_forwarded_ip_when_trusted`）；真机反代验收留给后续 change。可证伪假设：若上线后发现登录限速的客户端 IP 识别必须在真实反代下才能确认，则该假设被证伪。`[spec-review-amendment]` 补可证伪假设（BASE-13）。\n- **不做 M3 管理面板、M2 补齐阿里/华为、M4 本地 OCR 兜底** — 分别受「本机凭证文件只有百度与腾讯」与体量约束，另开 change。\n\n## Compliance\n\n- 遵守既有决策：D13（应用不终结 TLS，只绑回环/内网）、D14（单实例规模前提）、C7（默认不落 OCR 原文）。本 change 不改变这些。\n- 遵守 ADR-0001（`openspec/adr/0001-container-deps-use-uv-export-not-uv-sync.md`）：容器依赖安装走 `uv export` + `uv pip install`，**不改动被跟踪的 `uv.lock`**。\n- 遵守单 worker 约束（`backend/app/config.py:108-130`）：compose MUST NOT 设 `WEB_CONCURRENCY` / `UVICORN_WORKERS` 大于 1。\n- 凭证保护：真实凭证仅经环境变量 / `env_file` 注入，MUST NOT 进入镜像层、MUST NOT 进仓（`.gitignore:1-5`、`.git/info/exclude`）。\n- 第三方数据：OCR 图片发往百度/腾讯属既有产品行为，本 change 不改变；验收使用公网样例图，不含 PII；C7（默认不落 OCR 原文）继续生效。`[spec-review-amendment]` 按 BASE-21 补显式声明。\n- 数据库变更：本 change **不涉及** schema 迁移（沿用 `backend/alembic/versions/0001_initial.py`），故不适用 D-2。\n\n## 需求优先级\n\n- **P0**（缺一即「一键起」不成立）：启动期自动迁移、`/healthz` 健康检查、凭证环境注入且不进镜像、数据卷持久化、单 worker 约束、真机端到端验收全项通过。\n- **P1**（决定「部署可用」）：非 root 运行、`restart: unless-stopped`、日志轮转、构建可复现（锁文件版本 + 参数化镜像源）。\n- **P2**（证据与文档）：镜像层凭证扫描记录、README 反代配置片段。\n\n## 假设\n\n- **A1** 非 root 用户 + 绑定挂载在 Windows Docker Desktop 下权限可用 —— **未验证**；若不成立，改用命名卷或调整 uid。\n- **A2** registry mirror 可稳定拉取 `python:3.12-slim` —— 已验证一次（digest `sha256:b18b261e1b4974b4f321451ad5251ded85abb22c2b8b262da527dda1d031ab30`），但 mirror 本身无 SLA。\n- **A3** 验收用公网样例图保持可达 —— 已验证 200（`https://baidu-ai.bj.bcebos.com/ocr/general.png`，1581730 bytes），属外部资源。\n- **A4** 真实厂商免费额度在验收调用量下充足 —— **未验证**具体余量；人 2026-11-03 已批准消耗少量额度。\n- **A5** 本机 Docker daemon 在验收时可用 —— 当前 `server=29.4.3 os=linux arch=x86_64`，但依赖 Docker Desktop 保持运行。\n\n## Capabilities\n\n### New Capabilities\n\n- `deployment`: 容器化部署与启动契约——一键起、启动期自动迁移、配置与凭证注入、数据持久化、运行身份与自愈、构建可复现。\n\n### Modified Capabilities\n\n无。本 change 不改变既有能力的 spec 级行为：`/healthz` 的端点契约仍由 `ocr-api` 的 R-API-06 拥有，本 change 只是让容器编排消费它。\n\n## Impact\n\n- **新增文件**：`Dockerfile`、`docker-compose.yml`、`.dockerignore`、容器 entrypoint 脚本。\n- **修改文件**：`README.md`（部署 / quickstart 段）、`.env.example`（构建期变量与容器内 `DATA_DIR`）。\n- **不改**：`backend/app/**` 业务逻辑、数据库 schema、任何公共 API 契约。\n- **构建期外部依赖**：容器 registry mirror（Docker Hub 直连不可用）、PyPI mirror（`pypi.org` 不可用）。\n- **运行期外部依赖**：不变（百度 / 腾讯 OCR API）。\n"},{"label":"design","path":"openspec/changes/docker-deploy-e2e/design.md","text":"# Design\n\n## Context\n\n动机与范围见 [`proposal.md`](./proposal.md)。本节只列**塑造方案**的现状与约束：\n\n- 应用是**单进程单 worker** 架构：内存里的账号注册表、配额计数、结果缓存都只在一个事件循环内读写（`backend/app/config.py:108-130` 的 `enforce_single_worker` 会在检测到多 worker 时抛 `RuntimeError`）。\n- **启动期不跑迁移**：`lifespan` 只做 `select(Account)`（`backend/app/main.py:51-63`），表不存在即崩；迁移必须由外部先跑（`README.md` 的「启动前先跑 `alembic upgrade head`」）。\n- **配置在导入期就被强制**：`app = create_app()` 在模块导入时执行（`backend/app/main.py:204`），而 `Settings` 的 `master_key` / `admin_password` 是必填字段（`backend/app/config.py:66-67`）⇒ 缺配置时进程起不来，而非运行期 500。\n- **SQLite 路径由 `DATA_DIR` 推导**：`database_url` 缺省时取 `Path(data_dir)/\"ocr-gateway.db\"`（`backend/app/config.py:89-92`），相对路径会随 CWD 漂移。\n- **迁移工具可重定位且幂等**：`alembic.ini:2` 用 `%(here)s/alembic`，`env.py:29-42` 按 `-x db_url` → `DATABASE_URL` → ini → `DATA_DIR` → 默认 的顺序解析并剥离 `+aiosqlite`，`env.py:56` 会自动建 SQLite 父目录；当前只有一条迁移（`backend/alembic/versions/0001_initial.py:16`，`revision = '01b12c86bd76'`）。\n- **构建环境离线**：`pypi.org` 与 `files.pythonhosted.org` 均不可达（curl exit 28），Docker Hub 直连亦不可用；只有国内 PyPI 镜像与 Docker registry mirror 可达（见 `decision-memo.md` C1/C7）。\n- **`uv.lock` 锁定的是下载 URL 而非仅版本**：1292 处 `files.pythonhosted.org` 硬编码 ⇒ `uv sync --frozen` 在离线环境不可用（ADR-0001）。\n\n## Goals / Non-Goals\n\n**Goals:**\n\n- 交付一个**可构建、可一键起、可搬迁**的容器产物，并把「起得来」变成可观测事实（`/healthz` + compose healthcheck）。\n- 让**启动期迁移**成为容器自身的职责，消除「忘了跑 `alembic upgrade head`」这类部署事故。\n- 用**真机端到端**证明网关链路（鉴权/调度/配额/缓存/切厂商）在真实厂商下成立，而不只是适配器级。\n\n**Non-Goals（设计层边界）:**\n\n- 不引入反向代理、TLS 终结、多实例、编排平台（K8s）——理由与可证伪假设见 `proposal.md` 的 Non-Goals。\n- 不改 `backend/app/**` 的业务逻辑、数据模型或任何 HTTP 契约。\n- 不做镜像分层的高级优化（如 BuildKit cache mount 之外的精细裁剪）。\n\n## Decisions\n\n本 change 的**决策全文、砍掉的候选与承重约束**见 [`decision-memo.md`](./decision-memo.md)；跨 change 复用的技术裁决见 ADR-0001。本节只记**设计层**的选择：\n\n- **多阶段构建 + 依赖层独立** — 依赖层只 COPY `pyproject.toml` / `uv.lock`，代码层再 COPY `app/` 与 `alembic/`。理由：代码改动不会让依赖层缓存失效，本机首次构建后迭代是秒级。备选：单阶段（每次改代码都重装依赖，离线环境下代价极高）。\n- **依赖安装走 `uv export --frozen --no-emit-project` → `uv pip install --index-url`** — 见 ADR-0001。理由：保留锁文件的版本精确性，同时不把区域镜像写进被跟踪的 `uv.lock`。`[spec-review-amendment]` `uv export` 默认会输出 `-e .`，依赖层只有 `pyproject.toml`/`uv.lock` 时会构建失败，故 MUST 加 `--no-emit-project`；构建阶段 MUST 先创建 `/app/.venv`（或显式 `UV_SYSTEM_PYTHON=1`），并显式安装固定版本的 uv。\n- **迁移放在 entrypoint，而不是 compose 的 `command`** — entrypoint 内顺序执行「迁移 → 启动」，迁移失败即 `exit`，不会出现「uvicorn 起来了但表不存在」的中间态。备选：compose 里用两个 service / 依赖 `depends_on`（多一层编排、且 `depends_on` 只保证启动顺序不保证成功）。\n- **healthcheck 用 `python -c` 而非 `curl`/`wget`** — `python:3.12-slim` 不含 curl/wget，装它们只为探活不划算。用标准库 `urllib.request` 请求 `/healthz`，非 200 即非零退出。\n- **数据卷用 bind mount `./data`** — 与 `README.md` 既有的备份脚本（`sqlite3 data/ocr-gateway.db \".backup ...\"`）路径一致，运维无需改习惯。备选：命名卷（备份需先进容器取文件，反而更绕）。\n- **容器内 `DATA_DIR=/data`（绝对路径）** — 规避 CWD 漂移（`backend/app/config.py:89-92`）。\n- **不设 `WEB_CONCURRENCY` / `UVICORN_WORKERS`** — 保持 `enforce_single_worker` 合规（`backend/app/config.py:108-130`）；uvicorn 默认单 worker 即满足。\n\n## 组件与依赖图\n\n```\n宿主 / 部署环境\n┌───────────────────────────────────────────────────────────────────┐\n│ docker compose                                                    │\n│  ┌─────────────────────────────────────────────────────────────┐  │\n│  │ service: ocr-gateway（单容器，非 root）                     │  │\n│  │                                                             │  │\n│  │  entrypoint.sh                                              │  │\n│  │   ① alembic upgrade head ─────▶ SQLite /data/ocr-gateway.db │  │\n│  │   ② exec uvicorn app.main:app --workers 1                   │  │\n│  │        └─ lifespan: enforce_single_worker → 加载 accounts    │  │\n│  │                    与 quota → 启动 2s 刷盘循环               │  │\n│  │                                                             │  │\n│  │  GET /healthz ◀──── healthcheck（python urllib，10s/3s/5）   │  │\n│  └─────────────────────────────────────────────────────────────┘  │\n│        ▲ env_file: .env（MASTER_KEY / ADMIN_PASSWORD，运行期）    │\n│        ▲ build.args: UV_DEFAULT_INDEX（构建期，.env 插值）        │\n│        ▲ volume: ./data ──▶ /data                                 │\n└───────────────────────────────────────────────────────────────────┘\n   出站（运行期）：aip.baidubce.com、ocr.tencentcloudapi.com\n   构建期：registry mirror（python:3.12-slim）+ PyPI mirror（38 个锁定包）\n```\n\n`[spec-review-amendment]` `env_file` 只注入运行期容器环境，**不会**成为构建参数；构建期镜像源 MUST 经\ncompose `build.args: UV_DEFAULT_INDEX: ${UV_DEFAULT_INDEX:-}`（Compose 从项目根 `.env` 插值）传入。\n\n## 失败模式与可观测性\n\n| 失败模式 | 表现 | 处理 | 可观测信号 |\n| --- | --- | --- | --- |\n| 缺 `MASTER_KEY` / `ADMIN_PASSWORD` | 导入期抛错退出 | fail-fast，不进入服务态 | 容器退出码非 0 + stderr 的 `ValidationError` |\n| 迁移失败（卷权限 / 磁盘满） | entrypoint 第一步失败 | `set -e` 立即退出，**不启动 uvicorn** | 退出码非 0 + alembic stderr |\n| 迁移成功后 uvicorn 起不来（端口占用） | 容器退出 | `restart: unless-stopped` 触发重启并暴露问题 | 退出码 + `docker compose logs` |\n| 数据库不可用 | `/healthz` 返回 503 | compose 标记 `unhealthy` | `curl /healthz` 的 body（`{\"status\":\"error\",\"db\":\"error\",...}`） |\n| 构建期 mirror 不可达 | 构建中断 | 无部分镜像产出 | 构建日志中的 `Failed to fetch` |\n| 锁与导出不一致 | 依赖版本漂移 | `--frozen` 保证导出一致，不一致即失败 | 构建日志 |\n| 运行期厂商不可用 | 请求返回 502/503/504 | 既有调度器逻辑（本次不改） | 响应 `error.code` + `request_id` |\n| 容器停止时仍有在途请求 | 请求被截断 | compose `stop_grace_period: 25s`（大于 `REQUEST_DEADLINE_MS=20000`），给 uvicorn 留出优雅退出窗口 | 退出码 + 日志 |\n\n**可观测性基线**：应用已有结构化请求日志（`backend/app/main.py:120-131`，含 `request_id`/`latency_ms`）与 `/healthz`；本 change 新增的是**容器层**信号——compose healthcheck 状态、容器退出码、以及日志轮转（`max-size`/`max-file`）防止磁盘被写满。\n\n## 非功能需求（数字化）\n\n- **冷启动（空卷含迁移）** ≤ 90s；**稳态启动**（表已存在）≤ 10s。\n- **healthcheck**：`interval=10s`、`timeout=3s`、`retries=5`、`start_period=30s` ⇒ 最迟约 80s 内判定 `healthy`。\n- **镜像大小** ≤ 400MB（`python:3.12-slim` + 运行期依赖，不含 dev 依赖与测试）。\n- **RTO / RPO**：沿用既有口径——重启进程 \u003c 5s；配额计数最多丢 2 秒（`README.md` 备份与恢复段）。\n- **单实例上限**：1 容器、1 worker、全局并发上限 `MAX_CONCURRENT_REQUESTS=8`（`backend/app/config.py:77`）。\n\n## 安全与数据保护\n\n- **凭证**：只经 `env_file` / 环境变量注入；`.dockerignore` 必须排除 `.env`、`data/`、`docs/`（本地凭证文档所在目录）；镜像层 MUST NOT 含任何真实凭证（验收含镜像内容扫描）。\n- **运行身份**：非 root 用户运行；`/data` 目录归属该用户。`[spec-review-amendment]` bind mount 下镜像构建期的 `chown /data` **不作用于宿主目录**；Linux 上宿主 `./data` 通常由 root 创建，非 root 容器用户迁移时会 EACCES。权限模型（entrypoint root→chown→drop / 命名卷 / 宿主侧 chown）待设计门 Q1 拍板。\n- **网络暴露**：容器只暴露应用端口，不终结 TLS（D13）；生产由外层反代终结 HTTPS。\n- **数据**：`/data` 内是 SQLite 明文（与现状一致）；`usage_events` 仍不落 OCR 原文（C7），本 change 不改变这一点。\n- **构建供应链**：基础镜像经 mirror 拉取并固定 digest（`sha256:b18b261e...`）；依赖版本由 `uv.lock` 锁定。\n\n## 切片与依赖\n\n本 change 拆 5 个垂直切片。**真正的 `Blocked-by` 台账在 `tickets.md`**（由 `/sdflow-lite-ship` 出票阶段生成），本节只是语义来源。`[spec-review-amendment]` 注明 `tickets.md` 当前尚不存在，避免读者误以为遗漏。\n\n| 切片 | 交付行为 | 依赖 |\n| --- | --- | --- |\n| **S1 镜像构建层** | `docker build` 成功，镜像内 `python -c \"import app\"` 通过，且不含 dev 依赖/测试 | — |\n| **S2 启动契约** | 空卷启动自动建表、`/healthz` 200；缺配置或迁移失败时快速退出 | S1 |\n| **S3 编排与运行身份** | `docker compose up -d` 后达到 `healthy`；非 root、restart 策略、日志轮转、数据卷、凭证注入 | S2 |\n| **S4 文档与配置面** | 按 README 从干净 checkout 复现一键起；`.env.example` 覆盖构建期与运行期变量 | S3 |\n| **S5 真机端到端验收** | 建成员/Key/百度+腾讯账号 → 三种输入 + 缓存 + 配额 + 显式不回退 + auto 切换全部通过；记录证据 | S3、S4 |\n\n## Compliance\n\n- **ADR-0001 遵守**：容器依赖安装走 `uv export --frozen` + `uv pip install --index-url`，不改动被跟踪的 `uv.lock`。\n- **D13 遵守**：应用不终结 TLS；容器只绑回环/内网端口，由外层反代终结 HTTPS。\n- **D14 遵守**：单实例规模前提（≤5 人、日均 \u003c500 次）未变，不引入多实例或 Postgres。\n- **C7 遵守**：默认不落 OCR 原文，本次不改 `usage_events` 结构。\n- **单 worker 约束遵守**：不设 `WEB_CONCURRENCY` / `UVICORN_WORKERS`（`backend/app/config.py:108-130`）。\n- **D-2（DB schema 迁移）不适用**：本 change 无 schema 变更，沿用 `0001_initial.py`。\n- **D-4（外部依赖超时 / 写操作回滚）**：运行期外部依赖不变，既有超时（`backend/app/main.py:69` 的 `httpx.Timeout(connect=3.0, read=8.0, write=8.0, pool=3.0)`、`DEFAULT_TIMEOUT_MS` / `REQUEST_DEADLINE_MS`）继续生效；构建期网络操作的边界与回滚见下节。\n- **D-6（架构边界）**：无跨产品/跨模块共享数据模型变更，未越界。\n\n## Risks / Trade-offs\n\n- **构建强依赖 mirror** → 缓解：镜像源参数化（`ARG UV_DEFAULT_INDEX`），并文档化取值；mirror 不可达时构建快速失败而非产出半成品。\n- **entrypoint 内跑迁移意味着容器需要写权限** → 缓解：`/data` 显式归属非 root 用户；迁移失败即退出，不留中间态。\n- **`restart: unless-stopped` 与 fail-fast 的交互** → 取舍：配置错误或迁移持续失败会形成**重启循环**（Docker 退避重试）。接受理由：循环期间不进入服务态、退出码与日志可见；修复配置后自动恢复，无需人工 `up`。若要抑制循环需引入额外守卫，与「一键起」的简单性相悖。\n- **非 root + Windows bind mount 的权限行为未验证（A1）** → 缓解：若验收失败，降级为命名卷或调整 uid，并把结论回写到 design。`[spec-review-amendment]` A1 只覆盖 Windows Docker Desktop；目标态「搬到任意 Linux 服务器」的 bind mount 权限未覆盖，见安全与数据保护节与 Q1。\n- **`uv export` 与 `uv.lock` 之间靠 `--frozen` 维持一致** → 缓解：`--frozen` 不一致即报错；升级依赖时仍用 `uv lock` 正常维护锁文件。\n- **healthcheck 只探数据库连通性** → 取舍：不额外探厂商可用性（会把外部故障误判为容器不健康，触发无意义重启）。\n- **bind mount 在 Windows 上 I/O 较慢** → 取舍：规模极小（日均 \u003c500 次），可接受；若后续变慢再评估命名卷。\n\n## Migration Plan\n\n**部署步骤**\n\n1. `cp .env.example .env`，填入 `MASTER_KEY`（32 字节）、`ADMIN_PASSWORD`（≥8 字符），以及 `UV_DEFAULT_INDEX`（离线环境必填）。\n2. `docker compose up -d` —— 容器自动执行 `alembic upgrade head` 后启动。\n3. 等待 `docker compose ps` 显示 `healthy`；`curl -i http://127.0.0.1:8000/healthz` 应返回 200。\n4. 经管理 API 建成员 / Key / 账号（`POST /api/admin/users`、`POST /api/admin/api-keys`、`POST /api/admin/accounts`）。\n\n**回滚策略**\n\n- **无 schema 变更** ⇒ 不需要 `alembic downgrade`；回滚 = 停容器（`docker compose down`）+ 用备份覆盖 `data/ocr-gateway.db` + 起上一版本镜像。\n- 备份沿用 `README.md` 的 `sqlite3 ... \".backup ...\"` 脚本，RPO 为最多 2 秒配额计数。\n- 镜像回滚靠固定 tag；`latest` 不作为回滚依据。\n\n## Open Questions\n\n- 镜像 tag / 目标平台策略（语义化版本 vs 日期戳 vs 仅 `latest`；`linux/amd64` vs 多架构）——负责人：人；截止：设计 HARD-GATE（Q3）。当前默认 `0.1.0` + `latest`、仅 `linux/amd64`，待拍板确认。`[spec-review-amendment]` 补 owner/截止，消除「可延后」与「当前双打」的自相矛盾（BASE-15）。\n"},{"label":"spec:deployment","path":"openspec/changes/docker-deploy-e2e/specs/deployment/spec.md","text":"# Spec Delta\n\n## Purpose\n\n定义 OCR Gateway 的容器化部署与启动契约：一键起、启动期自动迁移、配置与凭证注入、数据持久化、单实例约束、构建可复现与运行身份，使「服务起得来、数据不丢、凭证不外泄」成为可观察、可验证的系统行为。\n\n## ADDED Requirements\n\n### Requirement: R-DEP-01 启动期自动迁移\n\n容器启动时系统 SHALL 先完成数据库迁移再启动 HTTP 服务；迁移失败时 MUST 以非零退出码终止，且 MUST NOT 进入对外服务状态。\n\n#### Scenario: 空数据卷首次启动\n\n- **WHEN** 容器以空数据卷启动且配置有效\n- **THEN** 系统自动完成迁移，启动完成后 `GET /healthz` 返回 200\n\n#### Scenario: 迁移失败\n\n- **WHEN** 迁移因数据库不可写而失败\n- **THEN** 容器以非零退出码终止，且不监听 HTTP 端口\n\n#### Scenario: 重复启动幂等\n\n- **WHEN** 容器在已完成迁移的数据卷上再次启动\n- **THEN** 迁移为无操作，服务正常启动\n\n### Requirement: R-DEP-02 健康状态可被编排消费\n\n容器编排 SHALL 以既有 `GET /healthz`（端点契约由 `ocr-api` 的 R-API-06 拥有）作为健康探测入口；本要求只约束编排侧的消费行为，不重述端点状态码契约。`[spec-review-amendment]` 去重：原措辞与 R-API-06 形成两个真相源。\n\n#### Scenario: 数据库可用\n\n- **WHEN** 编排执行健康探测且数据库可访问\n- **THEN** 探测请求得到 R-API-06 规定的成功响应，编排将容器标记为健康\n\n#### Scenario: 数据库不可用\n\n- **WHEN** 数据库不可访问\n- **THEN** 探测请求得到 R-API-06 规定的失败响应，编排将该容器标记为不健康\n\n### Requirement: R-DEP-03 配置与凭证只经环境注入\n\n系统 SHALL 只从环境变量（含 `env_file`）读取 `MASTER_KEY`、`ADMIN_PASSWORD` 与运行期配置；必填项缺失时 MUST 在启动阶段失败。\n\n#### Scenario: 缺必填配置\n\n- **WHEN** 未提供 `MASTER_KEY` 或 `ADMIN_PASSWORD`\n- **THEN** 容器在启动阶段以非零退出码终止，不进入服务态\n\n#### Scenario: 配置完整\n\n- **WHEN** 必填项齐备且格式合法\n- **THEN** 服务正常启动并通过健康检查\n\n### Requirement: R-DEP-04 镜像与构建上下文不含凭证\n\n镜像 MUST NOT 包含任何真实凭证或本地运行数据；构建上下文 MUST 排除 `.env`、`data/` 与本地凭证文档。\n\n#### Scenario: 镜像内容扫描\n\n- **WHEN** 对构建产物执行内容扫描\n- **THEN** 镜像内不含 `MASTER_KEY`、`ADMIN_PASSWORD`、百度或腾讯密钥的任何取值\n\n#### Scenario: 构建上下文排除\n\n- **WHEN** 执行镜像构建\n- **THEN** `.env`、`data/` 与本地凭证文档不进入构建上下文\n\n### Requirement: R-DEP-05 数据持久化\n\n容器化部署 SHALL 将 `DATA_DIR` 设为绝对路径并挂载为卷；容器销毁重建后 MUST 保留既有业务数据。\n\n#### Scenario: 容器重建保留数据\n\n- **WHEN** 容器被销毁并以同一卷重建\n- **THEN** 先前创建的成员、API Key 与账号仍然存在\n\n#### Scenario: 数据写入卷内\n\n- **WHEN** 服务运行并产生配额计数与用量事件（`usage_events`）\n- **THEN** 这些持久化数据落在挂载卷内，不落在容器可写层；进程日志经 stdout 由容器日志驱动处理（含轮转），不写入卷\n\n\u003e `[spec-review-amendment]` 原措辞「请求日志落在挂载卷内」与 `backend/app/logging_setup.py:26`（stdout handler）不符，且 `usage_events` 与 stdout 日志是两类数据；此处按代码事实拆开表述。\n\n### Requirement: R-DEP-06 单实例约束\n\n容器化部署 MUST NOT 以多于一个 worker 运行；检测到多 worker 配置时系统 MUST 拒绝启动并给出明确原因。\n\n#### Scenario: 多 worker 配置被拒\n\n- **WHEN** 设置了 `WEB_CONCURRENCY` 或 `UVICORN_WORKERS` 大于 1，或传入 `--workers` 大于 1\n- **THEN** 启动失败并报告单实例约束\n\n#### Scenario: 默认单 worker\n\n- **WHEN** 未设置任何 worker 相关变量\n- **THEN** 服务以单 worker 正常启动\n\n### Requirement: R-DEP-07 构建可复现且索引可参数化\n\n镜像构建 SHALL 安装锁文件锁定的依赖版本，并 SHALL 允许通过参数指定包索引；构建 MUST NOT 依赖锁文件中记录的默认下载地址可达。\n\n#### Scenario: 离线环境构建成功\n\n- **WHEN** 默认包索引不可达，但参数指定的索引可达\n- **THEN** 构建成功，且安装的依赖版本与锁文件一致\n\n#### Scenario: 无可达索引\n\n- **WHEN** 未指定索引且默认索引不可达\n- **THEN** 构建失败，不产出可用镜像\n\n### Requirement: R-DEP-08 运行身份与自愈\n\n容器 SHALL 以非 root 用户运行；进程异常退出后 SHALL 由编排自动重启；容器日志 SHALL 设有大小与份数上限。\n\n#### Scenario: 非 root 运行\n\n- **WHEN** 检查容器内主进程身份\n- **THEN** 其 uid 不为 0\n\n#### Scenario: 异常退出后自愈\n\n- **WHEN** 容器主进程以非零码退出\n- **THEN** 编排自动重启该容器\n\n#### Scenario: 日志轮转\n\n- **WHEN** 日志增长超过配置的大小上限\n- **THEN** 日志轮转并只保留限定份数，磁盘不被写满\n"},{"label":"tasks","path":"openspec/changes/docker-deploy-e2e/tasks.md","text":"# Tasks\n\n\u003e 追溯：任务 ↔ 需求 ID 双向可查。设计见 [`design.md`](./design.md)，需求见 [`specs/deployment/spec.md`](./specs/deployment/spec.md)。\n\u003e 切片对应：第 1 组=S1，第 2 组=S2，第 3 组=S3，第 4 组=S4，第 5 组=S5（集成检查）。\n\n## 1. 镜像构建层（S1）\n\n- [ ] 1.1 新增 `.dockerignore`，排除 `**/.venv`、`**/tests`、`**/data`、`**/__pycache__`、`**/.pytest_cache`、`**/.ruff_cache`、`**/.mypy_cache`、`openspec/`、`docs/`、`.env*`、`.git/`；验证：`docker build` 的构建上下文清单中不含这些路径。`[spec-review-amendment]` 模式改为 `**/` 前缀：`.dockerignore` 相对构建上下文根匹配，`.venv/` 不能排除实存 150MB 的 `backend/.venv`\n  - R-ID: R-DEP-04\n- [ ] 1.2 新增多阶段 `Dockerfile`：基础镜像固定 digest（`python:3.12-slim@sha256:b18b261e1b4974b4f321451ad5251ded85abb22c2b8b262da527dda1d031ab30`）；构建阶段先安装固定版本 uv（`pip install --index-url \"$UV_DEFAULT_INDEX\" uv==0.13.6`）并创建 `/app/.venv`；依赖层只 COPY `backend/pyproject.toml` 与 `backend/uv.lock`，用 `ARG UV_DEFAULT_INDEX`（默认空）+ `uv export --frozen --no-dev --no-emit-project --format requirements-txt --no-hashes` → `uv pip install --index-url \"$UV_DEFAULT_INDEX\" -r` 安装；验证：`docker build --build-arg UV_DEFAULT_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple .` 构建成功。`[spec-review-amendment]` 补 `--no-emit-project`（否则导出首行是 `-e .`，无源码的依赖层必失败）、`/app/.venv`（无 venv 时 `uv pip install` 报 `No virtual environment found`）、uv 固定版本与基础镜像 digest\n  - R-ID: R-DEP-07\n- [ ] 1.3 运行时层 COPY `backend/app`、`backend/alembic`、`backend/alembic.ini`，并从构建阶段 COPY `/app/.venv`（多阶段构建；或改单阶段安装），安装项目自身（`uv pip install --index-url \"$UV_DEFAULT_INDEX\" --no-deps .`）；验证：`docker run --rm \u003cimg\u003e python -c \"import app; print(app.__version__)\"` 输出 `0.1.0`，且 `docker image inspect --format '{{.Size}}'` 不大于 400MB（design 的 NFR）。`[spec-review-amendment]` 补 `--index-url`（构建后端 `hatchling` 也须从镜像取）与 venv 跨阶段 COPY（多阶段下依赖不随构建阶段自动进入运行时层）\n  - R-ID: R-DEP-07\n- [ ] 1.4 确认运行时镜像不含 dev 依赖与测试代码；验证：`docker run --rm \u003cimg\u003e python -c \"import pytest\"` 必须失败（非零退出），且镜像内不存在 `tests/` 目录\n  - R-ID: R-DEP-04\n- [ ] 1.5 对构建产物做凭证扫描；验证：用 `.env` 中的实际值扫描**停止态容器/镜像层**（如 `docker create` 后 `docker export | grep`，或 `docker save \u003cimg\u003e | tar -xO`），确认 `MASTER_KEY`、`ADMIN_PASSWORD`、百度 `api_key`/`secret_key`、腾讯 `secret_id`/`secret_key` 的取值出现次数为 0；镜像历史中不含 `ENV MASTER_KEY` / `ENV ADMIN_PASSWORD`。`[spec-review-amendment]` 原命令只扫 `/app` 且只匹配 `AKID`/`MASTER_KEY=`，覆盖不到百度密钥与镜像其他路径；扫描须避开运行中容器的 `/proc/*/environ` 假阳性\n  - R-ID: R-DEP-04\n\n## 2. 启动契约（S2）\n\n- [ ] 2.1 新增容器 entrypoint 脚本：`set -e` → `/app/.venv/bin/alembic upgrade head`（或 `PATH=/app/.venv/bin:$PATH` 后 `alembic`）→ `exec /app/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1`；验证：以空卷启动后 `GET /healthz` 返回 200，且容器内可见 `accounts`、`api_keys`、`users`、`quota_counters`、`usage_events` 五张表。`[spec-review-amendment]` 明确使用 venv 内的 console scripts，避免多阶段镜像里 `alembic`/`uvicorn` 不在 PATH\n  - R-ID: R-DEP-01\n- [ ] 2.2 验证迁移失败的 fail-fast 行为；验证：把 `/data` 挂成只读或不可写后启动，容器以非零退出码终止，且日志中不出现 uvicorn 监听端口的信息\n  - R-ID: R-DEP-01\n- [ ] 2.3 验证重复启动幂等；验证：在同一已迁移的卷上二次启动，`alembic` 无升级输出且 `/healthz` 仍返回 200\n  - R-ID: R-DEP-01\n- [ ] 2.4 验证必填配置缺失时启动阶段失败；验证：不传 `MASTER_KEY`（或传非 32 字节值）启动，容器非零退出且日志含校验错误；不传 `ADMIN_PASSWORD` 或短于 8 字符时同样失败\n  - R-ID: R-DEP-03\n- [ ] 2.5 验证多 worker 配置被拒；验证：以 `WEB_CONCURRENCY=2` 启动，容器非零退出且日志含「单实例约束」\n  - R-ID: R-DEP-06\n\n## 3. 编排与运行身份（S3）\n\n- [ ] 3.1 新增 `docker-compose.yml`：单服务、端口映射到 `127.0.0.1:8000`、`env_file: .env`、`build.args: UV_DEFAULT_INDEX: \"${UV_DEFAULT_INDEX:-}\"`、数据卷 `./data:/data`、`environment: DATA_DIR=/data`（绝对路径）与 `DATABASE_URL: \"\"`（强制从 `DATA_DIR` 推导）；验证：`docker compose config` 通过且解析出的 `DATA_DIR` 为 `/data`、`DATABASE_URL` 为空。`[spec-review-amendment]` 补 `build.args`（`env_file` 不供给构建参数）与 `DATABASE_URL: \"\"`（防 `.env` 残留宿主机路径覆盖 `/data`）；验证输出须过滤，MUST NOT 原样粘贴含凭证明文的完整 config\n  - R-ID: R-DEP-05\n- [ ] 3.2 配置 healthcheck（`interval=10s`、`timeout=3s`、`retries=5`、`start_period=30s`），探测命令用容器内 Python 标准库请求 `/healthz`（镜像无 curl/wget）；验证：`docker compose up -d` 后 `docker inspect --format '{{.State.Health.Status}}'` 返回 `healthy`\n  - R-ID: R-DEP-02\n- [ ] 3.3 以非 root 用户运行并让 `/data` 可写；验证：`docker compose exec ocr-gateway id -u` 不为 `0`，且配额刷盘与迁移均无权限错误。`[spec-review-amendment]` bind mount 下镜像期 `chown /data` 不作用于宿主目录；权限模型（entrypoint root→chown→drop / 命名卷 / 宿主侧 chown）待设计门 Q1 拍板后再定实现；若选 root→drop，`id -u` 须在降权后验证\n  - R-ID: R-DEP-08\n- [ ] 3.4 配置 `restart: unless-stopped`、`stop_grace_period: 25s` 与日志轮转（`logging.driver: json-file` + `max-size` / `max-file`）；验证：`docker compose config` 中各项均存在，强制杀掉主进程后容器自动重启并重新达到 `healthy`。`[spec-review-amendment]` 补 `stop_grace_period`（大于 20s 请求预算，避免 SIGTERM 硬切在途请求）与显式 `json-file` 驱动（否则 `max-size` 在非 json-file 默认驱动的宿主机上静默失效）\n  - R-ID: R-DEP-08\n- [ ] 3.5 验证数据持久化；验证：经管理 API 建一个成员后执行 `docker compose down` 与 `docker compose up -d`，该成员仍可通过 `GET /api/admin/users` 查到\n  - R-ID: R-DEP-05\n\n## 4. 文档与配置面（S4）\n\n- [ ] 4.1 改写 `README.md` 部署段：以 `docker compose up -d` 一键起为主路径、本机 uv + uvicorn 为备选；补 `UV_DEFAULT_INDEX` 说明与 Caddy/Nginx 反代配置片段；补新 quickstart 的 TTHW 推导（步骤数/命令数 + 每步耗时假设 + 明确标注「估算」）；注明 uv 备选路径的前置（PyPI 可达；离线时需 `UV_DEFAULT_INDEX`，且非 frozen 的 `uv sync` 可能改写被跟踪的 `uv.lock`）；修正 `DATA_DIR` 描述为「SQLite 数据目录」，日志走 stdout；验证：从干净 checkout 按 README 步骤可复现到 `healthy`，并把实际命令与输出记入验收记录。`[spec-review-amendment]` 补 DX-01 推导与备选路径前置（D21/D22/D10）\n  - R-ID: R-DEP-07\n- [ ] 4.2 更新 `.env.example`：补 `UV_DEFAULT_INDEX`（构建期，默认留空）与「容器内 `DATA_DIR=/data` 由 compose `environment` 覆盖」的注释；`DATA_DIR` 保持宿主机默认 `./data`，`DATABASE_URL` 保持空；保留 `change-me-please` 占位且不含任何真实密钥；验证：`docker compose config` 能解析该文件，且文件内无 `AKID` 等真实凭证片段。`[spec-review-amendment]` 不把示例值改成 `/data`（会破坏 uv 备选路径）；`DATABASE_URL` 保持空（配合 compose 的 `DATABASE_URL: \"\"` 强制从 `DATA_DIR` 推导）\n  - R-ID: R-DEP-03\n- [ ] 4.3 更新既有静态文档测试 `backend/tests/test_ticket5_api.py::test_run_docs_cover_quickstart_and_operations`：保留原有断言针（`uv sync`、`alembic upgrade head`、`MASTER_KEY`、`ADMIN_PASSWORD`、`--workers 1`、`sqlite3`、`.backup`、`以官网为准`、`HTTPS`、`RPO`、`RTO`），新增 `docker compose up -d` 与 `UV_DEFAULT_INDEX` 断言；验证：`pytest backend/tests/test_ticket5_api.py -q` 全绿。`[spec-review-amendment]` 补 `uv sync`：现有测试（`test_ticket5_api.py:288`）断言它，README 备选路径也保留它\n  - R-ID: R-DEP-07\n- [ ] 4.4 全量回归；验证：`pytest backend/tests -q` 全绿（含 T1/T2 的既有用例），`ruff check backend` 与 `mypy backend/app` 无新增问题\n  - R-ID: R-DEP-07\n\n## 5. 集成检查：真机端到端验收（S5）\n\n\u003e 本组只做跨组集成验证；三种输入、缓存、配额、切厂商的行为由既有能力拥有，此处**验证**而非重定义。\n\n- [ ] 5.1 冷启动计时；验证：在镜像已构建的前提下（首次构建耗时单列记录，不计入本项；口径待设计门 Q2 拍板），清空 `data/` 后 `docker compose up -d` 到 `healthy` 且 `/healthz` 200 的总耗时 ≤90s，记录时间戳\n  - R-ID: R-DEP-01, R-DEP-02\n- [ ] 5.2 经管理 API 完成配置；验证：`POST /api/admin/login` 取 token → 建成员、建 Key（记录唯一一次明文）、建百度与腾讯账号（真实凭证经 `env_file` 注入，不写入任何文件），`GET /api/admin/accounts` 返回两家且不含明文凭证\n  - R-ID: R-ADM-02, R-ADM-03, R-ADM-04\n- [ ] 5.3 真机三输入识别；验证：用真 Key 分别提交 multipart 文件、base64、公网 `image_url`（`https://baidu-ai.bj.bcebos.com/ocr/general.png`），三次均返回 200 且 `text` 非空、`lines` 为非空数组、`provider` 为实际厂商，记录每次的 `text` 片段与 `latency_ms`\n  - R-ID: R-API-01, R-API-02\n- [ ] 5.4 缓存命中；验证：重复提交同一图片且 `language`/`provider` 不变，第二次返回 `cached=true` 且 `quota.used=0`\n  - R-ID: R-CAC-01\n- [ ] 5.5 配额记账；验证：`GET /api/admin/usage/summary` 与 `GET /api/admin/logs` 能反映本次调用（成功计数 +1、缓存命中 +0），且日志不含 OCR 原文\n  - R-ID: R-QTA-01, R-QTA-05\n- [ ] 5.6 显式厂商不回退；验证：禁用全部百度账号后请求 `provider=baidu`，返回错误而非由腾讯完成\n  - R-ID: R-SCH-05\n- [ ] 5.7 `auto` 跨厂商切换；验证：禁用全部百度账号后请求 `provider=auto`，由腾讯账号完成，响应 `provider=tencent`\n  - R-ID: R-SCH-03, R-SCH-05\n- [ ] 5.8 归档验收证据；验证：在本 change 目录写入验收记录（命令、时间戳、响应片段、镜像扫描结果、`docker inspect` 健康状态），并逐条对应本组 5.1–5.7。证据中 MUST NOT 含 `MASTER_KEY`、`ADMIN_PASSWORD` 或厂商密钥明文；`docker compose config` 只保留过滤后的非敏感字段。`[spec-review-amendment]` 补凭证脱敏要求（D6）\n  - R-ID: R-DEP-01, R-DEP-02, R-DEP-03, R-DEP-04, R-DEP-05, R-DEP-06, R-DEP-07, R-DEP-08\n\n## 测试覆盖图（TG-18）\n\n| 代码路径 / 产物 | 测试类型 | 覆盖方式 |\n| --- | --- | --- |\n| `Dockerfile` 依赖层（`uv export --no-emit-project` + `uv pip install` + `/app/.venv`） | 构建验证 | 1.2：带 `--build-arg` 的构建成功 |\n| `Dockerfile` 运行时层（无 dev 依赖 / 无测试） | 构建验证 | 1.4：`import pytest` 必须失败 |\n| 镜像与构建上下文（凭证） | 静态扫描 | 1.1 / 1.5：上下文清单 + 停止态镜像层实际值扫描 |\n| entrypoint 正常路径（迁移 → 启动） | 容器集成 | 2.1：空卷启动 → `/healthz` 200 + 五张表存在 |\n| entrypoint 失败路径（迁移失败 / 缺配置） | 容器集成 | 2.2 / 2.4：非零退出且不监听端口 |\n| entrypoint 幂等路径 | 容器集成 | 2.3：二次启动无升级输出 |\n| `enforce_single_worker` 容器路径 | 容器集成 | 2.5：`WEB_CONCURRENCY=2` → 非零退出 |\n| `docker-compose.yml` 编排契约 | 配置校验 + 运行验证 | 3.1 / 3.2 / 3.4：`build.args` / `DATABASE_URL` / `stop_grace_period` / `json-file` + `inspect` 健康状态 |\n| 数据卷持久化 | 容器集成 | 3.5：down/up 后数据仍在 |\n| 运行身份 | 容器集成 | 3.3：`id -u` 不为 0（Q1 权限模型定案后） |\n| `README.md` / `.env.example` | 单元（pytest 静态断言） | 4.2 / 4.3：更新后的文档测试 |\n| 网关真链路（鉴权/调度/配额/缓存/切厂商） | 真机端到端（手工验收 + 证据） | 5.2–5.7：真实凭证下的响应字段核对 |\n| 全量回归 | 单元 + 集成（既有套件） | 4.4：`pytest backend/tests` |\n\n## Workflow follow-up\n\n- 评审通过后归档本 change，并同步主 spec（新增 `deployment` 能力）。\n- 合并后于 `main` 上单独提交一个 chore，把 `openspec/issues/open/T1.md`、`T2.md`（均已是 `status: RESOLVED`）移入已关闭池。\n"},{"label":"decision-memo","path":"openspec/changes/docker-deploy-e2e/decision-memo.md","text":"---\nschema_version: 1\nchange: docker-deploy-e2e\nbranch: feat/docker-deploy-e2e\ngenerated_at: 2026-11-03T11:32:07+08:00\ndecision_hash: 74815c6df227\n---\n\n# 决策纪要 · docker-deploy-e2e\n\n## 目标态\n\n把现有 OCR Gateway MVP 打成可一键起的 Docker Compose 部署（含自动迁移、健康检查、数据卷、镜像源参数化），并用本机真实百度/腾讯凭证跑通端到端 HTTP 验收。\n\n\u003e **术语旁注（「一键起」的边界）**：本项目无 `openspec/CONTEXT.md`，故按 reference 降级为旁注。\n\u003e 「一键起」= 从干净 checkout 执行 `docker compose up -d` 后，容器自动完成迁移且 `/healthz` 返回 200，\n\u003e **不含**创建成员/Key/账号——那些属于验收步骤，需显式调用管理 API。「一键起」与「开箱可用」不是同义词。\n\n## 拍板决策\n\n- **D1 部署形态：Docker Compose 一键起** — 依据：本机 Docker CLI 29.4.3 + Compose v5.1.3 已安装（`docker --version` / `docker compose version`）；路线图 M5 验收口径即「一键起服务」（`docs/tech-selection.md:634`）；镜像可搬到任意 Linux 服务器，不依赖本机 Python 与 uv。**砍掉的候选**：纯本机脚本（搬到服务器仍需手工装 Python/uv，达不到「一键起」）、两者都做（两套启动路径都要维护与验收，本次体量明显变大）。\n- **D2 验收口径：端到端 HTTP 硬门** — 依据：契约测试只证明适配器可用，网关路径（鉴权/调度/配额/缓存/切厂商）从未跑过真厂商；这才是产品真实链路。硬门内容：起服务 → 经管理 API 建成员/Key/百度+腾讯账号 → 真 Key 调 `POST /v1/ocr/image` 的 multipart/base64/URL 三种输入 → 校验 `text+lines`、quota 记账、缓存命中、显式 provider 不回退、`auto` 跨厂商切换。**砍掉的候选**：仅部署冒烟（调度/配额/缓存/切厂商在真厂商下仍未验证）、端到端 + 全部运营动作（测活/reset-state/用量汇总/日志查询已由 mock 测试覆盖，真机增量价值低）。\n- **D3 镜像源：参数化，仓内默认留空** — 依据：本机 `pypi.org/simple/hatchling/` 不可达（curl exit 28 超时），清华 TUNA 与阿里云镜像均 200。Dockerfile 用 `ARG`，compose/`.env` 提供取值，仓内默认留空 ⇒ 不把区域镜像写死进仓。**砍掉的候选**：仓内 `backend/uv.toml` 固化清华源（换地区/CI 会莫名走国内镜像）、不处理仅文档说明（本机 quickstart 仍失败，本次「一键起」验收做不成）。\n- **D3a 依赖安装机制修正（D3 的实现层修订，意图不变）** — `uv sync --frozen` **不可用**：`backend/uv.lock` 内有 1292 处 wheel 下载 URL 硬编码到 `files.pythonhosted.org`，且所有 `source` 均为 `registry = \"https://pypi.org/simple\"`；`UV_DEFAULT_INDEX` 只改索引解析、改不了锁文件里的下载 URL，容器内实测报 `Failed to download certifi==2026.10.23 ... files.pythonhosted.org ... operation timed out`。改用 `uv export --frozen --no-dev --format requirements-txt` 导出 38 个精确锁定版本 → `uv pip install --index-url \u003cmirror\u003e -r` 从镜像下载 → `uv pip install --index-url \u003cmirror\u003e --no-deps .` 装项目自身；容器内实测 `imports ok 0.1.0`。**取舍**：保留锁文件的版本锁定，同时不把区域镜像写进被跟踪的 `uv.lock`。**砍掉的候选**：对镜像重生成 `uv.lock`（会把 mirror URL 固化进被跟踪文件，违背 D3 的可移植意图）、镜像内删锁自由解析（丢失版本锁定）。**已落 ADR**：`openspec/adr/0001-container-deps-use-uv-export-not-uv-sync.md`（人 2026-11-03 确认落盘）。\n\n- **D4 compose 只起应用单服务，不带反代** — 依据：D13 已定「应用不终结 TLS、由反代终结」，反代属于部署环境而非产品；README 给 Caddy/Nginx 配置片段即可。**砍掉的候选**：加一个 Nginx 纯 HTTP 反代（能真机验 `TRUST_PROXY_HEADERS` 与客户端 IP 识别，但多一个服务与一层配置，验收面变大）、带 Caddy + TLS（证书与信任链会成为验收前置，明显超出「一键起」必要范围）。**残留**：`TRUST_PROXY_HEADERS=true` 的 `X-Forwarded-For` 路径不在真机验收覆盖内，仅有 mock 测试（`backend/tests/test_ticket2_admin.py::test_login_uses_forwarded_ip_when_trusted`）。\n- **D5 容器加固：最小生产项** — 包含：非 root 用户运行、`restart: unless-stopped`、日志轮转（`max-size`/`max-file`）、healthcheck、数据卷、镜像内不含 dev 依赖与测试。依据：这几项都是容器部署的最低常识，成本低且直接防「宿主机重启后服务不自恢复」「日志把磁盘写满」两类真实事故。**砍掉的候选**：只要能跑（不设非 root/重启策略/日志轮转，真实部署会踩）、完整加固（再加 read-only rootfs、CPU/内存限额、自定义 seccomp——调试成本上升，对 ≤5 人、日均 \u003c500 次规模收益低，属通则④的过度设计）。\n\n## 承重约束\n\n- **C1 容器内可完成依赖安装** — 验证方式：`docker run python:3.12-slim` 内实测安装链路；**证据锚**：`grep -c \"files.pythonhosted.org\" backend/uv.lock` = 1292、`grep -o 'registry = \"[^\"]*\"' backend/uv.lock | sort -u` = 仅 `https://pypi.org/simple`；容器内 `uv export --frozen --no-dev` 得 38 个 `==` 锁定项，`uv pip install --index-url https://pypi.tuna.tsinghua.edu.cn/simple -r` 全部装通，`python -c \"import fastapi, sqlalchemy, aiosqlite, alembic, PIL, cryptography, app\"` → `imports ok 0.1.0`。反例：同容器内 `uv sync --frozen --no-dev` 失败于 `files.pythonhosted.org` 超时。\n- **C2 迁移可用同一 `DATABASE_URL` 在任意 CWD 跑通且幂等** — 验证方式：用临时库跑 `alembic upgrade head` 并重跑；**证据锚**：`DATABASE_URL=\"sqlite:///\u003ctmp\u003e/probe.db\" python -m alembic -c backend/alembic.ini upgrade head` 建出 `['accounts','alembic_version','api_keys','quota_counters','usage_events','users']`，二次执行无输出（幂等）；`backend/alembic.ini:2`（`script_location = %(here)s/alembic` 可重定位）、`backend/alembic/env.py:29-45`（URL 解析顺序 `-x db_url` → `DATABASE_URL` → ini → `DATA_DIR` → 默认）、`:52-58`（自动建 SQLite 父目录）。\n- **C3 应用导入期即要求凭证，缺则直接失败** — 验证方式：读代码；**证据锚**：`backend/app/main.py:204`（`app = create_app()` 在模块导入执行）、`backend/app/config.py:66-67`（`master_key` / `admin_password` 为必填字段）、`:84-88`（校验 MASTER_KEY 32 字节、ADMIN_PASSWORD ≥8 字符）。⇒ 容器必须注入这两项，否则进程起不来；这也让「缺配置」变成启动即失败而非运行期 500。\n- **C4 lifespan 不跑迁移，空数据卷首启必崩** — 验证方式：读代码；**证据锚**：`backend/app/main.py:51-63`（lifespan 只 `select(Account)`，无 `alembic upgrade`）、`README.md`「启动前先跑 `alembic upgrade head`」。⇒ entrypoint 必须先迁移；`/healthz`（`backend/app/main.py:180-193`）不能替代迁移。\n- **C5 `DATA_DIR` 必须是绝对路径** — 验证方式：读代码 + 推导；**证据锚**：`backend/app/config.py:89-92`（`database_url` 由 `Path(data_dir)/\"ocr-gateway.db\"` 推导，相对路径随 CWD 漂移）、`backend/app/main.py:55`（`data_path.mkdir`）。⇒ 容器内设 `/data` 绝对路径并挂卷。\n- **C6 单 worker 约束在容器内成立** — 验证方式：读代码；**证据锚**：`backend/app/config.py:108-130`（`enforce_single_worker` 读 `WEB_CONCURRENCY`/`UVICORN_WORKERS`/`--workers`，\u003e1 抛 `RuntimeError`）；uvicorn 默认单 worker ⇒ compose 只要不设这两个变量即合规。\n- **C7 本机 Docker 可用且基础镜像可经 mirror 拉取** — 验证方式：实跑；**证据锚**：`docker info` → `server=29.4.3 os=linux arch=x86_64`；`docker pull python:3.12-slim` 成功（`Digest: sha256:b18b261e...`）；`~/.docker/daemon.json` 配 8 个 `registry-mirrors`；直连 `registry-1.docker.io/v2/` 与 `auth.docker.io/token` 均 curl exit 28 超时 ⇒ **必须依赖 mirror，不能假定直连可用**。\n- **C8 URL 输入验收需要公网可达图片** — 验证方式：实测 + 读代码；**证据锚**：`curl https://baidu-ai.bj.bcebos.com/ocr/general.png` → 200 / 1581730 bytes；SSRF 策略拒绝私网/回环/链路本地（`backend/app/utils/ssrf.py`，D7）⇒ 验收不能用本机或内网图片服务，只能用公网图。\n\n## 接受的边角\n\n- **首次构建需从 mirror 下载全部依赖** — 概率确定/影响小（一次性耗时）/完美成本高（无本地缓存时无法避免）；**为何接受**：构建缓存分层后可复用，且这是唯一不牺牲版本锁定的路径。\n- **端到端验收消耗真实厂商额度** — 概率确定/影响小（个位数调用）/完美成本高（不调真厂商就无法验网关真链路）；**为何接受**：人 2026-11-03 明确批准跑真机契约与端到端验收。\n- **`uv.lock` 的 `files.pythonhosted.org` URL 在无外网环境永远不可直用** — 概率确定/影响小/完美成本高（要改被跟踪的锁文件）；**为何接受**：export 路径已覆盖，锁文件保持原样以免把区域镜像固化进仓。\n\n## 三镜代价\n\n本次无 TG-23 命中（无跨系统架构选型，仅在既有单实例架构上加部署形态）。\n"}]</script>
+<script type="application/json" id="sdflow-saved-notes">[]</script>
+<script type="application/json" id="sdflow-dispositions">{}</script>
+<script type="application/json" id="sdflow-revisions">{"v":1,"page":"design-gate.html","revisions":[{"n":1,"at":"2026-11-03T12:16:27+08:00","event":"首次生成","docs":{"spec-review-report":{"path":"openspec/changes/docker-deploy-e2e/spec-review-report.md","sha256":"4880046802ad34c67c9b86e42f0130b5268a9c4f640a1c9d8e4e3826a80bba9d"},"proposal":{"path":"openspec/changes/docker-deploy-e2e/proposal.md","sha256":"f2eeecb872ce72886535115bda7fff1c7a17544c2e9a360ed4461f6767291f8e"},"design":{"path":"openspec/changes/docker-deploy-e2e/design.md","sha256":"c5a57151a17e8a9265410a719fe6c65a374112cf6e5c9b7bea8caa8290096918"},"spec:deployment":{"path":"openspec/changes/docker-deploy-e2e/specs/deployment/spec.md","sha256":"e7966c1a63fb713db2733994a93294c3e596de4b7c1d97e176fa8459bc89b30a"},"tasks":{"path":"openspec/changes/docker-deploy-e2e/tasks.md","sha256":"8fc1d9d993d8d9d21aa08ae4977f229150ba4aa78aedb78eac6b9b1770d98c97"},"decision-memo":{"path":"openspec/changes/docker-deploy-e2e/decision-memo.md","sha256":"31952c2b3cd3cf9ef7e4ba676cbed5199d0352647581cd50ac64ac93e8ba32e3"}},"notes":0,"dispositions":0,"changed":[],"fp":"da25235b72a9d2b5e182fec5e28b7bfcb26935e846e10233eb49a1308d0c76ca"},{"n":2,"at":"2026-11-03T12:17:04+08:00","event":"修正报告引用行号 config.py:71","docs":{"spec-review-report":{"path":"openspec/changes/docker-deploy-e2e/spec-review-report.md","sha256":"a9339cd42ebe3f3eda924d7ea5035038d159784c9399ecd9e97859372a0c7348"},"proposal":{"path":"openspec/changes/docker-deploy-e2e/proposal.md","sha256":"f2eeecb872ce72886535115bda7fff1c7a17544c2e9a360ed4461f6767291f8e"},"design":{"path":"openspec/changes/docker-deploy-e2e/design.md","sha256":"c5a57151a17e8a9265410a719fe6c65a374112cf6e5c9b7bea8caa8290096918"},"spec:deployment":{"path":"openspec/changes/docker-deploy-e2e/specs/deployment/spec.md","sha256":"e7966c1a63fb713db2733994a93294c3e596de4b7c1d97e176fa8459bc89b30a"},"tasks":{"path":"openspec/changes/docker-deploy-e2e/tasks.md","sha256":"8fc1d9d993d8d9d21aa08ae4977f229150ba4aa78aedb78eac6b9b1770d98c97"},"decision-memo":{"path":"openspec/changes/docker-deploy-e2e/decision-memo.md","sha256":"31952c2b3cd3cf9ef7e4ba676cbed5199d0352647581cd50ac64ac93e8ba32e3"}},"notes":0,"dispositions":0,"changed":["spec-review-report"],"fp":"47a27ccc1e87e6bb28425a1cc904011bd9d6535597ff7805eee7f9542c80d464"},{"n":3,"at":"2026-11-03T12:17:37+08:00","event":"统一 uv export --no-hashes 与报告措辞","docs":{"spec-review-report":{"path":"openspec/changes/docker-deploy-e2e/spec-review-report.md","sha256":"a700c497a1b7126f81a90068da63a6b2432ad37406e4721d3a420323ce313c8b"},"proposal":{"path":"openspec/changes/docker-deploy-e2e/proposal.md","sha256":"f2eeecb872ce72886535115bda7fff1c7a17544c2e9a360ed4461f6767291f8e"},"design":{"path":"openspec/changes/docker-deploy-e2e/design.md","sha256":"c5a57151a17e8a9265410a719fe6c65a374112cf6e5c9b7bea8caa8290096918"},"spec:deployment":{"path":"openspec/changes/docker-deploy-e2e/specs/deployment/spec.md","sha256":"e7966c1a63fb713db2733994a93294c3e596de4b7c1d97e176fa8459bc89b30a"},"tasks":{"path":"openspec/changes/docker-deploy-e2e/tasks.md","sha256":"ee60ceaac817734e1607ae70d4e485248e1ede730ff853665c2a74162ad57d7e"},"decision-memo":{"path":"openspec/changes/docker-deploy-e2e/decision-memo.md","sha256":"31952c2b3cd3cf9ef7e4ba676cbed5199d0352647581cd50ac64ac93e8ba32e3"}},"notes":0,"dispositions":0,"changed":["spec-review-report","tasks"],"fp":"c4546a41891da1df700b85138dd7d8d154ad5ed6f7580b0803794a00a85f89c1"}]}</script>
+<script id="sdflow-marked">/**
+ * marked v18.1.1 - a markdown parser
+ * Copyright (c) 2018-2026, MarkedJS. (MIT License)
+ * Copyright (c) 2011-2018, Christopher Jeffrey. (MIT License)
+ * https://github.com/markedjs/marked
+ */
+
+/**
+ * DO NOT EDIT THIS FILE
+ * The code in this file is generated from files in ./src/
+ */
+(function(g,f){if(typeof exports=="object"&&typeof module<"u"){module.exports=f()}else if("function"==typeof define && define.amd){define("marked",f)}else {g["marked"]=f()}}(typeof globalThis < "u" ? globalThis : typeof self < "u" ? self : this,function(){var exports={};var __exports=exports;var module={exports};
+"use strict";var V=Object.defineProperty;var Me=Object.getOwnPropertyDescriptor;var Ce=Object.getOwnPropertyNames;var Ie=Object.prototype.hasOwnProperty;var Be=(a,e)=>{for(var t in e)V(a,t,{get:e[t],enumerable:!0})},De=(a,e,t,n)=>{if(e&&typeof e=="object"||typeof e=="function")for(let i of Ce(e))!Ie.call(a,i)&&i!==t&&V(a,i,{get:()=>e[i],enumerable:!(n=Me(e,i))||n.enumerable});return a};var qe=a=>De(V({},"__esModule",{value:!0}),a);var jt={};Be(jt,{Hooks:()=>$,Lexer:()=>T,Marked:()=>H,Parser:()=>O,Renderer:()=>_,TextRenderer:()=>A,Tokenizer:()=>S,defaults:()=>w,getDefaults:()=>M,lexer:()=>Qt,marked:()=>g,options:()=>qt,parse:()=>Gt,parseInline:()=>Ht,parser:()=>Nt,setOptions:()=>Zt,use:()=>Le,walkTokens:()=>vt});module.exports=qe(jt);function M(){return{async:!1,breaks:!1,extensions:null,gfm:!0,hooks:null,pedantic:!1,renderer:null,silent:!1,tokenizer:null,walkTokens:null}}var w=M();function J(a){w=a}var C={exec:()=>null};function D(a){let e=[];return t=>{let n=Math.max(0,Math.min(3,t-1)),i=e[n];return i||(i=a(n),e[n]=i),i}}function h(a,e=""){let t=typeof a=="string"?a:a.source,n={replace:(i,r)=>{let o=typeof r=="string"?r:r.source;return o=o.replace(x.caret,"$1"),t=t.replace(i,o),n},getRegex:()=>new RegExp(t,e)};return n}var Ze=((a="")=>{try{return!!new RegExp("(?<=1)(?<!1)"+a)}catch{return!1}})(),x={codeRemoveIndent:/^(?: {0,3}\t| {1,4})/gm,outputLinkReplace:/\\([\[\]])/g,indentCodeCompensation:/^(\s+)(?:```)/,beginningSpace:/^\s+/,endingHash:/#$/,startingSpaceChar:/^ /,endingSpaceChar:/ $/,endingSpaceTabChar:/[ \t]$/,nonSpaceChar:/[^ ]/,newLineCharGlobal:/\n/g,tabCharGlobal:/\t/g,leadingSpaceTab:/^[ \t]+/,multipleSpaceGlobal:/\s+/g,blankLine:/^[ \t]*$/,doubleBlankLine:/\n[ \t]*\n[ \t]*$/,blockquoteStart:/^ {0,3}>/,blockquoteSetextReplace:/\n {0,3}((?:=+|-+) *)(?=\n|$)/g,blockquoteSetextReplace2:/^ {0,3}>[ \t]?/gm,listReplaceNesting:/^ {1,4}(?=( {4})*[^ ])/g,listIsTask:/^\[[ xX]\] +\S/,listReplaceTask:/^\[[ xX]\] +/,listTaskCheckbox:/\[[ xX]\]/,anyLine:/\n.*\n/,hrefBrackets:/^<(.*)>$/,tableDelimiter:/[:|]/,tableAlignChars:/^\||\| *$/g,tableRowBlankLine:/\n[ \t]*$/,tableAlignRight:/^ *-+: *$/,tableAlignCenter:/^ *:-+: *$/,tableAlignLeft:/^ *:-+ *$/,startATag:/^<a /i,endATag:/^<\/a>/i,startPreScriptTag:/^<(pre|code|kbd|script)(\s|>)/i,endPreScriptTag:/^<\/(pre|code|kbd|script)(\s|>)/i,startAngleBracket:/^</,endAngleBracket:/>$/,pedanticHrefTitle:/^([^'"]*[^\s])\s+(['"])(.*)\2/,unicodeAlphaNumeric:/[\p{L}\p{N}]/u,numericCharacterReference:/&#(?:(\d{1,7})|[Xx]([A-Fa-f0-9]{1,6}));/,numericCharacterReferenceOrAmpersand:/&#(?:(\d{1,7})|[Xx]([A-Fa-f0-9]{1,6}));|&(?!(#\d{1,7}|#[Xx][a-fA-F0-9]{1,6}|\w+);)/g,escapeTest:/[&<>"']/,escapeReplace:/[&<>"']/g,escapeTestNoEncode:/[<>"']|&(?!(#\d{1,7}|#[Xx][a-fA-F0-9]{1,6}|\w+);)/,escapeReplaceNoEncode:/[<>"']|&(?!(#\d{1,7}|#[Xx][a-fA-F0-9]{1,6}|\w+);)/g,caret:/(^|[^\[])\^/g,percentDecode:/%25/g,findPipe:/\|/g,splitPipe:/ \|/,slashPipe:/\\\|/g,carriageReturn:/\r\n|\r/g,spaceLine:/^ +$/gm,notSpaceStart:/^\S*/,endingNewline:/\n$/,listItemRegex:a=>new RegExp(`^( {0,3}${a})((?:[	 ][^\\n]*)?(?:\\n|$))`),nextBulletRegex:D(a=>new RegExp(`^ {0,${a}}(?:[*+-]|\\d{1,9}[.)])((?:[ 	][^\\n]*)?(?:\\n|$))`)),hrRegex:D(a=>new RegExp(`^ {0,${a}}((?:-[ 	]*){3,}|(?:_[ 	]*){3,}|(?:\\*[ 	]*){3,})(?:\\n+|$)`)),fencesBeginRegex:D(a=>new RegExp(`^ {0,${a}}(?:\`\`\`|~~~)`)),headingBeginRegex:D(a=>new RegExp(`^ {0,${a}}#`)),htmlBeginRegex:D(a=>new RegExp(`^ {0,${a}}(?:</?(?:${j})(?: +|$|/?>)|<(?:(?:script|pre|style|textarea)(?:[\\s>]|$)|!--)|<\\?|<![A-Za-z]|<!\\[CDATA\\[)`,"i")),blockquoteBeginRegex:D(a=>new RegExp(`^ {0,${a}}>`))},ve=/^(?:[ \t]*(?:\n|$))+/,He=/^((?: {4}| {0,3}\t)[^\n]+(?:\n(?:[ \t]*(?:\n|$))*)?)+/,Ge=/^ {0,3}(`{3,}(?=[^`\n]*(?:\n|$))|~{3,})([^\n]*)(?:\n|$)(?:|([\s\S]*?)(?:\n|$))(?: {0,3}\1[~`]* *(?=\n|$)|$)/,Q=/^ {0,3}((?:-[\t ]*){3,}|(?:_[ \t]*){3,}|(?:\*[ \t]*){3,})(?:\n+|$)/,Ne=/^ {0,3}(#{1,6})(?=\s|$)(.*)(?:\n+|$)/,ee=/ {0,3}(?:[*+-]|\d{1,9}[.)])/,me=/^(?!bull |blockCode|fences|blockquote|heading|html|table)((?:.|\n(?!\s*?\n|bull |fences|blockquote|heading|hr|html|table))+?)\n {0,3}(=+|-+) *(?:\n+|$)/,xe=h(me).replace(/bull/g,ee).replace(/blockCode/g,/(?: {4}| {0,3}\t)/).replace(/fences/g,/ {0,3}(?:`{3,}|~{3,})/).replace(/blockquote/g,/ {0,3}>/).replace(/heading/g,/ {0,3}#{1,6}(?:\s|$)/).replace(/hr/g,/ {0,3}(?:(?:-[\t ]*){3,}|(?:_[ \t]*){3,}|(?:\*[ \t]*){3,})(?:\n+|$)/).replace(/html/g,/ {0,3}<[^\n>]+>\n/).replace(/\|table/g,"").getRegex(),Qe=h(me).replace(/bull/g,ee).replace(/blockCode/g,/(?: {4}| {0,3}\t)/).replace(/fences/g,/ {0,3}(?:`{3,}|~{3,})/).replace(/blockquote/g,/ {0,3}>/).replace(/heading/g,/ {0,3}#{1,6}(?:\s|$)/).replace(/hr/g,/ {0,3}(?:(?:-[\t ]*){3,}|(?:_[ \t]*){3,}|(?:\*[ \t]*){3,})(?:\n+|$)/).replace(/html/g,/ {0,3}<[^\n>]+>\n/).replace(/table/g,/ {0,3}\|?(?:[:\- ]*\|)+[\:\- ]*\n/).getRegex(),te=/^([^\n]+(?:\n(?!hr|heading|lheading|blockquote|fences|list|html|table|[ \t]+\n)[^\n]+)*)/,je=/^[^\n]+/,ne=/(?!\s*\])(?:\\[\s\S]|[^\[\]\\])+/,Fe=h(/^ {0,3}\[(label)\]: *(?:\n[ \t]*)?([^<\s][^\s]*|<.*?>)(?:(?: +(?:\n[ \t]*)?| *\n[ \t]*)(title))? *(?:\n+|$)/).replace("label",ne).replace("title",/(?:"(?:\\"?|[^"\\])*"|'[^'\n]*(?:\n[^'\n]+)*\n?'|\([^()]*\))/).getRegex(),Ue=h(/^(bull)([ \t][^\n]*?)?(?:\n|$)/).replace(/bull/g,ee).getRegex(),j="address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h[1-6]|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|meta|nav|noframes|ol|optgroup|option|p|param|search|section|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul",re=/<!--(?:-?>|[\s\S]*?(?:-->|$))/,Ke=h("^ {0,3}(?:<(script|pre|style|textarea)[\\s>][\\s\\S]*?(?:</\\1>[^\\n]*\\n*|$)|comment[^\\n]*(\\n+|$)|<\\?[\\s\\S]*?(?:\\?>[^\\n]*\\n*|$)|<![A-Z][\\s\\S]*?(?:>[^\\n]*\\n*|$)|<!\\[CDATA\\[[\\s\\S]*?(?:\\]\\]>[^\\n]*\\n*|$)|</?(tag)(?: +|\\n|/?>)[\\s\\S]*?(?:(?:\\n[ 	]*)+\\n|$)|<(?!(?:script|pre|style|textarea)(?![a-z0-9-]))([a-z][a-z0-9-]*)(?:attribute)*? */?>(?=[ \\t]*(?:\\n|$))[\\s\\S]*?(?:(?:\\n[ 	]*)+\\n|$)|</[a-z][a-z0-9-]*\\s*>(?=[ \\t]*(?:\\n|$))[\\s\\S]*?(?:(?:\\n[ 	]*)+\\n|$))","i").replace("comment",re).replace("tag",j).replace("attribute",/ +[a-zA-Z:_][\w.:-]*(?: *= *"[^"\n]*"| *= *'[^'\n]*'| *= *[^\s"'=<>`]+)?/).getRegex(),be=a=>h(te).replace("hr",Q).replace("heading"," {0,3}#{1,6}(?:\\s|$)").replace("|lheading","").replace("|table","").replace("blockquote"," {0,3}>").replace("fences"," {0,3}(?:`{3,}(?=[^`\\n]*(?:\\n|$))|~~~)[^\\n]*(?:\\n|$)").replace("list",a).replace("html"," {0,3}(?:</?(?:tag)(?: +|\\n|/?>)|<(?:(?:script|pre|style|textarea)(?:[\\s>]|$)|!--)|<\\?|<![A-Za-z]|<!\\[CDATA\\[)").replace("tag",j).getRegex(),Xe=be(/ {0,3}(?:[*+-]|1[.)])[ \t]+[^ \t\n]/),We=be(/ {0,3}(?:[*+-]|\d{1,9}[.)])(?:[ \t]|\n|$)/),Ve=h(/^( {0,3}> ?(paragraph|[^\n]*)(?:\n|$))+/).replace("paragraph",We).getRegex(),se={blockquote:Ve,code:He,def:Fe,fences:Ge,heading:Ne,hr:Q,html:Ke,lheading:xe,list:Ue,newline:ve,paragraph:Xe,table:C,text:je},ke=h("^ *([^\\n ].*)\\n {0,3}((?:\\| *)?:?-+:? *(?:\\| *:?-+:? *)*(?:\\| *)?)(?:\\n((?:(?! *\\n|hr|heading|blockquote|code|fences|list|html).*(?:\\n|$))*)\\n*|$)").replace("hr",Q).replace("heading"," {0,3}#{1,6}(?:\\s|$)").replace("blockquote"," {0,3}>").replace("code","(?: {4}| {0,3}	)[^\\n]").replace("fences"," {0,3}(?:`{3,}(?=[^`\\n]*(?:\\n|$))|~~~)[^\\n]*(?:\\n|$)").replace("list"," {0,3}(?:[*+-]|1[.)])[ \\t]").replace("html"," {0,3}(?:</?(?:tag)(?: +|\\n|/?>)|<(?:(?:script|pre|style|textarea)(?:[\\s>]|$)|!--)|<\\?|<![A-Za-z]|<!\\[CDATA\\[)").replace("tag",j).getRegex(),Je={...se,lheading:Qe,table:ke,paragraph:h(te).replace("hr",Q).replace("heading"," {0,3}#{1,6}(?:\\s|$)").replace("|lheading","").replace("table",ke).replace("blockquote"," {0,3}>").replace("fences"," {0,3}(?:`{3,}(?=[^`\\n]*(?:\\n|$))|~~~)[^\\n]*(?:\\n|$)").replace("list"," {0,3}(?:[*+-]|1[.)])[ \\t]+[^ \\t\\n]").replace("html"," {0,3}(?:</?(?:tag)(?: +|\\n|/?>)|<(?:(?:script|pre|style|textarea)(?:[\\s>]|$)|!--)|<\\?|<![A-Za-z]|<!\\[CDATA\\[)").replace("tag",j).getRegex()},Ye={...se,html:h(`^ *(?:comment *(?:\\n|\\s*$)|<(tag)[\\s\\S]+?</\\1> *(?:\\n{2,}|\\s*$)|<tag(?:"[^"]*"|'[^']*'|\\s[^'"/>\\s]*)*?/?> *(?:\\n{2,}|\\s*$))`).replace("comment",re).replace(/tag/g,"(?!(?:a|em|strong|small|s|cite|q|dfn|abbr|data|time|code|var|samp|kbd|sub|sup|i|b|u|mark|ruby|rt|rp|bdi|bdo|span|br|wbr|ins|del|img)\\b)\\w+(?!:|[^\\w\\s@]*@)\\b").getRegex(),def:/^ *\[([^\]]+)\]: *<?([^\s>]+)>?(?: +(["(][^\n]+[")]))? *(?:\n+|$)/,heading:/^(#{1,6})(.*)(?:\n+|$)/,fences:C,lheading:/^(.+?)\n {0,3}(=+|-+) *(?:\n+|$)/,paragraph:h(te).replace("hr",Q).replace("heading",` *#{1,6} *[^
+]`).replace("lheading",xe).replace("|table","").replace("blockquote"," {0,3}>").replace("|fences","").replace("|list","").replace("|html","").replace("|tag","").getRegex()},et=/^\\([!"#$%&'()*+,\-./:;<=>?@\[\]\\^_`{|}~])/,tt=/^(`+)([^`]|[^`][\s\S]*?[^`])\1(?!`)/,Re=/^( {2,}|\\)\n(?!\s*$)[ \t]*/,nt=/^(`+|[^`])(?:(?= {2,}\n)|[\s\S]*?(?:(?=[\\<!\[`*_]|\b_|$)|[^ ](?= {2,}\n)))/,L=/[\p{P}\p{S}]/u,q=/[\s\p{P}\p{S}]/u,F=/[^\s\p{P}\p{S}]/u,rt=h(/^((?![*_])punctSpace)/,"u").replace(/punctSpace/g,q).getRegex(),st=/[\p{Pi}\p{Ps}"']/u,Te=/(?!~)[\p{P}\p{S}]/u,it=/(?!~)[\s\p{P}\p{S}]/u,ot=/(?:[^\s\p{P}\p{S}]|~)/u,at=h(/link|precode-code|html/,"g").replace("link",/\[(?:[^\[\]`]|(?<a>`+)[^`]+\k<a>(?!`))*?\]\((?:\\[\s\S]|[^\\\(\)]|\((?:\\[\s\S]|[^\\\(\)])*\))*\)/).replace("precode-",Ze?"(?<!`)()":"(^^|[^`])").replace("code",/(?<b>`+)[^`]+\k<b>(?!`)/).replace("html",/<(?! )[^<>]*?>/).getRegex(),Oe=/^(?:\*+(?:((?!\*)punct)|([^\s*]))?)|^_+(?:((?!_)punct)|([^\s_]))?/,lt=h(Oe,"u").replace(/punct/g,L).getRegex(),ut=h(Oe,"u").replace(/punct/g,Te).getRegex(),pt=/^(?:\*+(?:((?!\*)(?!openQuote)punct)|([^\s*]))?)|^_+(?:((?!_)(?!openQuote)punct)|([^\s_]))?/,ct=h(pt,"u").replace(/openQuote/g,st).replace(/punct/g,L).getRegex(),we="^[^_*]*?__[^_*]*?\\*[^_*]*?(?=__)|[^*]+(?=[^*])|(?!\\*)punct(\\*+)(?=[\\s]|$)|notPunctSpace(\\*+)(?!\\*)(?=punctSpace|$)|(?!\\*)punctSpace(\\*+)(?=notPunctSpace)|[\\s](\\*+)(?!\\*)(?=punct)|(?!\\*)punct(\\*+)(?!\\*)(?=punct)|notPunctSpace(\\*+)(?=notPunctSpace)",ht=h(we,"gu").replace(/notPunctSpace/g,F).replace(/punctSpace/g,q).replace(/punct/g,L).getRegex(),dt=h(we,"gu").replace(/notPunctSpace/g,ot).replace(/punctSpace/g,it).replace(/punct/g,Te).getRegex(),kt="^[^_*]*?__[^_*]*?\\*[^_*]*?(?=__)|[^*]+(?=[^*])|(?!\\*)punct(\\*+)(?=[\\s]|$)|notPunctSpace(\\*+)(?!\\*)(?=punctSpace|$)|(?!\\*)[\\s](\\*+)(?=notPunctSpace)|[\\s](\\*+)(?!\\*)(?=punct)|(?!\\*)punct(\\*+)(?!\\*)(?=punct)|(?:(?!\\*)punct|notPunctSpace)(\\*+)(?!\\*)(?=notPunctSpace)",gt=h(kt,"gu").replace(/notPunctSpace/g,F).replace(/punctSpace/g,q).replace(/punct/g,L).getRegex(),ft=h("^[^_*]*?\\*\\*[^_*]*?_[^_*]*?(?=\\*\\*)|[^_]+(?=[^_])|(?!_)punct(_+)(?=[\\s]|$)|notPunctSpace(_+)(?!_)(?=punctSpace|$)|(?!_)punctSpace(_+)(?=notPunctSpace)|[\\s](_+)(?!_)(?=punct)|(?!_)punct(_+)(?!_)(?=punct)","gu").replace(/notPunctSpace/g,F).replace(/punctSpace/g,q).replace(/punct/g,L).getRegex(),mt="^[^_*]*?\\*\\*[^_*]*?_[^_*]*?(?=\\*\\*)|[^_]+(?=[^_])|(?!_)punct(_+)(?=[\\s]|$)|notPunctSpace(_+)(?!_)(?=punctSpace|$)|(?!_)[\\s](_+)(?=notPunctSpace)|[\\s](_+)(?!_)(?=punct)|(?!_)punct(_+)(?!_)(?=punct)|(?:(?!_)punct|notPunctSpace)(_+)(?!_)(?=notPunctSpace)",xt=h(mt,"gu").replace(/notPunctSpace/g,F).replace(/punctSpace/g,q).replace(/punct/g,L).getRegex(),bt=h(/^~~?(?:((?!~)punct)|[^\s~])/,"u").replace(/punct/g,L).getRegex(),Rt="^[^~]+(?=[^~])|(?!~)punct(~~?)(?=[\\s]|$)|notPunctSpace(~~?)(?!~)(?=punctSpace|$)|(?!~)punctSpace(~~?)(?=notPunctSpace)|[\\s](~~?)(?!~)(?=punct)|(?!~)punct(~~?)(?!~)(?=punct)|notPunctSpace(~~?)(?=notPunctSpace)",Tt=h(Rt,"gu").replace(/notPunctSpace/g,F).replace(/punctSpace/g,q).replace(/punct/g,L).getRegex(),Ot=h(/\\(punct)/,"gu").replace(/punct/g,L).getRegex(),wt=h(/(`+)(?:[^`]|[^`][\s\S]*?[^`])\1(?!`)|`+|\\(punct)/,"gu").replace(/punct/g,L).getRegex(),Pt=h(/^<(scheme:[^\s\x00-\x1f<>]*|email)>/).replace("scheme",/[a-zA-Z][a-zA-Z0-9+.-]{1,31}/).replace("email",/[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+(@)[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+(?![-_])/).getRegex(),yt=h(re).replace("(?:-->|$)","-->").getRegex(),St=h("^comment|^</[a-zA-Z][a-zA-Z0-9-]*\\s*>|^<[a-zA-Z][a-zA-Z0-9-]*(?:attribute)*?\\s*/?>|^<\\?[\\s\\S]*?\\?>|^<![a-zA-Z]+\\s[\\s\\S]*?>|^<!\\[CDATA\\[[\\s\\S]*?\\]\\]>").replace("comment",yt).replace("attribute",/\s+[a-zA-Z:_][\w.:-]*(?:\s*=\s*"[^"]*"|\s*=\s*'[^']*'|\s*=\s*[^\s"'=<>`]+)?/).getRegex(),Pe=/\[(?:\\[\s\S]|[^\[\]\\])*\]/,K=h(/(?:\[(?:brackets|\\[\s\S]|[^\[\]\\])*\]|\\[\s\S]|`+(?!`)[^`]*?`+(?!`)|``+(?=\])|[^\[\]\\`])*?/).replace("brackets",Pe).getRegex(),_t=h(/^!?\[(label)\]\([ \t\n]*(href)(?:(?:[ \t]+(?:\n[ \t]*)?|\n[ \t]*)(title))?[ \t\n]*\)/).replace("label",K).replace("href",/<(?:\\.|[^\n<>\\])+>|[^ \t\n\x00-\x1f]+|(?=\))/).replace("title",/"(?:\\"?|[^"\\])*"|'(?:\\'?|[^'\\])*'|\((?:\\\)?|[^)\\])*\)/).getRegex(),$t=h(/^!?\[(label)\]\[(ref)\]/).replace("label",K).replace("ref",ne).getRegex(),Lt=h(/^!?\[(ref)\](?:\[\])?/).replace("ref",ne).getRegex(),ge=/(?!\s*\])(?:\\[\s\S]|[^\[\]\\]){1,999}/,At=h(/(?:[^\[\]\\`]*(?:\[(?:brackets|\\[\s\S]|[^\[\]\\])*\]|\\[\s\S]|`+(?!`)[^`]*?`+(?!`)|``+(?=\]))){0,999}?[^\[\]\\`]*?/).replace("brackets",Pe).getRegex(),zt=h("reflink|nolink(?!\\()","g").replace("reflink",h(/^!?\[(label)\]\[(ref)\]/).replace("label",At).replace("ref",ge).getRegex()).replace("nolink",h(/^!?\[(ref)\](?:\[\])?/).replace("ref",ge).getRegex()).getRegex(),fe=/[hH][tT][tT][pP][sS]?|[fF][tT][pP]/,Et=/[A-Za-z0-9._+-]+@[a-zA-Z0-9-_]+(?:\.[a-zA-Z0-9-_]*[a-zA-Z0-9])+(?![\w-])/,Mt=h(/(?:mailto:email|xmpp:email(?:\/[A-Za-z0-9@.]+)?)/).replace(/email/g,Et).getRegex(),ie={_backpedal:C,anyPunctuation:Ot,anyPunctuationOutsideCode:wt,autolink:Pt,blockSkip:at,br:Re,code:tt,del:C,delLDelim:C,delRDelim:C,emStrongLDelim:lt,emStrongRDelimAst:ht,emStrongRDelimUnd:ft,escape:et,link:_t,nolink:Lt,punctuation:rt,reflink:$t,reflinkSearch:zt,tag:St,text:nt,url:C},Ct={...ie,emStrongLDelim:ct,emStrongRDelimAst:gt,emStrongRDelimUnd:xt,link:h(/^!?\[(label)\]\((.*?)\)/).replace("label",K).getRegex(),reflink:h(/^!?\[(label)\]\s*\[([^\]]*)\]/).replace("label",K).getRegex()},Y={...ie,emStrongRDelimAst:dt,emStrongLDelim:ut,delLDelim:bt,delRDelim:Tt,url:h(/^emailProtocol|^((?:protocol):\/\/|www\.)(?:[a-zA-Z0-9\-]+\.?)+[^\s<]*|^email/).replace("emailProtocol",Mt).replace("protocol",fe).replace("email",/[A-Za-z0-9._+-]+(@)[a-zA-Z0-9-_]+(?:\.[a-zA-Z0-9-_]*[a-zA-Z0-9])+(?![\w-])/).getRegex(),_backpedal:/(?:[^?!.,:;*_'"~()&]+|\([^)]*\)|&(?![a-zA-Z0-9]+;$)|[?!.,:;*_'"~)]+(?!$))+/,del:/^(~~?)(?=[^\s~])((?:\\[\s\S]|[^\\])*?(?:\\[\s\S]|[^\s~\\]))\1(?=[^~]|$)/,text:h(/^(?:[^a-zA-Z0-9](?=emailProtocol)|(`+|~+|[^`~])(?:(?=[`~])|(?= {2,}\n)|(?=[a-zA-Z0-9.!#$%&'*+\/=?_`{\|}~-]+@)|[\s\S]*?(?:(?=[\\<!\[`*~_]|\b_|protocol:\/\/|www\.|$)|[^ ](?= {2,}\n)|[^a-zA-Z0-9](?=emailProtocol)|[^a-zA-Z0-9.!#$%&'*+\/=?_`{\|}~-](?=[a-zA-Z0-9.!#$%&'*+\/=?_`{\|}~-]+@))))/).replace("protocol",fe).replace(/emailProtocol/g,/(?:mailto|xmpp):/).getRegex()},It={...Y,br:h(Re).replace("{2,}","*").getRegex(),text:h(Y.text).replace("\\b_","\\b_| {2,}\\n").replace(/\{2,\}/g,"*").getRegex()},U={normal:se,gfm:Je,pedantic:Ye},Z={normal:ie,gfm:Y,breaks:It,pedantic:Ct};var Bt={"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"},ye=a=>Bt[a];function P(a,e){if(e){if(x.escapeTest.test(a))return a.replace(x.escapeReplace,ye)}else if(x.escapeTestNoEncode.test(a))return a.replace(x.escapeReplaceNoEncode,ye);return a}function Se(a){return x.numericCharacterReference.test(a)?a.replace(x.numericCharacterReferenceOrAmpersand,(e,t,n)=>{if(t===void 0&&n===void 0)return"&amp;";let i=t===void 0?Number.parseInt(n,16):Number.parseInt(t,10);return i===0||i>1114111||i>=55296&&i<=57343?"\uFFFD":i===38?"&amp;":String.fromCodePoint(i)}):a}function oe(a){try{a=encodeURI(a).replace(x.percentDecode,"%")}catch{return null}return a}function ae(a,e){let t=a.replace(x.findPipe,(r,o,s)=>{let l=!1,u=o;for(;--u>=0&&s[u]==="\\";)l=!l;return l?"|":" |"}),n=t.split(x.splitPipe),i=0;if(n[0].trim()||n.shift(),n.length>0&&!n.at(-1)?.trim()&&n.pop(),e)if(n.length>e)n.splice(e);else for(;n.length<e;)n.push("");for(;i<n.length;i++)n[i]=n[i].trim().replace(x.slashPipe,"|");return n}function z(a,e,t){let n=a.length;if(n===0)return"";let i=0;for(;i<n;){let r=a.charAt(n-i-1);if(r===e&&!t)i++;else if(r!==e&&t)i++;else break}return a.slice(0,n-i)}function le(a){let e=a.split(`
+`),t=e.length-1;for(;t>=0&&x.blankLine.test(e[t]);)t--;return e.length-t<=2?a:e.slice(0,t+1).join(`
+`)}function v(a){return a.trim().toLowerCase().toUpperCase().toLowerCase()}function ue(a,e){if(a.indexOf(e[0])===-1&&a.indexOf(e[1])===-1)return-1;let t=0;for(let n=0;n<a.length;n++)if(a[n]==="\\")n++;else if(a[n]===e[0])t++;else if(a[n]===e[1]&&(t--,t<0))return n;return t>0?-2:-1}function X(a,e=0){let t=e,n="";for(let i of a)if(i==="	"){let r=4-t%4;n+=" ".repeat(r),t+=r}else n+=i,t++;return n}function _e(a,e,t,n,i){let r=e.href,o=e.title||null,s=a[1].replace(i.other.outputLinkReplace,"$1"),l=a[0].charAt(0)==="!",u=n.state.inLink,c=n.state.linkEmitted,p=n.state.inRawBlock;n.state.inLink=!0,n.state.linkEmitted=!1;let d=n.inlineTokens(s),f=n.state.linkEmitted;if(n.state.linkEmitted=c,n.state.inLink=u,!l){if(f){n.state.inRawBlock=p;return}n.state.linkEmitted=!0}return{type:l?"image":"link",raw:t,href:r,title:o,text:s,tokens:d}}function Dt(a,e,t){let n=a.match(t.other.indentCodeCompensation);if(n===null)return e;let i=n[1];return e.split(`
+`).map(r=>{let o=r.match(t.other.beginningSpace);if(o===null)return r;let[s]=o;return r.slice(Math.min(s.length,i.length))}).join(`
+`)}function $e(a,e,t,n){if(!e.includes("<"))return!1;for(let i=0;i<e.length;i++){if(e[i]==="\\"){i++;continue}if(e[i]==="`"){let s=n.inline.code.exec(e.slice(i));if(s){i+=s[0].length-1;continue}}if(e[i]!=="<")continue;let r=a.slice(t+i),o=n.inline.tag.exec(r)||n.inline.autolink.exec(r);if(o){if(o[0].length>e.length-i)return!0;i+=o[0].length-1}}return!1}var S=class{options;rules;lexer;constructor(e){this.options=e||w}space(e){let t=this.rules.block.newline.exec(e);if(t&&t[0].length>0)return{type:"space",raw:t[0]}}code(e){let t=this.rules.block.code.exec(e);if(t){let n=this.options.pedantic?t[0]:le(t[0]),i=n.replace(this.rules.other.codeRemoveIndent,"");return{type:"code",raw:n,codeBlockStyle:"indented",text:i}}}fences(e){let t=this.rules.block.fences.exec(e);if(t){let n=t[0],i=Dt(n,t[3]||"",this.rules);return{type:"code",raw:n,lang:t[2]?t[2].trim().replace(this.rules.inline.anyPunctuation,"$1"):t[2],text:i}}}heading(e){let t=this.rules.block.heading.exec(e);if(t){let n=t[2].trim();if(this.rules.other.endingHash.test(n)){let i=z(n,"#");(this.options.pedantic||!i||this.rules.other.endingSpaceTabChar.test(i))&&(n=i.trim())}return{type:"heading",raw:z(t[0],`
+`),depth:t[1].length,text:n,tokens:this.lexer.inline(n)}}}hr(e){let t=this.rules.block.hr.exec(e);if(t)return{type:"hr",raw:z(t[0],`
+`)}}blockquote(e){let t=this.rules.block.blockquote.exec(e);if(t){let n=z(t[0],`
+`).split(`
+`),i="",r="",o=[];for(;n.length>0;){let s=!1,l=[],u;for(u=0;u<n.length;u++)if(this.rules.other.blockquoteStart.test(n[u]))l.push(n[u]),s=!0;else if(!s)l.push(n[u]);else break;n=n.slice(u);let c=l.join(`
+`),p=c.replace(this.rules.other.blockquoteSetextReplace,`
+    $1`).replace(this.rules.other.blockquoteSetextReplace2,"");i=i?`${i}
+${c}`:c,r=r?`${r}
+${p}`:p;let d=this.lexer.state.top;if(this.lexer.state.top=!0,this.lexer.blockTokens(p,o,!0),this.lexer.state.top=d,n.length===0)break;let f=o.at(-1);if(f?.type==="code"||f?.type==="heading"||f?.type==="hr"||f?.type==="html")break;if(f?.type==="blockquote"){let k=f,y=n.join(`
+`),R=k.raw+`
+`+y.replace(this.rules.other.blockquoteSetextReplace2,""),m=this.blockquote(R);o[o.length-1]=m;let E=R.substring(m.raw.length).replace(/^\n/,""),b=E?E.split(`
+`).length:0,G=b?n.slice(0,-b):n;G.length>0&&(i=`${i}
+${G.join(`
+`)}`),r=r.substring(0,r.length-k.text.length)+m.text;break}else if(f?.type==="list"){let k=f,y=k.raw+`
+`+n.join(`
+`),R=this.list(y);o[o.length-1]=R,i=i.substring(0,i.length-f.raw.length)+R.raw,r=r.substring(0,r.length-k.raw.length)+R.raw,n=y.substring(o.at(-1).raw.length).split(`
+`);continue}}return{type:"blockquote",raw:i,tokens:o,text:r}}}list(e){let t=this.rules.block.list.exec(e);if(t){let n=e,i=()=>n.length-e.length,r=t[1].trim(),o=r.length>1,s={type:"list",raw:"",ordered:o,start:o?+r.slice(0,-1):"",loose:!1,items:[]};r=o?`\\d{1,9}\\${r.slice(-1)}`:`\\${r}`,this.options.pedantic&&(r=o?r:"[*+-]");let l=this.rules.other.listItemRegex(r),u=!1;for(;e;){let p=!1,d="";if(!(t=l.exec(e))||this.rules.block.hr.test(e))break;let f=i();e=e.substring(t[0].length);let k=t[2].split(`
+`,1)[0],y=t[1].length,R=this.options.pedantic?X(k,y):k.replace(this.rules.other.leadingSpaceTab,W=>X(W,y)),m=e.split(`
+`,1)[0],E=!R.trim(),b=0;if(this.options.pedantic?(b=2,d=R.trimStart()):E?b=y+1:(b=R.search(this.rules.other.nonSpaceChar),b=b>4?1:b,d=R.slice(b),b+=y),E&&this.rules.other.blankLine.test(m)&&(e=e.substring(m.length+1),p=!0),!p){let W=this.rules.other.nextBulletRegex(b),pe=this.rules.other.hrRegex(b),ce=this.rules.other.fencesBeginRegex(b),he=this.rules.other.headingBeginRegex(b),Ae=this.rules.other.htmlBeginRegex(b),ze=this.rules.other.blockquoteBeginRegex(b);for(;e;){let de=e.split(`
+`,1)[0],N;if(m=de,this.options.pedantic?(m=m.replace(this.rules.other.listReplaceNesting,"  "),N=m):N=m.replace(this.rules.other.leadingSpaceTab,Ee=>X(Ee)),ce.test(m)||he.test(m)||Ae.test(m)||ze.test(m)||W.test(m)||pe.test(m))break;if(N.search(this.rules.other.nonSpaceChar)>=b||!m.trim())d+=`
+`+N.slice(b);else{if(E||R.replace(this.rules.other.tabCharGlobal,"    ").search(this.rules.other.nonSpaceChar)>=4||ce.test(R)||he.test(R)||pe.test(R))break;d+=`
+`+m}E=!m.trim(),e=e.substring(de.length+1),R=N.slice(b)}}let G=n.slice(f,i());s.loose||(u?s.loose=!0:this.rules.other.doubleBlankLine.test(G)&&(u=!0)),s.items.push({type:"list_item",raw:G,task:!!this.options.gfm&&this.rules.other.listIsTask.test(d),loose:!1,text:d,tokens:[]})}let c=s.items.at(-1);if(c)c.raw=c.raw.trimEnd(),c.text=c.text.trimEnd();else return;s.raw=n.slice(0,i()).trimEnd();for(let p of s.items)if(this.lexer.state.top=!1,p.tokens=this.lexer.blockTokens(p.text,[]),!s.loose){let d=p.tokens.filter(k=>k.type==="space"),f=d.length>0&&d.some(k=>this.rules.other.anyLine.test(k.raw));s.loose=f}for(let p of s.items){let d=p.tokens[0];if(p.task&&(d?.type==="text"||d?.type==="paragraph")){p.text=p.text.replace(this.rules.other.listReplaceTask,""),d.raw=d.raw.replace(this.rules.other.listReplaceTask,""),d.text=d.text.replace(this.rules.other.listReplaceTask,"");for(let k=this.lexer.inlineQueue.length-1;k>=0;k--)if(this.rules.other.listIsTask.test(this.lexer.inlineQueue[k].src)){this.lexer.inlineQueue[k].src=this.lexer.inlineQueue[k].src.replace(this.rules.other.listReplaceTask,"");break}let f=this.rules.other.listTaskCheckbox.exec(p.raw);if(f){let k={type:"checkbox",raw:f[0]+" ",checked:f[0]!=="[ ]"};p.checked=k.checked,s.loose?p.tokens[0]&&["paragraph","text"].includes(p.tokens[0].type)&&"tokens"in p.tokens[0]&&p.tokens[0].tokens?(p.tokens[0].raw=k.raw+p.tokens[0].raw,p.tokens[0].text=k.raw+p.tokens[0].text,p.tokens[0].tokens.unshift(k)):p.tokens.unshift({type:"paragraph",raw:k.raw,text:k.raw,tokens:[k]}):p.tokens.unshift(k)}}else p.task&&(p.task=!1)}if(s.loose)for(let p of s.items){p.loose=!0;for(let d of p.tokens)d.type==="text"&&(d.type="paragraph")}return s}}html(e){let t=this.rules.block.html.exec(e);if(t){let n=le(t[0]);return{type:"html",block:!0,raw:n,pre:t[1]==="pre"||t[1]==="script"||t[1]==="style",text:n}}}def(e){let t=this.rules.block.def.exec(e);if(t){if(!this.rules.other.startAngleBracket.test(t[2])&&ue(t[2],"()")!==-1)return;let n=v(t[1]).replace(this.rules.other.multipleSpaceGlobal," "),i=t[2]?t[2].replace(this.rules.other.hrefBrackets,"$1").replace(this.rules.inline.anyPunctuation,"$1"):"",r=t[3]?t[3].substring(1,t[3].length-1).replace(this.rules.inline.anyPunctuation,"$1"):t[3];return{type:"def",tag:n,raw:z(t[0],`
+`),href:i,title:r}}}table(e){let t=this.rules.block.table.exec(e);if(!t||!this.rules.other.tableDelimiter.test(t[2]))return;let n=ae(t[1]),i=t[2].replace(this.rules.other.tableAlignChars,"").split("|"),r=t[3]?.trim()?t[3].replace(this.rules.other.tableRowBlankLine,"").split(`
+`):[],o={type:"table",raw:z(t[0],`
+`),header:[],align:[],rows:[]};if(n.length===i.length){for(let s of i)this.rules.other.tableAlignRight.test(s)?o.align.push("right"):this.rules.other.tableAlignCenter.test(s)?o.align.push("center"):this.rules.other.tableAlignLeft.test(s)?o.align.push("left"):o.align.push(null);for(let s=0;s<n.length;s++)o.header.push({text:n[s],tokens:this.lexer.inline(n[s]),header:!0,align:o.align[s]});for(let s of r)o.rows.push(ae(s,o.header.length).map((l,u)=>({text:l,tokens:this.lexer.inline(l),header:!1,align:o.align[u]})));return o}}lheading(e){let t=this.rules.block.lheading.exec(e);if(t){let n=t[1].trim();return{type:"heading",raw:z(t[0],`
+`),depth:t[2].charAt(0)==="="?1:2,text:n,tokens:this.lexer.inline(n)}}}paragraph(e){let t=this.rules.block.paragraph.exec(e);if(t){let n=t[1].charAt(t[1].length-1)===`
+`?t[1].slice(0,-1):t[1];return{type:"paragraph",raw:t[0],text:n,tokens:this.lexer.inline(n)}}}text(e){let t=this.rules.block.text.exec(e);if(t)return{type:"text",raw:t[0],text:t[0],tokens:this.lexer.inline(t[0])}}escape(e){let t=this.rules.inline.escape.exec(e);if(t)return{type:"escape",raw:t[0],text:t[1]}}tag(e){let t=this.rules.inline.tag.exec(e);if(t)return!this.lexer.state.inLink&&this.rules.other.startATag.test(t[0])?this.lexer.state.inLink=!0:this.lexer.state.inLink&&this.rules.other.endATag.test(t[0])&&(this.lexer.state.inLink=!1),!this.lexer.state.inRawBlock&&this.rules.other.startPreScriptTag.test(t[0])?this.lexer.state.inRawBlock=!0:this.lexer.state.inRawBlock&&this.rules.other.endPreScriptTag.test(t[0])&&(this.lexer.state.inRawBlock=!1),{type:"html",raw:t[0],inLink:this.lexer.state.inLink,inRawBlock:this.lexer.state.inRawBlock,block:!1,text:t[0]}}link(e){if(this.lexer.state.linkParenPossible===!1)return;let t=this.rules.inline.link.exec(e);if(t){let n=t[0].charAt(0)==="!"?2:1;if(!this.options.pedantic&&$e(e,t[1],n,this.rules))return;let i=t[2].trim();if(!this.options.pedantic&&this.rules.other.startAngleBracket.test(i)){if(!this.rules.other.endAngleBracket.test(i))return;let s=z(i.slice(0,-1),"\\");if((i.length-s.length)%2===0)return}else{let s=ue(t[2],"()");if(s===-2)return;if(s>-1){let u=(t[0].indexOf("!")===0?5:4)+t[1].length+s;t[2]=t[2].substring(0,s),t[0]=t[0].substring(0,u).trim(),t[3]=""}}let r=t[2],o="";if(this.options.pedantic){let s=this.rules.other.pedanticHrefTitle.exec(r);s&&(r=s[1],o=s[3])}else o=t[3]?t[3].slice(1,-1):"";return r=r.trim(),this.rules.other.startAngleBracket.test(r)&&(this.options.pedantic&&!this.rules.other.endAngleBracket.test(i)?r=r.slice(1):r=r.slice(1,-1)),_e(t,{href:r&&r.replace(this.rules.inline.anyPunctuation,"$1"),title:o&&o.replace(this.rules.inline.anyPunctuation,"$1")},t[0],this.lexer,this.rules)}}reflink(e,t){let n;if((n=this.rules.inline.reflink.exec(e))||(n=this.rules.inline.nolink.exec(e))){let i=n[0].charAt(0)==="!"?2:1;if(!this.options.pedantic&&$e(e,n[1],i,this.rules))return;let r=(n[2]||n[1]).replace(this.rules.other.multipleSpaceGlobal," "),o=t[v(r)];if(!o){let s=n[0].charAt(0);return{type:"text",raw:s,text:s}}return _e(n,o,n[0],this.lexer,this.rules)}}emStrong(e,t,n=""){let i=this.rules.inline.emStrongLDelim.exec(e);if(!i||!i[1]&&!i[2]&&!i[3]&&!i[4]||i[4]&&n.match(this.rules.other.unicodeAlphaNumeric))return;if(!(i[1]||i[3]||"")||!n||this.rules.inline.punctuation.exec(n)){let o=[...i[0]].length-1,s,l,u=o,c=0,p=i[0][0],d=n===p,f=p==="*"?this.rules.inline.emStrongRDelimAst:this.rules.inline.emStrongRDelimUnd;for(f.lastIndex=0,t=t.slice(-1*e.length+o);(i=f.exec(t))!==null;){if(s=i[1]||i[2]||i[3]||i[4]||i[5]||i[6],!s)continue;if(l=[...s].length,i[3]||i[4]){u+=l;continue}else if(i[5]||i[6]){if(o%3&&!((o+l)%3)){c+=l;continue}if(d)break}if(u-=l,u>0)continue;l=Math.min(l,l+u+c);let k=[...i[0]][0].length,y=e.slice(0,o+i.index+k+l);if(Math.min(o,l)%2){let m=y.slice(1,-1);return{type:"em",raw:y,text:m,tokens:this.lexer.inlineTokens(m)}}let R=y.slice(2,-2);return{type:"strong",raw:y,text:R,tokens:this.lexer.inlineTokens(R)}}}}codespan(e){let t=this.rules.inline.code.exec(e);if(t){let n=t[2].replace(this.rules.other.newLineCharGlobal," "),i=this.rules.other.nonSpaceChar.test(n),r=this.rules.other.startingSpaceChar.test(n)&&this.rules.other.endingSpaceChar.test(n);return i&&r&&(n=n.substring(1,n.length-1)),{type:"codespan",raw:t[0],text:n}}}br(e){let t=this.rules.inline.br.exec(e);if(t)return{type:"br",raw:t[0]}}del(e,t,n=""){let i=this.rules.inline.delLDelim.exec(e);if(!i)return;if(!(i[1]||"")||!n||this.rules.inline.punctuation.exec(n)){let o=[...i[0]].length-1,s,l,u=o,c=this.rules.inline.delRDelim;for(c.lastIndex=0,t=t.slice(-1*e.length+o);(i=c.exec(t))!==null;){if(s=i[1]||i[2]||i[3]||i[4]||i[5]||i[6],!s||(l=[...s].length,l!==o))continue;if(i[3]||i[4]){u+=l;continue}if(u-=l,u>0)continue;l=Math.min(l,l+u);let p=[...i[0]][0].length,d=e.slice(0,o+i.index+p+l),f=d.slice(o,-o);return{type:"del",raw:d,text:f,tokens:this.lexer.inlineTokens(f)}}}}autolink(e){let t=this.rules.inline.autolink.exec(e);if(t){let n,i;return t[2]==="@"?(n=t[1],i="mailto:"+n):(n=t[1],i=n),{type:"link",raw:t[0],text:n,href:i,autolink:!0,tokens:[{type:"text",raw:n,text:n}]}}}url(e){let t;if(t=this.rules.inline.url.exec(e)){let n,i;if(t[2]==="@")n=t[0],i="mailto:"+n;else{let r;do r=t[0],t[0]=this.rules.inline._backpedal.exec(t[0])?.[0]??"";while(r!==t[0]);n=t[0],t[1]==="www."?i="http://"+t[0]:i=t[0]}return{type:"link",raw:t[0],text:n,href:i,autolink:!0,tokens:[{type:"text",raw:n,text:n}]}}}inlineText(e){let t=this.rules.inline.text.exec(e);if(t){let n=this.lexer.state.inRawBlock;return{type:"text",raw:t[0],text:n?t[0]:Se(t[0]),escaped:n}}}};var T=class a{tokens;options;state;inlineQueue;tokenizer;constructor(e){this.tokens=[],this.tokens.links=Object.create(null),this.options=e||w,this.options.tokenizer=this.options.tokenizer||new S,this.tokenizer=this.options.tokenizer,this.tokenizer.options=this.options,this.tokenizer.lexer=this,this.inlineQueue=[],this.state={inLink:!1,inRawBlock:!1,linkEmitted:!1,linkParenPossible:!0,top:!0};let t={other:x,block:U.normal,inline:Z.normal};this.options.pedantic?(t.block=U.pedantic,t.inline=Z.pedantic):this.options.gfm&&(t.block=U.gfm,this.options.breaks?t.inline=Z.breaks:t.inline=Z.gfm),this.tokenizer.rules=t}static get rules(){return{block:U,inline:Z}}static lex(e,t){return new a(t).lex(e)}static lexInline(e,t){return new a(t).inlineTokens(e)}lex(e){e=e.replace(x.carriageReturn,`
+`),this.blockTokens(e,this.tokens);for(let t=0;t<this.inlineQueue.length;t++){let n=this.inlineQueue[t];this.inlineTokens(n.src,n.tokens)}return this.inlineQueue=[],this.tokens}blockTokens(e,t=[],n=!1){this.tokenizer.lexer=this,this.options.pedantic&&(e=e.replace(x.tabCharGlobal,"    ").replace(x.spaceLine,""));let i=1/0;for(;e;){if(e.length<i)i=e.length;else{this.infiniteLoopError(e.charCodeAt(0));break}let r;if(this.options.extensions?.block?.some(s=>(r=s.call({lexer:this},e,t))?(e=e.substring(r.raw.length),t.push(r),!0):!1))continue;if(r=this.tokenizer.space(e)){e=e.substring(r.raw.length);let s=t.at(-1);r.raw.length===1&&s!==void 0?s.raw+=`
+`:t.push(r);continue}if(r=this.tokenizer.code(e)){e=e.substring(r.raw.length);let s=t.at(-1);s?.type==="paragraph"||s?.type==="text"?(s.raw+=(s.raw.endsWith(`
+`)?"":`
+`)+r.raw,s.text+=`
+`+r.text,this.inlineQueue.at(-1).src=s.text):t.push(r);continue}if(r=this.tokenizer.fences(e)){e=e.substring(r.raw.length),t.push(r);continue}if(r=this.tokenizer.heading(e)){e=e.substring(r.raw.length),t.push(r);continue}if(r=this.tokenizer.hr(e)){e=e.substring(r.raw.length),t.push(r);continue}if(r=this.tokenizer.blockquote(e)){e=e.substring(r.raw.length),t.push(r);continue}if(r=this.tokenizer.list(e)){e=e.substring(r.raw.length),t.push(r);continue}if(r=this.tokenizer.html(e)){e=e.substring(r.raw.length),t.push(r);continue}if(r=this.tokenizer.def(e)){e=e.substring(r.raw.length);let s=t.at(-1);s?.type==="paragraph"||s?.type==="text"?(s.raw+=(s.raw.endsWith(`
+`)?"":`
+`)+r.raw,s.text+=`
+`+r.raw,this.inlineQueue.at(-1).src=s.text):this.tokens.links[r.tag]||(this.tokens.links[r.tag]={href:r.href,title:r.title},t.push(r));continue}if(r=this.tokenizer.table(e)){e=e.substring(r.raw.length),t.push(r);continue}if(r=this.tokenizer.lheading(e)){e=e.substring(r.raw.length),t.push(r);continue}let o=e;if(this.options.extensions?.startBlock){let s=1/0,l=e.slice(1),u;this.options.extensions.startBlock.forEach(c=>{u=c.call({lexer:this},l),typeof u=="number"&&u>=0&&(s=Math.min(s,u))}),s<1/0&&s>=0&&(o=e.substring(0,s+1))}if(this.state.top&&(r=this.tokenizer.paragraph(o))){let s=t.at(-1);n&&s?.type==="paragraph"?(s.raw+=(s.raw.endsWith(`
+`)?"":`
+`)+r.raw,s.text+=`
+`+r.text,this.inlineQueue.pop(),this.inlineQueue.at(-1).src=s.text):t.push(r),n=o.length!==e.length,e=e.substring(r.raw.length);continue}if(r=this.tokenizer.text(e)){e=e.substring(r.raw.length);let s=t.at(-1);s?.type==="text"?(s.raw+=(s.raw.endsWith(`
+`)?"":`
+`)+r.raw,s.text+=`
+`+r.text,this.inlineQueue.pop(),this.inlineQueue.at(-1).src=s.text):t.push(r);continue}if(e){this.infiniteLoopError(e.charCodeAt(0));break}}return this.state.top=!0,t}inline(e,t=[]){return this.inlineQueue.push({src:e,tokens:t}),t}linkInText(e){if(!e.includes("["))return!1;let t=this.tokenizer.rules.inline.link;for(let n of e.matchAll(this.tokenizer.rules.inline.blockSkip))if(t.test(n[0])&&e.charAt(n.index-1)!=="!")return!0;for(let n of e.matchAll(this.tokenizer.rules.inline.reflinkSearch)){let i=n[0],r=i.lastIndexOf("[");if(!(i.charAt(0)==="!"||!Object.hasOwn(this.tokens.links,v(i.slice(r+1,-1))))&&!(r>1&&this.linkInText(i.slice(1,r-1))))return!0}return!1}inlineTokens(e,t=[]){this.tokenizer.lexer=this;let n=this.state.linkParenPossible;this.state.linkParenPossible=n&&e.includes(")");try{return this.#e(e,t)}finally{this.state.linkParenPossible=n}}#e(e,t){let n=e;if(this.tokens.links&&e.includes("[")){let s=this.tokenizer.rules.inline.reflinkSearch,l=u=>{let c=u.lastIndexOf("[");if(!Object.hasOwn(this.tokens.links,v(u.slice(c+1,-1))))return u;if(c>1&&u.charAt(0)!=="!"){let p=u.slice(1,c-1);if(this.linkInText(p))return"["+p.replace(s,l)+"]["+"a".repeat(u.length-c-2)+"]"}return"["+"a".repeat(u.length-2)+"]"};n=n.replace(s,l)}n=n.replace(this.tokenizer.rules.inline.anyPunctuationOutsideCode,(s,l,u)=>u?"+".repeat(s.length):l?l+s.slice(l.length,-l.length).replace(/`/g,"+")+l:s),n=n.replace(this.tokenizer.rules.inline.blockSkip,(s,l,u)=>{let c=u?u.length:0;return s.slice(0,c)+"["+"a".repeat(s.length-c-2)+"]"}),n=this.options.hooks?.emStrongMask?.call({lexer:this},n)??n;let i=!1,r="",o=1/0;for(;e;){if(e.length<o)o=e.length;else{this.infiniteLoopError(e.charCodeAt(0));break}i||(r=""),i=!1;let s;if(this.options.extensions?.inline?.some(u=>(s=u.call({lexer:this},e,t))?(e=e.substring(s.raw.length),t.push(s),!0):!1))continue;if(s=this.tokenizer.escape(e)){e=e.substring(s.raw.length),t.push(s);continue}if(s=this.tokenizer.tag(e)){e=e.substring(s.raw.length),t.push(s);continue}if(s=this.tokenizer.link(e)){e=e.substring(s.raw.length),t.push(s);continue}if(s=this.tokenizer.reflink(e,this.tokens.links)){e=e.substring(s.raw.length);let u=t.at(-1);s.type==="text"&&u?.type==="text"?(u.raw+=s.raw,u.text+=s.text):t.push(s);continue}if(s=this.tokenizer.emStrong(e,n,r)){e=e.substring(s.raw.length),t.push(s);continue}if(s=this.tokenizer.codespan(e)){e=e.substring(s.raw.length),t.push(s);continue}if(s=this.tokenizer.br(e)){e=e.substring(s.raw.length),t.push(s);continue}if(s=this.tokenizer.del(e,n,r)){e=e.substring(s.raw.length),t.push(s);continue}if(s=this.tokenizer.autolink(e)){e=e.substring(s.raw.length),t.push(s);continue}if(!this.state.inLink&&(s=this.tokenizer.url(e))){e=e.substring(s.raw.length),t.push(s);continue}let l=e;if(this.options.extensions?.startInline){let u=1/0,c=e.slice(1),p;this.options.extensions.startInline.forEach(d=>{p=d.call({lexer:this},c),typeof p=="number"&&p>=0&&(u=Math.min(u,p))}),u<1/0&&u>=0&&(l=e.substring(0,u+1))}if(s=this.tokenizer.inlineText(l)){e=e.substring(s.raw.length),s.raw.slice(-1)!=="_"&&(r=s.raw.slice(-1)),i=!0;let u=t.at(-1);u?.type==="text"?(u.raw+=s.raw,u.text+=s.text):t.push(s);continue}if(e){this.infiniteLoopError(e.charCodeAt(0));break}}return t}infiniteLoopError(e){let t="Infinite loop on byte: "+e;if(this.options.silent)console.error(t);else throw new Error(t)}};var _=class{options;parser;constructor(e){this.options=e||w}space(e){return""}code({text:e,lang:t,escaped:n}){let i=(t||"").match(x.notSpaceStart)?.[0],r=e?e.replace(x.endingNewline,"")+`
+`:"";return i?'<pre><code class="language-'+P(i)+'">'+(n?r:P(r,!0))+`</code></pre>
+`:"<pre><code>"+(n?r:P(r,!0))+`</code></pre>
+`}blockquote({tokens:e}){return`<blockquote>
+${this.parser.parse(e)}</blockquote>
+`}html({text:e}){return e}def(e){return""}heading({tokens:e,depth:t}){return`<h${t}>${this.parser.parseInline(e)}</h${t}>
+`}hr(e){return`<hr>
+`}list(e){let t=e.ordered,n=e.start,i="";for(let s=0;s<e.items.length;s++){let l=e.items[s];i+=this.listitem(l)}let r=t?"ol":"ul",o=t&&n!==1?' start="'+n+'"':"";return"<"+r+o+`>
+`+i+"</"+r+`>
+`}listitem(e){return`<li>${this.parser.parse(e.tokens)}</li>
+`}checkbox({checked:e}){return"<input "+(e?'checked="" ':"")+'disabled="" type="checkbox"> '}paragraph({tokens:e}){return`<p>${this.parser.parseInline(e)}</p>
+`}table(e){let t="",n="";for(let r=0;r<e.header.length;r++)n+=this.tablecell(e.header[r]);t+=this.tablerow({text:n});let i="";for(let r=0;r<e.rows.length;r++){let o=e.rows[r];n="";for(let s=0;s<o.length;s++)n+=this.tablecell(o[s]);i+=this.tablerow({text:n})}return i&&(i=`<tbody>${i}</tbody>`),`<table>
+<thead>
+`+t+`</thead>
+`+i+`</table>
+`}tablerow({text:e}){return`<tr>
+${e}</tr>
+`}tablecell(e){let t=this.parser.parseInline(e.tokens),n=e.header?"th":"td";return(e.align?`<${n} align="${e.align}">`:`<${n}>`)+t+`</${n}>
+`}strong({tokens:e}){return`<strong>${this.parser.parseInline(e)}</strong>`}em({tokens:e}){return`<em>${this.parser.parseInline(e)}</em>`}codespan({text:e}){return`<code>${P(e,!0)}</code>`}br(e){return"<br>"}del({tokens:e}){return`<del>${this.parser.parseInline(e)}</del>`}link({href:e,title:t,text:n,tokens:i,autolink:r}){let o=r?P(n,!0):this.parser.parseInline(i),s=oe(e);if(s===null)return o;e=P(s,r);let l='<a href="'+e+'"';return t&&(l+=' title="'+P(t)+'"'),l+=">"+o+"</a>",l}image({href:e,title:t,text:n,tokens:i}){i&&(n=this.parser.parseInline(i,this.parser.textRenderer));let r=oe(e);if(r===null)return P(n);e=r;let o=`<img src="${P(e)}" alt="${P(n)}"`;return t&&(o+=` title="${P(t)}"`),o+=">",o}text(e){return"tokens"in e&&e.tokens?this.parser.parseInline(e.tokens):"escaped"in e&&e.escaped?e.text:P(e.text)}};var A=class{strong({text:e}){return e}em({text:e}){return e}codespan({text:e}){return e}del({text:e}){return e}html({text:e}){return e}text({text:e}){return e}link({text:e}){return""+e}image({text:e}){return""+e}br(){return""}checkbox({raw:e}){return e}};var O=class a{options;renderer;textRenderer;constructor(e){this.options=e||w,this.options.renderer=this.options.renderer||new _,this.renderer=this.options.renderer,this.renderer.options=this.options,this.renderer.parser=this,this.textRenderer=new A}static parse(e,t){return new a(t).parse(e)}static parseInline(e,t){return new a(t).parseInline(e)}parse(e){this.renderer.parser=this;let t="";for(let n=0;n<e.length;n++){let i=e[n];if(this.options.extensions?.renderers?.[i.type]){let o=i,s=this.options.extensions.renderers[o.type].call({parser:this},o);if(s!==!1||!["space","hr","heading","code","table","blockquote","list","checkbox","html","def","paragraph","text"].includes(o.type)){t+=s||"";continue}}let r=i;switch(r.type){case"space":{t+=this.renderer.space(r);break}case"hr":{t+=this.renderer.hr(r);break}case"heading":{t+=this.renderer.heading(r);break}case"code":{t+=this.renderer.code(r);break}case"table":{t+=this.renderer.table(r);break}case"blockquote":{t+=this.renderer.blockquote(r);break}case"list":{t+=this.renderer.list(r);break}case"checkbox":{t+=this.renderer.checkbox(r);break}case"html":{t+=this.renderer.html(r);break}case"def":{t+=this.renderer.def(r);break}case"paragraph":{t+=this.renderer.paragraph(r);break}case"text":{t+=this.renderer.text(r);break}default:{let o='Token with "'+r.type+'" type was not found.';if(this.options.silent)return console.error(o),"";throw new Error(o)}}}return t}parseInline(e,t=this.renderer){this.renderer.parser=this;let n="";for(let i=0;i<e.length;i++){let r=e[i];if(this.options.extensions?.renderers?.[r.type]){let s=this.options.extensions.renderers[r.type].call({parser:this},r);if(s!==!1||!["escape","html","link","image","checkbox","strong","em","codespan","br","del","text"].includes(r.type)){n+=s||"";continue}}let o=r;switch(o.type){case"escape":{n+=t.text(o);break}case"html":{n+=t.html(o);break}case"link":{n+=t.link(o);break}case"image":{n+=t.image(o);break}case"checkbox":{n+=t.checkbox(o);break}case"strong":{n+=t.strong(o);break}case"em":{n+=t.em(o);break}case"codespan":{n+=t.codespan(o);break}case"br":{n+=t.br(o);break}case"del":{n+=t.del(o);break}case"text":{n+=t.text(o);break}default:{let s='Token with "'+o.type+'" type was not found.';if(this.options.silent)return console.error(s),"";throw new Error(s)}}}return n}};var $=class{options;block;constructor(e){this.options=e||w}static passThroughHooks=new Set(["preprocess","postprocess","processAllTokens","emStrongMask"]);static passThroughHooksRespectAsync=new Set(["preprocess","postprocess","processAllTokens"]);preprocess(e){return e}postprocess(e){return e}processAllTokens(e){return e}emStrongMask(e){return e}provideLexer(e=this.block){return e?T.lex:T.lexInline}provideParser(e=this.block){return e?O.parse:O.parseInline}};function I(a,e){if(Array.isArray(e))for(let t=0;t<e.length;t++)a.push(e[t]);else a.push(e)}var H=class{defaults=M();options=this.setOptions;parse=this.parseMarkdown(!0);parseInline=this.parseMarkdown(!1);Parser=O;Renderer=_;TextRenderer=A;Lexer=T;Tokenizer=S;Hooks=$;constructor(...e){this.use(...e)}walkTokens(e,t){let n=[];for(let i of e)switch(I(n,t.call(this,i)),i.type){case"table":{let r=i;for(let o of r.header)I(n,this.walkTokens(o.tokens,t));for(let o of r.rows)for(let s of o)I(n,this.walkTokens(s.tokens,t));break}case"list":{let r=i;I(n,this.walkTokens(r.items,t));break}default:{let r=i;this.defaults.extensions?.childTokens?.[r.type]?this.defaults.extensions.childTokens[r.type].forEach(o=>{let s=r[o].flat(1/0);I(n,this.walkTokens(s,t))}):r.tokens&&I(n,this.walkTokens(r.tokens,t))}}return n}use(...e){let t=this.defaults.extensions||{renderers:{},childTokens:{}};return e.forEach(n=>{let i={...n};if(i.async=this.defaults.async||i.async||!1,n.extensions&&(n.extensions.forEach(r=>{if(!r.name)throw new Error("extension name required");if("renderer"in r){let o=t.renderers[r.name];o?t.renderers[r.name]=function(...s){let l=r.renderer.apply(this,s);return l===!1&&(l=o.apply(this,s)),l}:t.renderers[r.name]=r.renderer}if("tokenizer"in r){if(!r.level||r.level!=="block"&&r.level!=="inline")throw new Error("extension level must be 'block' or 'inline'");let o=t[r.level];o?o.unshift(r.tokenizer):t[r.level]=[r.tokenizer],r.start&&(r.level==="block"?t.startBlock?t.startBlock.push(r.start):t.startBlock=[r.start]:r.level==="inline"&&(t.startInline?t.startInline.push(r.start):t.startInline=[r.start]))}"childTokens"in r&&r.childTokens&&(t.childTokens[r.name]=r.childTokens)}),i.extensions=t),n.renderer){let r=this.defaults.renderer||new _(this.defaults);for(let o in n.renderer){if(!(o in r))throw new Error(`renderer '${o}' does not exist`);if(["options","parser"].includes(o))continue;let s=o,l=n.renderer[s],u=r[s];r[s]=(...c)=>{let p=l.apply(r,c);return p===!1&&(p=u.apply(r,c)),p||""}}i.renderer=r}if(n.tokenizer){let r=this.defaults.tokenizer||new S(this.defaults);for(let o in n.tokenizer){if(!(o in r))throw new Error(`tokenizer '${o}' does not exist`);if(["options","rules","lexer"].includes(o))continue;let s=o,l=n.tokenizer[s],u=r[s];r[s]=(...c)=>{let p=l.apply(r,c);return p===!1&&(p=u.apply(r,c)),p}}i.tokenizer=r}if(n.hooks){let r=this.defaults.hooks||new $;for(let o in n.hooks){if(!(o in r))throw new Error(`hook '${o}' does not exist`);if(["options","block"].includes(o))continue;let s=o,l=n.hooks[s],u=r[s];$.passThroughHooks.has(o)?r[s]=c=>{if(this.defaults.async&&$.passThroughHooksRespectAsync.has(o))return(async()=>{let d=await l.call(r,c);return u.call(r,d)})();let p=l.call(r,c);return u.call(r,p)}:r[s]=(...c)=>{if(this.defaults.async)return(async()=>{let d=await l.apply(r,c);return d===!1&&(d=await u.apply(r,c)),d})();let p=l.apply(r,c);return p===!1&&(p=u.apply(r,c)),p}}i.hooks=r}if(n.walkTokens){let r=this.defaults.walkTokens,o=n.walkTokens;i.walkTokens=function(s){let l=[];return l.push(o.call(this,s)),r&&I(l,r.call(this,s)),l}}this.defaults={...this.defaults,...i}}),this}setOptions(e){return this.defaults={...this.defaults,...e},this}lexer(e,t){return T.lex(e,t??this.defaults)}parser(e,t){return O.parse(e,t??this.defaults)}parseMarkdown(e){return(n,i)=>{let r={...i},o={...this.defaults,...r},s=this.onError(!!o.silent,!!o.async);if(this.defaults.async===!0&&r.async===!1)return s(new Error("marked(): The async option was set to true by an extension. Remove async: false from the parse options object to return a Promise."));if(typeof n>"u"||n===null)return s(new Error("marked(): input parameter is undefined or null"));if(typeof n!="string")return s(new Error("marked(): input parameter is of type "+Object.prototype.toString.call(n)+", string expected"));if(o.hooks&&(o.hooks.options=o,o.hooks.block=e),o.async)return(async()=>{let l=o.hooks?await o.hooks.preprocess(n):n,c=await(o.hooks?await o.hooks.provideLexer(e):e?T.lex:T.lexInline)(l,o),p=o.hooks?await o.hooks.processAllTokens(c):c;o.walkTokens&&await Promise.all(this.walkTokens(p,o.walkTokens));let f=await(o.hooks?await o.hooks.provideParser(e):e?O.parse:O.parseInline)(p,o);return o.hooks?await o.hooks.postprocess(f):f})().catch(s);try{o.hooks&&(n=o.hooks.preprocess(n));let u=(o.hooks?o.hooks.provideLexer(e):e?T.lex:T.lexInline)(n,o);o.hooks&&(u=o.hooks.processAllTokens(u)),o.walkTokens&&this.walkTokens(u,o.walkTokens);let p=(o.hooks?o.hooks.provideParser(e):e?O.parse:O.parseInline)(u,o);return o.hooks&&(p=o.hooks.postprocess(p)),p}catch(l){return s(l)}}}onError(e,t){return n=>{if(n.message+=`
+Please report this to https://github.com/markedjs/marked.`,e){let i="<p>An error occurred:</p><pre>"+P(n.message+"",!0)+"</pre>";return t?Promise.resolve(i):i}if(t)return Promise.reject(n);throw n}}};var B=new H;function g(a,e){return B.parse(a,e)}g.options=g.setOptions=function(a){return B.setOptions(a),g.defaults=B.defaults,J(g.defaults),g};g.getDefaults=M;g.defaults=w;function Le(...a){return B.use(...a),g.defaults=B.defaults,J(g.defaults),g}g.use=Le;g.walkTokens=function(a,e){return B.walkTokens(a,e)};g.parseInline=B.parseInline;g.Parser=O;g.parser=O.parse;g.Renderer=_;g.TextRenderer=A;g.Lexer=T;g.lexer=T.lex;g.Tokenizer=S;g.Hooks=$;g.parse=g;var qt=g.options,Zt=g.setOptions,vt=g.walkTokens,Ht=g.parseInline,Gt=g,Nt=O.parse,Qt=T.lex;
+
+if(__exports != exports)module.exports = exports;return module.exports}));
+//# sourceMappingURL=marked.umd.js.map
+</script>
+<script id="sdflow-app">
+(function () {
+  'use strict';
+
+  var MERMAID_URL = 'https://cdn.jsdelivr.net/npm/mermaid@12.2.0/dist/mermaid.min.js';
+  var MERMAID_SRI = 'sha384-8xUhuLNMjW/cI2Dacg3DR4WliYznvIg0LVG1stctThKD/YVrJFI9TNCFxft5NYgp';
+  var MERMAID_SLOW_MS = 10000;
+  // 用拼接写注释记号：避免脚本源码里出现字面 "<" + "!--"，不与 HTML 脚本数据状态的转义规则纠缠。
+  var COMMENT_RE = new RegExp('<' + '!--[\\s\\S]*?--' + '>', 'g');
+
+  function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  var docs = JSON.parse(document.getElementById('sdflow-docs').textContent);
+  var currentDoc = null;
+
+  // ── 纯函数（不碰 window / document；node --test 按下面两个标记切出本段单测）────────────
+  // @@PURE-BEGIN
+  // 浏览器解析 URL 时会丢掉控制字符与空白（"java\tscript:" 等），先同样处理再判协议。
+  function squash(url) {
+    return String(url || '').replace(/[\u0000-\u0020\u007f-\u009f]/g, '');
+  }
+
+  function dirOf(path) {
+    var i = path.lastIndexOf('/');
+    return i < 0 ? '' : path.slice(0, i);
+  }
+
+  function normalizePath(path) {
+    var out = [];
+    path.split('/').forEach(function (seg) {
+      if (seg === '' || seg === '.') return;
+      if (seg === '..') { out.pop(); return; }
+      out.push(seg);
+    });
+    return out.join('/');
+  }
+
+  function docIndexOf(docs, path) {
+    if (!path) return -1;
+    var target = normalizePath(path);
+    for (var i = 0; i < docs.length; i++) if (normalizePath(docs[i].path) === target) return i;
+    return -1;
+  }
+
+  // GitHub 标题 slug（同 github-slugger）：转小写；保留字母（含 Alphabetic 属性的符号，如 Ⓐ）、
+  // 组合标记、十进制数字、字母数字（如 Ⅻ）、连接标点（如 _）、空格与 -，其余删掉（含 ² 这类其他数字）；
+  // 空格换连字符；重名依次加 -1、-2，跳过已被占用的 slug（字面标题 risks-1 先到或后到都不会与重名后缀相撞）。
+  // texts 为同一份文档里按出现顺序排列的标题文字，返回等长的 slug 数组。
+  function githubSlugs(texts) {
+    var used = Object.create(null);
+    return texts.map(function (t) {
+      var base = String(t).toLowerCase().replace(/[^\p{L}\p{M}\p{Nd}\p{Nl}\p{Pc}\p{Alphabetic} \-]/gu, '').replace(/ /g, '-');
+      var slug = base;
+      while (slug in used) { used[base] += 1; slug = base + '-' + used[base]; }
+      used[slug] = 0;
+      return slug;
+    });
+  }
+
+  // 片段先解码（失败用原串）并转小写再查「slug → 标题 id」表；查不到返回 null。
+  function lookupAnchor(table, fragment) {
+    if (!table || !fragment) return null;
+    var key = fragment;
+    try { key = decodeURIComponent(fragment); } catch (e) { /* 非法转义：沿用原串 */ }
+    key = key.toLowerCase();
+    return Object.prototype.hasOwnProperty.call(table, key) ? table[key] : null;
+  }
+
+  // 返回 {href, external} 或 null（null = 按纯文本显示）。
+  // docs 为页内文档列表，currentPath 为正在渲染的文档路径（无则相对链接一律降级）。
+  // anchors[i] 为第 i 份文档的「slug → 标题 id」表；标题在链接之后才有 id，渲染期传 null：
+  // 依赖该表的链接返回 {pending: true}，待所有文档渲染完再用完整的表重新判定。
+  function classifyLink(rawHref, docs, currentPath, anchors) {
+    var h = squash(rawHref);
+    if (!h) return null;
+    if (h.charAt(0) === '#') {
+      if (!anchors) return { href: h, external: false, pending: true };
+      var cur = docIndexOf(docs, currentPath);
+      var own = cur < 0 ? null : lookupAnchor(anchors[cur], h.slice(1));
+      return own ? { href: '#' + own, external: false } : null;
+    }
+    if (/^(\/\/|\\\\)/.test(h)) return null;
+    var scheme = /^([a-zA-Z][a-zA-Z0-9+.\-]*):/.exec(h);
+    if (scheme) {
+      var p = scheme[1].toLowerCase();
+      if (p === 'http' || p === 'https' || p === 'mailto') return { href: h, external: p !== 'mailto' };
+      return null;
+    }
+    var pathOnly = h.split('#')[0].split('?')[0];
+    if (!/\.md$/i.test(pathOnly) || !currentPath) return null;
+    var base = pathOnly.charAt(0) === '/' ? '' : dirOf(currentPath);
+    var i = docIndexOf(docs, pathOnly.charAt(0) === '/' ? pathOnly : base + '/' + pathOnly);
+    if (i < 0) return null;
+    var hashAt = h.indexOf('#');
+    var fragment = hashAt >= 0 ? h.slice(hashAt + 1) : '';
+    if (!fragment) return { href: '#doc-' + i, external: false };
+    if (!anchors) return { href: h, external: false, pending: true };
+    var hit = lookupAnchor(anchors[i], fragment);
+    return { href: hit ? '#' + hit : '#doc-' + i, external: false };
+  }
+
+  // 图片只放行 data:，返回可用的 src 或 null。
+  function classifyImage(rawHref) {
+    var href = squash(rawHref);
+    return /^data:/i.test(href) ? href : null;
+  }
+
+  // 页面当前的仓库相对路径：pathname 先解码（失败用原串），去 Windows 盘符前的 "/"，
+  // 取最后一个 "/openspec/" 段起的后缀（外层目录也叫 openspec 时取最内层）；没有该段则用解码后的路径。
+  function pagePathFromPathname(pathname) {
+    var p = String(pathname);
+    try { p = decodeURIComponent(p); } catch (e) { /* 非法转义：沿用原串 */ }
+    if (/^\/[A-Za-z]:\//.test(p)) p = p.slice(1);
+    var i = p.lastIndexOf('/openspec/');
+    return i >= 0 ? p.slice(i + 1) : p;
+  }
+
+  function notesPathFromPathname(pathname) {
+    var dir = dirOf(pagePathFromPathname(pathname));
+    return (dir ? dir + '/' : '') + 'review-notes.md';
+  }
+
+  var QUOTE_MAX = 500;
+  var CONTEXT_MAX = 32;
+  function isHigh(c) { return c >= 0xD800 && c <= 0xDBFF; }
+  function isLow(c) { return c >= 0xDC00 && c <= 0xDFFF; }
+
+  // 取前 max 个码点，不把代理对切开；末尾若剩孤立高位代理项（输入本身被切过）一并去掉。
+  function headCodepoints(text, max) {
+    var s = String(text), i = 0, count = 0;
+    while (i < s.length && count < max) {
+      i += (isHigh(s.charCodeAt(i)) && i + 1 < s.length && isLow(s.charCodeAt(i + 1))) ? 2 : 1;
+      count += 1;
+    }
+    var out = s.slice(0, i);
+    if (out.length && isHigh(out.charCodeAt(out.length - 1))) out = out.slice(0, -1);
+    return out;
+  }
+
+  // 取后 max 个码点；开头若是孤立低位代理项（输入本身被切过）去掉。
+  function tailCodepoints(text, max) {
+    var s = String(text), i = s.length, count = 0;
+    while (i > 0 && count < max) {
+      i -= (isLow(s.charCodeAt(i - 1)) && i - 2 >= 0 && isHigh(s.charCodeAt(i - 2))) ? 2 : 1;
+      count += 1;
+    }
+    var out = s.slice(i);
+    if (out.length && isLow(out.charCodeAt(0))) out = out.slice(1);
+    return out;
+  }
+
+  function truncateQuote(text) { return headCodepoints(text, QUOTE_MAX); }
+
+  // 选区在文档纯文本 text 里从 start 起、长 length。返回截断后的原文与前后文。
+  // 后文从截断后原文的末尾起算，与原文相邻，「前文 + 原文 + 后文」才能在全文里原样找到。
+  function selectionContext(text, start, length) {
+    var quote = truncateQuote(text.slice(start, start + length));
+    var end = start + quote.length;
+    return {
+      quote: quote,
+      before: tailCodepoints(text.slice(Math.max(0, start - 2 * CONTEXT_MAX), start), CONTEXT_MAX),
+      after: headCodepoints(text.slice(end, end + 2 * CONTEXT_MAX), CONTEXT_MAX),
+    };
+  }
+
+  var NOTE_ID_RE = /^[0-9a-f]{16}$/;
+  function isNoteId(s) { return typeof s === 'string' && NOTE_ID_RE.test(s); }
+  function idFromBytes(bytes) {
+    var out = '';
+    for (var i = 0; i < bytes.length; i++) out += (bytes[i] < 16 ? '0' : '') + bytes[i].toString(16);
+    return out;
+  }
+
+  // 在文档纯文本里找意见原文的起点；找不到返回 -1。
+  // 先用「前文 + 原文 + 后文」，再「前文 + 原文」，最后原文全篇唯一才采用。
+  // 前两级只在对应的上下文非空时才用（与生成脚本的 locate_line 一致）：上下文为空时它们退化成
+  // 「取第一处」，原文出现多处时会高亮到错的位置。
+  function locateNote(hay, note) {
+    var q = note.quote;
+    if (!q) return -1;
+    var before = note.before || '';
+    var after = note.after || '';
+    var i;
+    if (before || after) {
+      i = hay.indexOf(before + q + after);
+      if (i >= 0) return i + before.length;
+    }
+    if (before) {
+      i = hay.indexOf(before + q);
+      if (i >= 0) return i + before.length;
+    }
+    i = hay.indexOf(q);
+    if (i >= 0 && hay.indexOf(q, i + 1) < 0) return i;
+    return -1;
+  }
+
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+  function formatLocalTime(d) {
+    return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) + ' ' +
+      pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds());
+  }
+
+  function oneLine(s) { return String(s).replace(/\s*[\r\n]+\s*/g, ' ').trim(); }
+
+  // 复制文本：落盘指示 + 按序正文 + 末尾 JSON 块（v2，一行）。
+  // args = {title, pathname, copiedAt, notes:[{n, id, doc, path, heading, quote, before, after, comment, inFigure}]}；
+  // pathname 为 location.pathname 原串。inFigure（在图内划选）每条都写成布尔值，回显时据此标「未在正文高亮」。
+  function buildCopyText(args) {
+    var pagePath = pagePathFromPathname(args.pathname);
+    var parts = [];
+    parts.push('请先把下面全文原样追加到 `' + notesPathFromPathname(args.pathname) + '`（不存在则新建），再逐条处理这些意见。');
+    parts.push('');
+    parts.push('# 评审意见 · ' + oneLine(args.title));
+    parts.push('');
+    parts.push('页面：`' + pagePath + '`');
+    parts.push('复制于：' + args.copiedAt);
+    args.notes.forEach(function (n) {
+      var head = '## ' + n.n + '. ' + oneLine(n.doc) + (n.path ? '（' + oneLine(n.path) + '）' : '') +
+        (n.heading ? ' › ' + oneLine(n.heading) : '');
+      var quote = String(n.quote).replace(/\r\n?/g, '\n').split('\n').map(function (l) { return '> ' + l; });
+      var comment = String(n.comment).replace(/\r\n?/g, '\n').split('\n').map(function (l) {
+        return l.charAt(0) === '#' ? '\\' + l : l;
+      });
+      parts.push('');
+      parts.push(head);
+      parts.push('');
+      parts.push(quote.join('\n'));
+      parts.push('');
+      parts.push(comment.join('\n'));
+    });
+    var json = JSON.stringify({
+      v: 2,
+      page: pagePath,
+      copied_at: args.copiedAt,
+      notes: args.notes.map(function (n) {
+        return { n: n.n, id: n.id, doc: n.doc, path: n.path || '', heading: n.heading, quote: n.quote,
+          before: n.before || '', after: n.after || '', comment: n.comment, inFigure: n.inFigure === true };
+      }),
+    });
+    var body = parts.join('\n');
+    var longest = 0;
+    (body + '\n' + json).replace(/`+/g, function (run) { if (run.length > longest) longest = run.length; return run; });
+    var fence = new Array(Math.max(3, longest + 1) + 1).join('`');
+    return body + '\n\n' + fence + 'json\n' + json + '\n' + fence + '\n';
+  }
+
+  // 解析嵌入的已落盘意见数据块文本。返回 {ok, notes}；非法 JSON 或不是数组时 ok=false。
+  // 每条带 key（高亮与意见栏用的键：id，无 id 时用序位）与 status（定位结果，restoreHighlights 填）。
+  function parseSavedNotes(text) {
+    var data;
+    try { data = JSON.parse(text); } catch (e) { return { ok: false, notes: [] }; }
+    if (!Array.isArray(data)) return { ok: false, notes: [] };
+    function str(v) { return typeof v === 'string' ? v : ''; }
+    var out = [];
+    data.forEach(function (r) {
+      if (!r || typeof r !== 'object' || typeof r.quote !== 'string' || typeof r.comment !== 'string') return;
+      var id = isNoteId(r.id) ? r.id : '';
+      out.push({
+        id: id, key: id || 'idx-' + out.length, status: null, n: typeof r.n === 'number' ? r.n : 0,
+        doc: str(r.doc), path: str(r.path), heading: str(r.heading), quote: r.quote,
+        before: str(r.before), after: str(r.after), comment: r.comment, copied_at: str(r.copied_at),
+        line: typeof r.line === 'number' && r.line > 0 ? r.line : null, inFigure: r.inFigure === true,
+      });
+    });
+    return { ok: true, notes: out };
+  }
+
+  // 合并浏览器暂存与已落盘意见：返回要显示的暂存意见 [{note, modified}]。
+  // 同 id：暂存版已复制，或意见正文与已落盘版相同 → 只显示已落盘版（暂存版不出现）；
+  //        暂存版未复制且正文不同 → 两条都显示，暂存版 modified=true。
+  // 已落盘意见无 id：doc + quote + comment 都相同的暂存意见视为同一条。
+  function mergeNotes(staged, saved) {
+    var byId = {}, byText = {};
+    saved.forEach(function (s) {
+      if (s.id) byId[s.id] = s;
+      else byText[JSON.stringify([s.doc, s.quote, s.comment])] = true;
+    });
+    var out = [];
+    staged.forEach(function (n) {
+      if (byText[JSON.stringify([n.doc, n.quote, n.comment])]) return;
+      var s = Object.prototype.hasOwnProperty.call(byId, n.id) ? byId[n.id] : null;
+      if (!s) { out.push({ note: n, modified: false }); return; }
+      if (n.copied || n.comment === s.comment) return;
+      out.push({ note: n, modified: true });
+    });
+    return out;
+  }
+
+  // 文档开头的 frontmatter 判定（RVP-21）：先去 BOM，比较行内容时忽略行尾 \r。
+  // 首行为 ---、第二行形如「键:」（字母开头）、其后某行恰为 --- 时，两行之间是元数据，其余是正文。
+  // 任一条件不满足：meta 为 null，body 是去掉 BOM 的整篇原文。语法面有界（两行字面量加一个键行），不做 YAML 解析。
+  // 已知边界：文档以 --- 加「键:」开头、正文后另有分隔线 --- 时，中间整段会被当成元数据。
+  // 这是有界启发式的取舍，不再补语法分支。
+  function splitFrontmatter(text) {
+    var src = String(text);
+    if (src.charCodeAt(0) === 0xFEFF) src = src.slice(1);
+    var lines = src.split('\n');
+    function bare(l) { return l.charAt(l.length - 1) === '\r' ? l.slice(0, -1) : l; }
+    if (lines.length < 3 || bare(lines[0]) !== '---' || !/^[A-Za-z][A-Za-z0-9_.\-]*:/.test(bare(lines[1]))) {
+      return { meta: null, body: src };
+    }
+    for (var i = 2; i < lines.length; i++) {
+      if (bare(lines[i]) === '---') return { meta: lines.slice(1, i).map(bare).join('\n'), body: lines.slice(i + 1).join('\n') };
+    }
+    return { meta: null, body: src };
+  }
+
+  // 修改日志数据块（sdflow-revisions）。返回 {ok, revisions}；非法 JSON、顶层不是对象、
+  // revisions 不是数组、条目不是对象时 ok=false。条目只取显示用的字段，缺的补默认值。
+  function parseRevisions(text) {
+    var bad = { ok: false, revisions: [] };
+    var data;
+    try { data = JSON.parse(text); } catch (e) { return bad; }
+    if (!data || typeof data !== 'object' || !Array.isArray(data.revisions)) return bad;
+    var out = [];
+    for (var i = 0; i < data.revisions.length; i++) {
+      var r = data.revisions[i];
+      if (!r || typeof r !== 'object' || Array.isArray(r)) return bad;
+      out.push({
+        n: typeof r.n === 'number' ? r.n : 0,
+        at: typeof r.at === 'string' ? r.at : '',
+        event: typeof r.event === 'string' ? r.event : '',
+        changed: Array.isArray(r.changed) ? r.changed.filter(function (x) { return typeof x === 'string'; }) : [],
+        notes: typeof r.notes === 'number' ? r.notes : 0,
+        dispositions: typeof r.dispositions === 'number' ? r.dispositions : 0,
+      });
+    }
+    return { ok: true, revisions: out };
+  }
+
+  // 页头文字：生成时间和版本号都取最后一条日志（版本号是它的 n，不是条数）。没有日志返回空串。
+  function headerText(revisions) {
+    if (!revisions.length) return '';
+    return '生成于 ' + revisions[revisions.length - 1].at + ' · 第 ' + revisions[revisions.length - 1].n + ' 版';
+  }
+
+  // 处置数据块（sdflow-dispositions）：{意见 id: {action, detail, issue}}。
+  // 返回 {ok, map}；顶层不是对象时 ok=false。map 无原型，id 为 __proto__ 一类的键也只是普通键。
+  function parseDispositions(text) {
+    var data;
+    try { data = JSON.parse(text); } catch (e) { return { ok: false, map: Object.create(null) }; }
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return { ok: false, map: Object.create(null) };
+    var map = Object.create(null);
+    Object.keys(data).forEach(function (id) {
+      var d = data[id];
+      if (!d || typeof d !== 'object' || typeof d.action !== 'string' || !d.action) return;
+      map[id] = {
+        action: d.action,
+        detail: typeof d.detail === 'string' ? d.detail : '',
+        issue: typeof d.issue === 'string' ? d.issue : '',
+      };
+    });
+    return { ok: true, map: map };
+  }
+
+  // 一条处置的显示文字：类别 [+ 编号] [：说明]；没有处置显示「未记录处理」。
+  function dispositionText(d) {
+    if (!d) return '未记录处理';
+    return d.action + (d.issue ? ' ' + d.issue : '') + (d.detail ? '：' + d.detail : '');
+  }
+  // @@PURE-END
+
+  var md = new marked.Marked({ gfm: true });
+  md.use({
+    renderer: {
+      // 块级与行内两种 html token：先删注释（保留同一 token 里的其余文字），再整体转义。
+      html: function (token) {
+        var text = String(token.text).replace(COMMENT_RE, '');
+        if (token.block) {
+          if (!/\S/.test(text)) return '';
+          return '<pre class="raw-html">' + esc(text.replace(/\n+$/, '')) + '</pre>\n';
+        }
+        return esc(text);
+      },
+      link: function (token) {
+        var inner = this.parser.parseInline(token.tokens);
+        var ok = classifyLink(token.href, docs, currentDoc && currentDoc.path, null);
+        if (!ok) return inner;
+        var title = token.title ? ' title="' + esc(token.title) + '"' : '';
+        // 标题 id 在整份文档渲染后才有：先留占位，全部文档渲染完由 resolvePendingLinks 重新判定。
+        if (ok.pending) return '<a href="#" data-pending-href="' + esc(token.href) + '"' + title + '>' + inner + '</a>';
+        var extra = ok.external ? ' target="_blank" rel="noopener noreferrer"' : '';
+        return '<a href="' + esc(ok.href) + '"' + title + extra + '>' + inner + '</a>';
+      },
+      image: function (token) {
+        var src = classifyImage(token.href);
+        if (src) {
+          var title = token.title ? ' title="' + esc(token.title) + '"' : '';
+          return '<img src="' + esc(src) + '" alt="' + esc(token.text) + '"' + title + '>';
+        }
+        return '[图片：' + esc(token.text) + ']';
+      }
+    }
+  });
+
+  // ── 渲染文档 ────────────────────────────────────────────────────────────────
+  var docsRoot = document.getElementById('docs');
+  var tocRoot = document.getElementById('toc');
+  var tocList = document.createElement('ul');
+  tocRoot.appendChild(tocList);
+
+  var anchors = [];   // anchors[i]：第 i 份文档的「slug → 标题 id」表
+
+  function renderDoc(doc, index) {
+    var section = document.createElement('section');
+    section.className = 'doc';
+    section.id = 'doc-' + index;
+    section.setAttribute('data-doc-index', String(index));
+    section.setAttribute('data-label', doc.label);
+
+    var head = document.createElement('div');
+    head.className = 'doc-head';
+    var label = document.createElement('span');
+    label.className = 'doc-label';
+    label.textContent = doc.label;
+    var path = document.createElement('code');
+    path.className = 'doc-path';
+    path.textContent = doc.path;
+    head.appendChild(label);
+    head.appendChild(path);
+
+    var body = document.createElement('div');
+    body.className = 'doc-body';
+    currentDoc = doc;
+    var parts = splitFrontmatter(doc.text);
+    try {
+      body.innerHTML = md.parse(parts.body);
+    } catch (err) {
+      body.innerHTML = '';
+      var box = document.createElement('div');
+      box.className = 'doc-error';
+      box.setAttribute('role', 'alert');
+      box.textContent = '这份文档渲染失败：' + (err && err.message ? err.message : String(err)) + '。下面是原文。';
+      var pre = document.createElement('pre');
+      var code = document.createElement('code');
+      code.textContent = doc.text;
+      pre.appendChild(code);
+      body.appendChild(box);
+      body.appendChild(pre);
+    }
+    currentDoc = null;
+
+    section.appendChild(head);
+    if (parts.meta !== null) {
+      // 元数据放在 .doc-body 之外：不进目录、不参与划选与定位；一律纯文本。
+      var meta = document.createElement('details');
+      meta.className = 'doc-meta';
+      var metaSummary = document.createElement('summary');
+      metaSummary.textContent = '元数据';
+      var metaPre = document.createElement('pre');
+      metaPre.textContent = parts.meta;
+      meta.appendChild(metaSummary);
+      meta.appendChild(metaPre);
+      section.appendChild(meta);
+    }
+    section.appendChild(body);
+    docsRoot.appendChild(section);
+
+    Array.prototype.forEach.call(body.querySelectorAll('table'), function (table) {
+      var wrap = document.createElement('div');
+      wrap.className = 'table-wrap';
+      table.parentNode.insertBefore(wrap, table);
+      wrap.appendChild(table);
+    });
+
+    // marked 18 不生成标题 id：按「文档序号-序号」自己生成，重名标题不冲突。
+    var tocItem = document.createElement('li');
+    var docLink = document.createElement('a');
+    docLink.className = 'doc-link';
+    docLink.href = '#doc-' + index;
+    docLink.textContent = doc.label;
+    tocItem.appendChild(docLink);
+    var sub = document.createElement('ul');
+    tocItem.appendChild(sub);
+    var counter = 0;
+    var headingEls = [];
+    Array.prototype.forEach.call(body.querySelectorAll('h1, h2, h3, h4, h5, h6'), function (h) {
+      counter += 1;
+      h.id = 'd' + index + '-' + counter;
+      headingEls.push(h);
+      var level = Number(h.tagName.charAt(1));
+      if (level > 3) return;
+      var li = document.createElement('li');
+      li.className = 'lvl-' + level;
+      var a = document.createElement('a');
+      a.href = '#' + h.id;
+      a.textContent = h.textContent;
+      li.appendChild(a);
+      sub.appendChild(li);
+    });
+    tocList.appendChild(tocItem);
+
+    var table = Object.create(null);
+    githubSlugs(headingEls.map(function (h) { return h.textContent; })).forEach(function (slug, k) {
+      table[slug] = headingEls[k].id;
+    });
+    anchors[index] = table;
+  }
+
+  docs.forEach(renderDoc);
+
+  // ── 页头：生成时间与版本（修改日志数据块）。数据块损坏只影响页头与页尾两节，文档照常渲染。
+  function blockText(id) {
+    var el = document.getElementById(id);
+    return el ? el.textContent : '';
+  }
+  var revisionsParsed = parseRevisions(blockText('sdflow-revisions'));
+  var dispositionsParsed = parseDispositions(blockText('sdflow-dispositions'));
+  document.getElementById('sdflow-gen-meta').textContent = revisionsParsed.ok ? headerText(revisionsParsed.revisions) : '修改日志无法读取';
+
+  // 页内 #片段 与跨文档 x.md#片段：所有文档的标题 id 都就绪后再判定。
+  // 命中改写为真实标题 id；同文档未命中降为纯文字；跨文档未命中跳到该文档开头。
+  Array.prototype.slice.call(document.querySelectorAll('a[data-pending-href]')).forEach(function (a) {
+    var section = a.closest('section.doc');
+    var ok = classifyLink(a.getAttribute('data-pending-href'), docs, docs[Number(section.getAttribute('data-doc-index'))].path, anchors);
+    if (!ok) {
+      while (a.firstChild) a.parentNode.insertBefore(a.firstChild, a);
+      a.parentNode.removeChild(a);
+      return;
+    }
+    a.setAttribute('href', ok.href);
+    a.removeAttribute('data-pending-href');
+  });
+
+  // ── 窄屏：目录折叠到顶部 ────────────────────────────────────────────────────
+  var details = document.getElementById('toc-details');
+  var narrow = window.matchMedia('(max-width: 899px)');
+  function syncToc() { details.open = !narrow.matches; }
+  syncToc();
+  if (narrow.addEventListener) narrow.addEventListener('change', syncToc);
+  else if (narrow.addListener) narrow.addListener(syncToc);
+
+  // ── mermaid：渲染后发现 language-mermaid 块才加载 ───────────────────────────
+  var mermaidBlocks = Array.prototype.slice.call(document.querySelectorAll('pre > code.language-mermaid'));
+  if (mermaidBlocks.length) loadMermaid(mermaidBlocks);
+
+  function setNote(blocks, text) {
+    blocks.forEach(function (code) {
+      var pre = code.parentNode;
+      if (!pre || !pre.parentNode) return;
+      var note = pre.previousElementSibling;
+      if (!note || !note.classList.contains('mermaid-note')) {
+        note = document.createElement('p');
+        note.className = 'mermaid-note';
+        note.setAttribute('role', 'status');
+        pre.parentNode.insertBefore(note, pre);
+      }
+      note.textContent = text;
+    });
+  }
+
+  function clearNotes(blocks) {
+    blocks.forEach(function (code) {
+      var pre = code.parentNode;
+      var note = pre && pre.previousElementSibling;
+      if (note && note.classList.contains('mermaid-note')) note.parentNode.removeChild(note);
+    });
+  }
+
+  function renderMermaid(blocks) {
+    try {
+      window.mermaid.initialize({ startOnLoad: false, securityLevel: 'strict' });
+    } catch (err) {
+      setNote(blocks, 'mermaid 初始化失败：' + (err && err.message ? err.message : String(err)));
+      return;
+    }
+    blocks.forEach(function (code, i) {
+      var pre = code.parentNode;
+      Promise.resolve()
+        .then(function () { return window.mermaid.render('sdflow-mmd-' + i, code.textContent); })
+        .then(function (result) {
+          var fig = document.createElement('div');
+          fig.className = 'mermaid-fig';
+          // 信任边界：result.svg 来自 securityLevel:'strict' 的 mermaid；脚本执行另由 CSP 拦住。
+          fig.innerHTML = result.svg;
+          pre.parentNode.replaceChild(fig, pre);
+        })
+        .catch(function (err) {
+          setNote([code], 'mermaid 渲染失败：' + (err && err.message ? err.message : String(err)));
+        });
+    });
+  }
+
+  function loadMermaid(blocks) {
+    var settled = false;
+    var timer = setTimeout(function () {
+      if (!settled) setNote(blocks, 'mermaid 未加载（离线或网络慢）');
+    }, MERMAID_SLOW_MS);
+    var s = document.createElement('script');
+    s.src = MERMAID_URL;
+    s.integrity = MERMAID_SRI;
+    s.crossOrigin = 'anonymous';
+    s.async = true;
+    s.addEventListener('load', function () {
+      settled = true;
+      clearTimeout(timer);
+      clearNotes(blocks);
+      renderMermaid(blocks);
+    });
+    s.addEventListener('error', function () {
+      settled = true;
+      clearTimeout(timer);
+      setNote(blocks, '离线，mermaid 图未渲染');
+    });
+    document.head.appendChild(s);
+  }
+
+  // ── 标注与复制 ──────────────────────────────────────────────────────────────
+  var STORE_KEY = 'sdflow-review:' + location.pathname;
+  var state = { next: 1, notes: [] };
+  // 已落盘意见（生成脚本嵌入，只读）。解析失败按空列表处理并在意见栏提示。
+  var savedNotes = [];
+  var savedUnreadable = false;
+  (function () {
+    var el = document.getElementById('sdflow-saved-notes');
+    var parsed = parseSavedNotes(el ? el.textContent : '[]');
+    savedNotes = parsed.notes;
+    savedUnreadable = !parsed.ok;
+  })();
+  // 页尾两节：意见与处理记录、修改日志。不用 section.doc / .doc-body：划选只认 .doc-body，所以两节不可划选写意见。
+  // 全部内容以 textContent 写入。记录一节只取处置，与意见能否在正文定位无关。
+  function addFooterSection(id, title) {
+    var sec = document.createElement('section');
+    sec.className = 'review-section';
+    sec.id = id;
+    var h = document.createElement('h2');
+    h.textContent = title;
+    sec.appendChild(h);
+    docsRoot.parentNode.appendChild(sec);
+    var li = document.createElement('li');
+    var a = document.createElement('a');
+    a.className = 'doc-link';
+    a.href = '#' + id;
+    a.textContent = title;
+    li.appendChild(a);
+    tocList.appendChild(li);
+    return sec;
+  }
+
+  function emptyLine(parent, text) {
+    var p = document.createElement('p');
+    p.className = 'sdflow-empty';
+    p.textContent = text;
+    parent.appendChild(p);
+  }
+
+  function drawRecordsSection() {
+    var sec = addFooterSection('review-records', '意见与处理记录');
+    if (savedUnreadable) { emptyLine(sec, '已落盘意见无法读取'); return; }
+    if (!savedNotes.length) { emptyLine(sec, '暂无已落盘意见'); return; }
+    // 分组顺序：先按页面文档顺序，再是对不上任何文档的标签（按出现顺序）。
+    var groups = Object.create(null), order = [];
+    docs.forEach(function (d) { groups[d.label] = []; });
+    savedNotes.forEach(function (sn) {
+      var label = sn.doc || '（未记录文档）';
+      if (!(label in groups)) { groups[label] = []; order.push(label); }
+      groups[label].push(sn);
+    });
+    docs.map(function (d) { return d.label; }).concat(order).forEach(function (label) {
+      if (!groups[label].length) return;
+      var h = document.createElement('h3');
+      h.textContent = label;
+      var list = document.createElement('ol');
+      list.className = 'notes-list';
+      groups[label].forEach(function (sn) {
+        var where = sn.path ? '（' + sn.path + (sn.line ? ':' + sn.line : '') + '）' : '';
+        list.appendChild(buildNoteItem({
+          className: 'note-item record-item', kind: 'record', key: sn.key,
+          head: (sn.doc || '（未记录文档）') + where + (sn.heading ? ' › ' + sn.heading : ''),
+          badges: [], quote: sn.quote, comment: sn.comment, disposition: dispositionLine(sn), buttons: [],
+        }));
+      });
+      sec.appendChild(h);
+      sec.appendChild(list);
+    });
+  }
+
+  function drawRevisionsSection() {
+    var sec = addFooterSection('review-revisions', '修改日志');
+    if (!revisionsParsed.ok) { emptyLine(sec, '无法读取'); return; }
+    if (!revisionsParsed.revisions.length) { emptyLine(sec, '暂无记录'); return; }
+    var list = document.createElement('ol');
+    list.className = 'notes-list';
+    revisionsParsed.revisions.slice().reverse().forEach(function (rev) {
+      var li = document.createElement('li');
+      li.className = 'note-item rev-item';
+      [
+        '第 ' + rev.n + ' 版 · ' + rev.at + ' · ' + rev.event,
+        '变化的文档：' + (rev.changed.length ? rev.changed.join('、') : '无'),
+        '意见 ' + rev.notes + ' 条 · 处置 ' + rev.dispositions + ' 条',
+      ].forEach(function (text) {
+        var line = document.createElement('div');
+        line.textContent = text;
+        li.appendChild(line);
+      });
+      list.appendChild(li);
+    });
+    sec.appendChild(list);
+  }
+
+  // 意见栏当前显示的暂存意见（mergeNotes 的结果，[{note, modified}]）。只在 refreshView 里重算。
+  var view = [];
+  var pending = null;        // 当前暂存的选区：{range, docLabel, heading, quote, before, after}
+  var dlg = null;            // 意见对话框状态：{mode: 'new'|'edit', noteId, returnFocus}
+  var copyState = null;      // 复制文本框状态：{ids, returnFocus}
+  var warningEl = null;
+
+  function showStorageWarning() {
+    if (warningEl) return;
+    warningEl = document.createElement('div');
+    warningEl.className = 'notice';
+    warningEl.setAttribute('role', 'alert');
+    warningEl.textContent = '意见无法跨刷新保留，请及时复制';
+    document.body.insertBefore(warningEl, document.body.firstChild);
+  }
+
+  function newNoteId() {
+    return idFromBytes(crypto.getRandomValues(new Uint8Array(8)));
+  }
+
+  function pathOfDoc(label) {
+    for (var i = 0; i < docs.length; i++) if (docs[i].label === label) return docs[i].path;
+    return '';
+  }
+
+  function storable(n) {
+    return { id: n.id, n: n.n, doc: n.doc, heading: n.heading, quote: n.quote, before: n.before, after: n.after,
+      comment: n.comment, copied: !!n.copied, inFigure: !!n.inFigure };
+  }
+
+  function saveState() {
+    try {
+      localStorage.setItem(STORE_KEY, JSON.stringify({ next: state.next, notes: state.notes.map(storable) }));
+    } catch (e) { showStorageWarning(); }
+  }
+
+  function loadState() {
+    // 先探一次写入：隐私模式等环境读得出、写不进。探测键无论成败都删掉，不留在暂存里。
+    try {
+      localStorage.setItem(STORE_KEY + ':probe', '1');
+    } catch (e) {
+      showStorageWarning();
+      return;
+    } finally {
+      try { localStorage.removeItem(STORE_KEY + ':probe'); } catch (e2) { /* 删不掉也不影响使用 */ }
+    }
+    try {
+      var raw = localStorage.getItem(STORE_KEY);
+      if (!raw) return;
+      var data = JSON.parse(raw);
+      if (!data || !Array.isArray(data.notes)) return;
+      var maxN = 0, repaired = false;
+      data.notes.forEach(function (n) {
+        if (!n || typeof n.quote !== 'string' || typeof n.comment !== 'string' || typeof n.n !== 'number') return;
+        var id = n.id;
+        if (!isNoteId(id)) { id = newNoteId(); repaired = true; }
+        state.notes.push({
+          id: id, n: n.n, doc: String(n.doc || ''), heading: String(n.heading || ''), quote: n.quote,
+          before: String(n.before || ''), after: String(n.after || ''), comment: n.comment, copied: !!n.copied,
+          inFigure: n.inFigure === true,
+        });
+        if (n.n > maxN) maxN = n.n;
+      });
+      state.next = Math.max(Number(data.next) || 1, maxN + 1);
+      if (repaired) saveState();
+    } catch (e) { /* 存档损坏：当作没有意见 */ }
+  }
+
+  function findNote(id) {
+    for (var i = 0; i < state.notes.length; i++) if (state.notes[i].id === id) return state.notes[i];
+    return null;
+  }
+
+  // ── 高亮：按文本节点分段包 <mark>，跨粗体、跨列表项的选区每段各包一个 ─────────────
+  function docBodyByLabel(label) {
+    var sections = document.querySelectorAll('section.doc');
+    for (var i = 0; i < sections.length; i++) {
+      if (sections[i].getAttribute('data-label') === label) return sections[i].querySelector('.doc-body');
+    }
+    return null;
+  }
+
+  function rangeAt(root, start, length) {
+    var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    var pos = 0, node, range = document.createRange(), startSet = false, end = start + length;
+    while ((node = walker.nextNode())) {
+      var len = node.data.length;
+      if (!startSet && start < pos + len) { range.setStart(node, start - pos); startSet = true; }
+      if (startSet && end <= pos + len) { range.setEnd(node, end - pos); return range; }
+      pos += len;
+    }
+    return null;
+  }
+
+  // 节点本身是元素就取它，文本节点取父元素。
+  function elementOf(node) {
+    return node && (node.nodeType === 1 ? node : node.parentElement);
+  }
+
+  // 图内（SVG 的 <text> 或 foreignObject 里的 HTML）与 mermaid 源码块内不插 <mark>：
+  // SVG 文字里插入 HTML 元素会让文字消失，源码块在图渲染后整块被替换。
+  function inUnmarkable(node) {
+    var el = elementOf(node);
+    return !!(el && (el.closest('svg') || el.closest('pre > code.language-mermaid')));
+  }
+
+  // 收集 Range 覆盖的文本分段 [{node, start, end}]（只读，不改 DOM）。
+  // 端点落在元素上时由 intersectsNode 归到文本节点：终点在下一个块元素偏移 0 时，那个块里的文字不相交。
+  // 跳过纯空白分段（块与块之间的换行节点）与不可插 <mark> 的节点。
+  function textSegments(range) {
+    var root = range.commonAncestorContainer;
+    if (root.nodeType === 3) root = root.parentNode;
+    var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    var out = [], node;
+    while ((node = walker.nextNode())) {
+      if (!range.intersectsNode(node)) continue;
+      var start = node === range.startContainer ? range.startOffset : 0;
+      var end = node === range.endContainer ? range.endOffset : node.data.length;
+      if (end <= start || !/\S/.test(node.data.slice(start, end)) || inUnmarkable(node)) continue;
+      out.push({ node: node, start: start, end: end });
+    }
+    return out;
+  }
+
+  // kind: 'note'（暂存意见，data-note）| 'saved'（已落盘意见，data-saved）；key 一律是 id（或无 id 时的序位键）。
+  // 同一条意见的每个分段各包一个 <mark>，共用 key。至少包上一段即返回 true。
+  function wrapRange(range, key, kind) {
+    var segs = textSegments(range);   // 先收集清单，再统一改写 DOM
+    var marks = [];
+    segs.forEach(function (seg) {
+      var target = seg.node;
+      // 同一文本节点内：先按止点切分，再按起点切分
+      if (seg.end < target.data.length) target.splitText(seg.end);
+      if (seg.start > 0) target = target.splitText(seg.start);
+      var mark = document.createElement('mark');
+      if (kind === 'saved') {
+        mark.className = 'sdflow-saved-hl';
+        mark.dataset.saved = key;
+      } else {
+        mark.className = 'sdflow-hl';
+        mark.dataset.note = key;
+      }
+      target.parentNode.insertBefore(mark, target);
+      mark.appendChild(target);
+      marks.push(mark);
+    });
+    if (kind === 'saved' && marks.length > 1) {
+      marks.forEach(function (m, i) {
+        m.dataset.seg = i === 0 ? 'first' : i === marks.length - 1 ? 'last' : 'mid';
+      });
+    }
+    return marks.length > 0;
+  }
+
+  // 以 dataset 比对取 mark，不把 id 拼进选择器。
+  function marksOf(kind, key) {
+    var cls = kind === 'saved' ? 'mark.sdflow-saved-hl' : 'mark.sdflow-hl';
+    return Array.prototype.filter.call(document.querySelectorAll(cls), function (m) {
+      return (kind === 'saved' ? m.dataset.saved : m.dataset.note) === key;
+    });
+  }
+
+  function unwrapMarks(key) {
+    marksOf('note', key).forEach(function (m) {
+      var parent = m.parentNode;
+      while (m.firstChild) parent.insertBefore(m.firstChild, m);
+      parent.removeChild(m);
+      parent.normalize();
+    });
+  }
+
+  // 给每条意见定位并（能的话）高亮；status: 'hl' | 'unmarked'（已定位但没高亮上）| 'orphan'（对不上）。
+  // 找不到起点时：图内划选的意见、或原文在正文出现多处而前后文无法区分，都记 unmarked，不记 orphan。
+  function unlocatedStatus(body, note) {
+    if (!body) return 'orphan';
+    return note.inFigure || (note.quote && body.textContent.indexOf(note.quote) >= 0) ? 'unmarked' : 'orphan';
+  }
+
+  // 定位一条意见并（能的话）高亮，返回 status。图内划选的意见不在正文里找：
+  // 原文与正文某处同名时会被高亮到那里（RVP-13）。
+  function highlightOne(note, key, kind) {
+    var body = docBodyByLabel(note.doc);
+    if (body && note.inFigure) return 'unmarked';
+    var idx = body ? locateNote(body.textContent, note) : -1;
+    if (idx < 0) return unlocatedStatus(body, note);
+    var range = rangeAt(body, idx, note.quote.length);
+    return range && wrapRange(range, key, kind) ? 'hl' : 'unmarked';
+  }
+
+  function restoreHighlights() {
+    // 与已落盘版重复的暂存意见不在 view 里，不显示也不高亮。
+    view.forEach(function (v) { v.note.status = highlightOne(v.note, v.note.id, 'note'); });
+    savedNotes.forEach(function (sn) { sn.status = highlightOne(sn, sn.key, 'saved'); });
+  }
+
+  // ── 选区暂存与「写意见」按钮 ─────────────────────────────────────────────────
+  var annotateBtn = document.createElement('button');
+  annotateBtn.type = 'button';
+  annotateBtn.id = 'sdflow-annotate';
+  annotateBtn.textContent = '写意见';
+  annotateBtn.hidden = true;
+  document.body.appendChild(annotateBtn);
+
+  function bodyOf(node) {
+    var el = elementOf(node);
+    return el && el.closest ? el.closest('#main .doc-body') : null;
+  }
+
+  function captureSelection() {
+    var sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return null;
+    var r = sel.getRangeAt(0);
+    var body = bodyOf(r.startContainer);
+    if (!body) return null;
+    var endBody = bodyOf(r.endContainer);
+    if (!endBody) {
+      // 终点在正文之外时，只接受三击末段的形态：终点紧接本正文之后（两者之间只有空白），
+      // 此时收到本正文末尾。其余（拖到侧栏、页尾两节、其他文档标题，或途经其他 .doc-body）一律拒绝。
+      var tail = document.createRange();
+      tail.setStart(body, body.childNodes.length);
+      tail.setEnd(r.endContainer, r.endOffset);
+      // 「写意见」按钮可能停靠在正文之后，它的文字不算选区跨过的内容。
+      var gap = tail.cloneContents();
+      var dock = gap.querySelector ? gap.querySelector('#sdflow-annotate') : null;
+      if (dock) dock.parentNode.removeChild(dock);
+      if (/\S/.test(gap.textContent)) return null;
+      r = r.cloneRange();
+      r.setEnd(body, body.childNodes.length);
+    } else if (endBody !== body) {
+      return null;
+    }
+    var full = r.toString();
+    if (!/\S/.test(full)) return null;
+    var pre = document.createRange();
+    pre.selectNodeContents(body);
+    pre.setEnd(r.startContainer, r.startOffset);
+    var start = pre.toString().length;
+    var ctx = selectionContext(body.textContent, start, full.length);
+    var heading = '';
+    Array.prototype.forEach.call(body.querySelectorAll('h1, h2, h3, h4, h5, h6'), function (h) {
+      if (r.comparePoint(h, 0) === -1) heading = h.textContent.replace(/\s+/g, ' ').trim();
+    });
+    var startEl = elementOf(r.startContainer);
+    return {
+      range: r.cloneRange(),
+      body: body,
+      start: start,
+      truncated: ctx.quote.length < full.length,
+      section: body.parentNode,
+      inFigure: !!(startEl && startEl.closest('svg')),
+      docLabel: body.parentNode.getAttribute('data-label'),
+      heading: heading,
+      quote: ctx.quote,
+      before: ctx.before,
+      after: ctx.after,
+    };
+  }
+
+  // 按钮紧随选区所在的文档节之后，划选后按 Tab 先到它，不必越过后面所有文档里的链接（D14）。
+  // 按钮正拿着焦点时不挪：挪动会让它失焦。
+  function dockAnnotateBtn() {
+    if (!pending || !pending.section || document.activeElement === annotateBtn) return;
+    if (annotateBtn.previousElementSibling !== pending.section) {
+      pending.section.parentNode.insertBefore(annotateBtn, pending.section.nextSibling);
+    }
+  }
+
+  function placeAnnotateBtn() {
+    if (!pending || annotateBtn.hidden) return;
+    var rects = pending.range.getClientRects();
+    var rect = rects.length ? rects[rects.length - 1] : pending.range.getBoundingClientRect();
+    var top = rect.bottom + 8;
+    if (top > window.innerHeight - 44) top = rect.top - 44;
+    // 选区滚出视口时按钮钉在视口边缘，仍然点得到。
+    top = Math.min(Math.max(8, top), window.innerHeight - 44);
+    var left = Math.min(Math.max(8, rect.right), window.innerWidth - 100);
+    annotateBtn.style.top = top + 'px';
+    annotateBtn.style.left = left + 'px';
+  }
+
+  function hideAnnotateBtn() { annotateBtn.hidden = true; }
+
+  document.addEventListener('selectionchange', function () {
+    if (dlg || copyState) return;
+    var cap = captureSelection();
+    if (cap) {
+      pending = cap;
+      dockAnnotateBtn();
+      annotateBtn.hidden = false;
+      placeAnnotateBtn();
+    } else if (document.activeElement !== annotateBtn) {
+      pending = null;
+      hideAnnotateBtn();
+    }
+  });
+  window.addEventListener('scroll', placeAnnotateBtn, { passive: true });
+  window.addEventListener('resize', placeAnnotateBtn);
+  // 点按钮会让选区丢失：mousedown 阻止默认行为，选区保持，pending 里也另存了 Range。
+  annotateBtn.addEventListener('mousedown', function (e) { e.preventDefault(); });
+  annotateBtn.addEventListener('click', function () { if (pending) openDialog('new', null, annotateBtn); });
+
+  // ── 对话框：意见输入 ────────────────────────────────────────────────────────
+  function makeButton(text, cls) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'sdflow-btn' + (cls ? ' ' + cls : '');
+    b.textContent = text;
+    return b;
+  }
+
+  function makeOverlay(id, titleText) {
+    var overlay = document.createElement('div');
+    overlay.className = 'overlay';
+    overlay.hidden = true;
+    var panel = document.createElement('div');
+    panel.className = 'dlg-panel';
+    panel.id = id;
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-modal', 'true');
+    panel.setAttribute('aria-labelledby', id + '-title');
+    var h = document.createElement('h2');
+    h.id = id + '-title';
+    h.textContent = titleText;
+    panel.appendChild(h);
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+    return { overlay: overlay, panel: panel, title: h };
+  }
+
+  var noteDlg = makeOverlay('sdflow-note-dialog', '写意见');
+  var dlgQuote = document.createElement('blockquote');
+  dlgQuote.className = 'dlg-quote';
+  var dlgLabel = document.createElement('label');
+  dlgLabel.htmlFor = 'sdflow-note-text';
+  dlgLabel.className = 'sr-only';
+  dlgLabel.textContent = '意见';
+  var dlgText = document.createElement('textarea');
+  dlgText.id = 'sdflow-note-text';
+  dlgText.rows = 5;
+  dlgText.setAttribute('aria-describedby', 'sdflow-note-error');
+  // 空意见的错误写进这个 role=status 节点（平时为空），读屏才会读出来。
+  var dlgError = document.createElement('p');
+  dlgError.className = 'dlg-error';
+  dlgError.id = 'sdflow-note-error';
+  dlgError.setAttribute('role', 'status');
+  var dlgHint = document.createElement('p');
+  dlgHint.className = 'dlg-hint';
+  var HINT = 'Ctrl/⌘ + Enter 保存，Esc 取消';
+  dlgHint.textContent = HINT;
+  var dlgActions = document.createElement('div');
+  dlgActions.className = 'dlg-actions';
+  var dlgCancel = makeButton('取消');
+  var dlgSave = makeButton('保存', 'primary');
+  dlgActions.appendChild(dlgCancel);
+  dlgActions.appendChild(dlgSave);
+  [dlgQuote, dlgLabel, dlgText, dlgError, dlgHint, dlgActions].forEach(function (el) { noteDlg.panel.appendChild(el); });
+
+  function focusables(panel) {
+    return Array.prototype.filter.call(panel.querySelectorAll('textarea, button'), function (el) {
+      return !el.disabled && !el.hidden && el.getClientRects().length > 0;
+    });
+  }
+
+  // 对话框打开期间在 document 上统一处理键盘：焦点落到页面主体时 Esc 也能关闭、Tab 能回到对话框内。
+  // 输入法组字期间的按键留给输入法；对话框关闭后这里什么都不做。
+  document.addEventListener('keydown', function (e) {
+    var open = copyState ? copyDlg : dlg ? noteDlg : null;
+    if (!open) return;
+    if (e.isComposing || e.keyCode === 229) return;
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      if (open === copyDlg) closeCopy(); else closeDialog(true);
+      return;
+    }
+    if (e.key !== 'Tab') return;
+    var items = focusables(open.panel);
+    if (!items.length) return;
+    var first = items[0], last = items[items.length - 1];
+    if (!open.panel.contains(document.activeElement)) { e.preventDefault(); first.focus(); return; }
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  });
+
+  // 正文区域平时不带 tabindex：带了的话，在正文里按下鼠标划选会让 main 拿到焦点，
+  // 之后的 Tab 从正文开头起算而不是从选区起算，「写意见」按钮紧随文档节之后就白放了（D14）。
+  // 只在要把焦点移到正文时临时设上，失焦即撤掉。
+  var mainEl = document.getElementById('main');
+  function focusMain() {
+    mainEl.tabIndex = -1;
+    mainEl.focus();
+  }
+  mainEl.addEventListener('blur', function () { mainEl.removeAttribute('tabindex'); });
+  // 「跳到正文」照旧把焦点移进正文（默认的锚点跳转只滚动，main 不带 tabindex 时拿不到焦点）。
+  document.querySelector('.skip-link').addEventListener('click', focusMain);
+
+  // 关闭对话框后还原焦点：目标仍在文档中、未隐藏、未禁用、有布局盒才聚焦，否则聚焦正文区域。
+  function restoreFocus(target) {
+    if (target && document.body.contains(target) && !target.hidden && !target.disabled && target.getClientRects().length > 0) {
+      target.focus();
+      return;
+    }
+    focusMain();
+  }
+
+  function clearNoteError() {
+    dlgError.textContent = '';
+    dlgText.removeAttribute('aria-invalid');
+  }
+
+  function openDialog(mode, note, opener) {
+    dlg = { mode: mode, noteId: note ? note.id : null, returnFocus: opener || document.activeElement };
+    noteDlg.title.textContent = mode === 'edit' ? '编辑意见' : '写意见';
+    dlgQuote.textContent = (note ? note.quote : pending.quote).slice(0, 300);
+    dlgText.value = note ? note.comment : '';
+    clearNoteError();
+    dlgHint.textContent = HINT;
+    noteDlg.overlay.hidden = false;
+    dlgText.focus();
+  }
+
+  function closeDialog(restoreSelection) {
+    var d = dlg;
+    if (!d) return;
+    dlg = null;
+    noteDlg.overlay.hidden = true;
+    if (d.mode === 'new' && restoreSelection && pending) {
+      // 取消：把选区放回去，「写意见」按钮仍在。
+      var sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(pending.range);
+      annotateBtn.hidden = false;
+      placeAnnotateBtn();
+    }
+    restoreFocus(d.returnFocus);
+  }
+
+  function saveDialog() {
+    var comment = dlgText.value.trim();
+    if (!comment) {
+      dlgError.textContent = '意见不能为空';
+      dlgText.setAttribute('aria-invalid', 'true');
+      dlgText.focus();
+      return;
+    }
+    var d = dlg;
+    if (d.mode === 'edit') {
+      var existing = findNote(d.noteId);
+      if (existing) { existing.comment = comment; existing.copied = false; }
+      saveState();
+      renderNotes();
+      // 「编辑」按钮随意见栏重建；改回与已落盘版相同的意见不再显示，找不到就交给 restoreFocus 落到正文。
+      var item = noteItemOf('note', d.noteId);
+      d.returnFocus = item ? item.querySelector('.edit-btn') : null;
+      closeDialog(false);
+      return;
+    }
+    var note = {
+      id: newNoteId(), n: state.next++, doc: pending.docLabel, heading: pending.heading, quote: pending.quote,
+      before: pending.before, after: pending.after, comment: comment, copied: false, inFigure: !!pending.inFigure,
+    };
+    window.getSelection().removeAllRanges();
+    // 引用被截断时按截断后的引用重算范围，与重新加载后按引用定位的范围一致。
+    var saveRange = pending.truncated ? rangeAt(pending.body, pending.start, pending.quote.length) : null;
+    note.status = wrapRange(saveRange || pending.range, note.id, 'note') ? 'hl' : 'unmarked';
+    state.notes.push(note);
+    saveState();
+    renderNotes();
+    pending = null;
+    hideAnnotateBtn();
+    d.returnFocus = null;
+    closeDialog(false);
+  }
+
+  dlgSave.addEventListener('click', saveDialog);
+  dlgCancel.addEventListener('click', function () { closeDialog(true); });
+  dlgText.addEventListener('input', clearNoteError);
+  dlgText.addEventListener('keydown', function (e) {
+    if (e.isComposing || e.keyCode === 229) return;
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); saveDialog(); }
+  });
+
+  // ── 意见栏 ──────────────────────────────────────────────────────────────────
+  var notesRoot = document.getElementById('sdflow-notes');
+  var notesTitle = document.createElement('h2');
+  notesTitle.tabIndex = -1;
+  var notesEmpty = document.createElement('p');
+  notesEmpty.className = 'notes-empty';
+  notesEmpty.textContent = '在正文划选文字，点「写意见」。';
+  var notesActions = document.createElement('div');
+  notesActions.className = 'notes-actions';
+  var copyBtn = makeButton('复制意见', 'primary');
+  copyBtn.id = 'sdflow-copy-new';
+  var copyAllBtn = makeButton('复制全部');
+  copyAllBtn.id = 'sdflow-copy-all';
+  var clearBtn = makeButton('清空');
+  clearBtn.id = 'sdflow-clear';
+  [copyBtn, copyAllBtn, clearBtn].forEach(function (b) { notesActions.appendChild(b); });
+  var notesList = document.createElement('ol');
+  notesList.className = 'notes-list';
+  // 「定位」找不到高亮时在这里提示（role=status，平时为空）。
+  var jumpHint = document.createElement('p');
+  jumpHint.className = 'notes-hint';
+  jumpHint.id = 'sdflow-jump-hint';
+  jumpHint.setAttribute('role', 'status');
+  var savedWarn = document.createElement('p');
+  savedWarn.className = 'notes-empty';
+  savedWarn.setAttribute('role', 'status');
+  savedWarn.textContent = '已落盘意见无法读取';
+  savedWarn.hidden = !savedUnreadable;
+  var savedGroup = document.createElement('section');
+  savedGroup.className = 'saved-group';
+  savedGroup.setAttribute('aria-label', '已落盘意见');
+  savedGroup.hidden = true;
+  var savedTitle = document.createElement('h3');
+  var savedList = document.createElement('ol');
+  savedList.className = 'notes-list';
+  savedGroup.appendChild(savedTitle);
+  savedGroup.appendChild(savedList);
+  [notesTitle, notesEmpty, notesActions, jumpHint, notesList, savedWarn, savedGroup].forEach(function (el) { notesRoot.appendChild(el); });
+  notesRoot.hidden = false;
+  document.body.classList.add('has-notes');
+
+  var STATUS_TEXT = { orphan: '原文已对不上，仅列出', unmarked: '未在正文高亮' };
+  var SAVED_STATUS_TEXT = { orphan: '原文已变', unmarked: '未在正文高亮' };
+  var clearTimer = null;
+
+  function appendBadge(parent, text) {
+    var b = document.createElement('span');
+    b.className = 'note-badge';
+    b.textContent = text;
+    parent.appendChild(b);
+  }
+
+  // 暂存意见被合并掉（不显示）时，它在正文的暂存高亮一并拿掉，不留无主的 mark。
+  // 编辑回与已落盘版相同、或改过的意见复制后（RVP-19）都会从列表消失。
+  function refreshView() {
+    view = mergeNotes(state.notes, savedNotes);
+    var shown = Object.create(null);
+    view.forEach(function (v) { shown[v.note.id] = true; });
+    state.notes.forEach(function (n) { if (!shown[n.id]) unwrapMarks(n.id); });
+  }
+
+  // 已落盘意见的处理行：取该意见 id 对应的处置；处置块读不出来显示「无法读取」。
+  function dispositionLine(sn) {
+    if (!dispositionsParsed.ok) return '处理：无法读取';
+    return '处理：' + dispositionText(sn.id ? dispositionsParsed.map[sn.id] : null);
+  }
+
+  // 意见栏的一条。o = {className, kind, key, head, badges, quote, comment, disposition?, buttons}；
+  // kind 即 dataset 名（'note' → data-note，'saved' → data-saved）。内容一律 textContent，没有按钮时不建按钮行。
+  function buildNoteItem(o) {
+    var li = document.createElement('li');
+    li.className = o.className;
+    li.dataset[o.kind] = o.key;
+    var head = document.createElement('div');
+    head.className = 'note-head';
+    head.textContent = o.head;
+    o.badges.forEach(function (text) { appendBadge(head, text); });
+    var quote = document.createElement('div');
+    quote.className = 'note-quote';
+    quote.textContent = o.quote;
+    var comment = document.createElement('div');
+    comment.className = 'note-comment';
+    comment.textContent = o.comment;
+    [head, quote, comment].forEach(function (el) { li.appendChild(el); });
+    if (o.disposition) {
+      var disposition = document.createElement('div');
+      disposition.className = 'note-disposition';
+      disposition.textContent = o.disposition;
+      li.appendChild(disposition);
+    }
+    if (o.buttons.length) {
+      var actions = document.createElement('div');
+      actions.className = 'note-actions';
+      o.buttons.forEach(function (b) { actions.appendChild(b); });
+      li.appendChild(actions);
+    }
+    return li;
+  }
+
+  // 「定位」只给找得到位置的意见（已高亮，或已定位但没高亮上）。
+  function jumpButtons(kind, key, status) {
+    if (status !== 'hl' && status !== 'unmarked') return [];
+    var jump = makeButton('定位');
+    jump.classList.add('jump-btn');
+    jump.addEventListener('click', function () { jumpTo(kind, key); });
+    return [jump];
+  }
+
+  // 意见栏里某条意见的 <li>：以 dataset 比对取（同 marksOf，不把 id 拼进选择器）；找不到返回 null。
+  function noteItemOf(kind, key) {
+    var list = kind === 'saved' ? savedList : notesList;
+    return Array.prototype.filter.call(list.children, function (li) { return li.dataset[kind] === key; })[0] || null;
+  }
+
+  // 暂存或已落盘意见有变动后调用：重算 view 再重画意见栏。
+  function renderNotes() {
+    refreshView();
+    drawNotes();
+  }
+
+  function drawNotes() {
+    // 重置「清空」确认态前先撤掉旧定时器，否则它会把之后新进入的确认态提前还原。
+    clearTimeout(clearTimer);
+    jumpHint.textContent = '';
+    var total = view.length;
+    var fresh = view.filter(function (v) { return !v.note.copied; }).length;
+    notesTitle.textContent = '意见（' + total + '）';
+    notesEmpty.hidden = total > 0;
+    copyBtn.disabled = fresh === 0;
+    copyBtn.textContent = '复制意见' + (total ? '（' + fresh + '）' : '');
+    copyBtn.title = total === 0 ? '还没有意见' : fresh === 0 ? '没有未复制的意见，可用「复制全部」' : '';
+    copyAllBtn.disabled = total === 0;
+    clearBtn.disabled = state.notes.length === 0;
+    clearBtn.textContent = '清空';
+    clearBtn.dataset.armed = '';
+    while (notesList.firstChild) notesList.removeChild(notesList.firstChild);
+    view.forEach(function (v) {
+      var note = v.note;
+      var badges = [];
+      if (v.modified) badges.push('已修改，未落盘');
+      if (note.copied) badges.push('已复制');
+      if (STATUS_TEXT[note.status]) badges.push(STATUS_TEXT[note.status]);
+      var edit = makeButton('编辑');
+      edit.classList.add('edit-btn');
+      edit.addEventListener('click', function () { openDialog('edit', note, edit); });
+      var del = makeButton('删除');
+      del.classList.add('del-btn');
+      del.addEventListener('click', function () { deleteNote(note.id); });
+      notesList.appendChild(buildNoteItem({
+        className: 'note-item', kind: 'note', key: note.id,
+        head: '#' + note.n + ' ' + note.doc + (note.heading ? ' › ' + note.heading : ''),
+        badges: badges, quote: note.quote, comment: note.comment,
+        buttons: jumpButtons('note', note.id, note.status).concat([edit, del]),
+      }));
+    });
+    renderSaved();
+  }
+
+  // 已落盘意见：只读；0 条时整组不显示。
+  function renderSaved() {
+    while (savedList.firstChild) savedList.removeChild(savedList.firstChild);
+    savedGroup.hidden = savedNotes.length === 0;
+    savedTitle.textContent = '已落盘意见（' + savedNotes.length + '）';
+    savedNotes.forEach(function (sn, k) {
+      var where = sn.path ? sn.path + (sn.line ? ':' + sn.line : '') : sn.doc;
+      savedList.appendChild(buildNoteItem({
+        className: 'note-item saved-item', kind: 'saved', key: sn.key,
+        head: '已落盘 ' + (k + 1) + ' ' + where + (sn.heading ? ' › ' + sn.heading : ''),
+        badges: SAVED_STATUS_TEXT[sn.status] ? [SAVED_STATUS_TEXT[sn.status]] : [],
+        quote: sn.quote, comment: sn.comment, disposition: dispositionLine(sn),
+        buttons: jumpButtons('saved', sn.key, sn.status),
+      }));
+    });
+  }
+
+  function findSaved(key) {
+    for (var i = 0; i < savedNotes.length; i++) if (savedNotes[i].key === key) return savedNotes[i];
+    return null;
+  }
+
+  function jumpTo(kind, key) {
+    var marks = marksOf(kind, key);
+    if (marks.length) {
+      jumpHint.textContent = '';
+      marks[0].scrollIntoView({ block: 'center' });
+      marks.forEach(function (m) { m.classList.add('flash'); });
+      setTimeout(function () { marks.forEach(function (m) { m.classList.remove('flash'); }); }, 1200);
+      return;
+    }
+    // 没有高亮可去（图内划选、原文出现多处，或高亮已被拿掉）：滚到所在文档并提示。
+    var note = kind === 'saved' ? findSaved(key) : findNote(key);
+    if (!note) return;
+    var body = docBodyByLabel(note.doc);
+    if (body) body.parentNode.scrollIntoView({ block: 'start' });
+    if (note.status === 'hl') {
+      // 记着已高亮、mark 却不在了：改标「未在正文高亮」，重画后焦点放回这条的「定位」。
+      note.status = 'unmarked';
+      renderNotes();
+      var item = noteItemOf(kind, key);
+      var btn = item && item.querySelector('.jump-btn');
+      if (btn) btn.focus();
+    }
+    jumpHint.textContent = '未在正文高亮';
+  }
+
+  function deleteNote(id) {
+    unwrapMarks(id);
+    state.notes = state.notes.filter(function (x) { return x.id !== id; });
+    saveState();
+    renderNotes();
+    notesTitle.focus();
+  }
+
+  // 清空要点两次：第一次变成「再点一次确认」，4 秒内不点就还原。
+  clearBtn.addEventListener('click', function () {
+    if (clearBtn.dataset.armed === '1') {
+      clearTimeout(clearTimer);
+      state.notes.forEach(function (x) { unwrapMarks(x.id); });
+      state.notes = [];
+      saveState();
+      renderNotes();
+      notesTitle.focus();
+      return;
+    }
+    clearBtn.dataset.armed = '1';
+    clearBtn.textContent = '再点一次确认清空';
+    clearTimer = setTimeout(function () { clearBtn.dataset.armed = ''; clearBtn.textContent = '清空'; }, 4000);
+  });
+
+  // ── 复制 ────────────────────────────────────────────────────────────────────
+  var copyDlg = makeOverlay('sdflow-copy-dialog', '复制意见');
+  var copyStatus = document.createElement('p');
+  copyStatus.className = 'dlg-hint';
+  copyStatus.id = 'sdflow-copy-status';
+  copyStatus.setAttribute('role', 'status');
+  var copyLabel = document.createElement('label');
+  copyLabel.htmlFor = 'sdflow-copy-text';
+  copyLabel.className = 'sr-only';
+  copyLabel.textContent = '意见全文';
+  var copyText = document.createElement('textarea');
+  copyText.id = 'sdflow-copy-text';
+  copyText.rows = 14;
+  copyText.readOnly = true;
+  var copyActions = document.createElement('div');
+  copyActions.className = 'dlg-actions';
+  var markBtn = makeButton('标记为已复制');
+  markBtn.hidden = true;
+  var copyClose = makeButton('关闭', 'primary');
+  copyClose.id = 'sdflow-copy-close';
+  copyActions.appendChild(markBtn);
+  copyActions.appendChild(copyClose);
+  [copyStatus, copyLabel, copyText, copyActions].forEach(function (el) { copyDlg.panel.appendChild(el); });
+
+  function markCopied(ids) {
+    state.notes.forEach(function (n) { if (ids.indexOf(n.id) >= 0) n.copied = true; });
+    saveState();
+    renderNotes();
+  }
+
+  // 依次试 Clipboard API、execCommand；resolve(true/false)，不抛错。
+  function autoCopy(text) {
+    return new Promise(function (resolve) {
+      function legacy() {
+        var ok = false;
+        try { copyText.focus(); copyText.select(); ok = document.execCommand('copy'); } catch (e) { ok = false; }
+        resolve(ok);
+      }
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(function () { resolve(true); }, legacy);
+          return;
+        }
+      } catch (e) { /* 落到 execCommand */ }
+      legacy();
+    });
+  }
+
+  function doCopy(all, opener) {
+    var picked = view.map(function (v) { return v.note; })
+      .filter(function (n) { return all || !n.copied; });
+    if (!picked.length) return;
+    var text = buildCopyText({
+      title: document.title,
+      pathname: location.pathname,
+      copiedAt: formatLocalTime(new Date()),
+      notes: picked.map(function (n) {
+        var out = storable(n);
+        out.path = pathOfDoc(n.doc);
+        return out;
+      }),
+    });
+    var ids = picked.map(function (n) { return n.id; });
+    var myState = { ids: ids, returnFocus: opener };
+    copyState = myState;
+    copyText.value = text;
+    copyStatus.textContent = '正在复制…';
+    markBtn.hidden = true;
+    copyDlg.overlay.hidden = false;
+    copyText.focus();
+    copyText.select();
+    autoCopy(text).then(function (ok) {
+      // 剪贴板已写入就标已复制，不论对话框此时是否还是本次那个
+      if (ok) markCopied(ids);
+      if (copyState !== myState) return;
+      copyText.focus();
+      copyText.select();
+      if (ok) {
+        copyStatus.textContent = '已复制 ' + ids.length + ' 条意见到剪贴板。若粘贴不出来，可在下面已全选的文本框里手动复制。';
+      } else {
+        copyStatus.textContent = '自动复制失败。下面的全文已全选，请按 Ctrl/⌘ + C 手动复制。';
+        markBtn.hidden = false;
+      }
+    });
+  }
+
+  function closeCopy() {
+    var c = copyState;
+    if (!c) return;
+    copyState = null;
+    copyDlg.overlay.hidden = true;
+    restoreFocus(c.returnFocus);
+  }
+
+  copyBtn.addEventListener('click', function () { doCopy(false, copyBtn); });
+  copyAllBtn.addEventListener('click', function () { doCopy(true, copyAllBtn); });
+  copyClose.addEventListener('click', closeCopy);
+  markBtn.addEventListener('click', function () {
+    if (copyState) markCopied(copyState.ids);
+    markBtn.hidden = true;
+    copyStatus.textContent = '已标记为已复制。';
+  });
+
+  drawRecordsSection();
+  drawRevisionsSection();
+
+  loadState();
+  refreshView();
+  restoreHighlights();
+  drawNotes();
+})();
+</script>
+</body>
+</html>

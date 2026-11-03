@@ -27,17 +27,17 @@
 
 ### Requirement: R-DEP-02 健康状态可被编排消费
 
-系统 SHALL 提供可被容器编排消费的健康状态：`GET /healthz` 在数据库可用时返回 200，不可用时返回 503。
+容器编排 SHALL 以既有 `GET /healthz`（端点契约由 `ocr-api` 的 R-API-06 拥有）作为健康探测入口；本要求只约束编排侧的消费行为，不重述端点状态码契约。`[spec-review-amendment]` 去重：原措辞与 R-API-06 形成两个真相源。
 
 #### Scenario: 数据库可用
 
 - **WHEN** 编排执行健康探测且数据库可访问
-- **THEN** 返回 200，响应体含 `status=ok` 与 `db=ok`
+- **THEN** 探测请求得到 R-API-06 规定的成功响应，编排将容器标记为健康
 
 #### Scenario: 数据库不可用
 
 - **WHEN** 数据库不可访问
-- **THEN** 返回 503，编排将该容器标记为不健康
+- **THEN** 探测请求得到 R-API-06 规定的失败响应，编排将该容器标记为不健康
 
 ### Requirement: R-DEP-03 配置与凭证只经环境注入
 
@@ -78,8 +78,10 @@
 
 #### Scenario: 数据写入卷内
 
-- **WHEN** 服务运行并产生配额计数与请求日志
-- **THEN** 数据落在挂载卷内，不落在容器可写层
+- **WHEN** 服务运行并产生配额计数与用量事件（`usage_events`）
+- **THEN** 这些持久化数据落在挂载卷内，不落在容器可写层；进程日志经 stdout 由容器日志驱动处理（含轮转），不写入卷
+
+> `[spec-review-amendment]` 原措辞「请求日志落在挂载卷内」与 `backend/app/logging_setup.py:26`（stdout handler）不符，且 `usage_events` 与 stdout 日志是两类数据；此处按代码事实拆开表述。
 
 ### Requirement: R-DEP-06 单实例约束
 

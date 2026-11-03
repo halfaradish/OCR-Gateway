@@ -32,9 +32,12 @@ error: Failed to download `certifi==2026.10.23`
 
 镜像构建不用 `uv sync --frozen`，改为三步，且**不修改被跟踪的 `uv.lock`**：
 
-1. `uv export --frozen --no-dev --format requirements-txt --no-hashes` —— 从锁文件导出精确版本
-   （本项目为 38 个 `==` 锁定项）；
+1. `uv export --frozen --no-dev --no-emit-project --format requirements-txt --no-hashes` —— 从锁文件导出精确版本
+   （本项目为 38 个 `==` 锁定项）；`--no-emit-project` 去掉默认首行 `-e .`——否则只 COPY 了
+   `pyproject.toml` / `uv.lock` 的依赖层会在无源码时构建失败；`[spec-review-amendment]`
 2. `uv pip install --index-url <mirror> -r <requirements>` —— 按导出的**版本**从镜像下载 wheel；
+   执行前 MUST 已有可用 venv（如 `/app/.venv`）或显式 `--system` / `UV_SYSTEM_PYTHON=1`；
+   `[spec-review-amendment]` 亲验：无 venv 时报 `No virtual environment found`；
 3. `uv pip install --index-url <mirror> --no-deps .` —— 安装项目自身（构建后端 hatchling 亦从镜像取）。
 
 镜像地址由 `ARG UV_DEFAULT_INDEX` 传入，compose / `.env` 提供取值，**仓内默认留空**——不把任何
@@ -62,3 +65,18 @@ error: Failed to download `certifi==2026.10.23`
 - **维护提示**：升级依赖时 `uv.lock` 仍由 `uv lock` 正常维护，**不要**为了构建去改它的 URL。
 - **失效条件**：若构建/部署环境能直连 `pypi.org` 与 `files.pythonhosted.org`，可简化回
   `uv sync --frozen`，届时本 ADR 应标为 `superseded`。
+
+## 评审修订（spec-review-amendment · 2026-11-03）
+
+- **`uv export` 默认含项目自身**：亲验 `uv export --frozen --no-dev --format requirements-txt --no-hashes | head -3`
+  → 首个依赖项行是 `-e .`；加 `--no-emit-project` 后无该行、38 个 `==` 项。原 Decision 第 1 步漏此参数，
+  依赖层（只 COPY `pyproject.toml` + `uv.lock`）会在无 `app/` 时构建失败。
+- **`uv pip install` 需要 venv**：亲验无 venv 时 `uv pip install --dry-run --no-deps .` 报
+  `error: No virtual environment found; run 'uv venv' ... or pass '--system'`。原 Decision 第 2/3 步
+  未记录；实现 MUST 先建 `/app/.venv`（或显式 `--system`）。
+- **构建工具链**：`python:3.12-slim` 不自带 uv，构建阶段 MUST 显式安装固定版本
+  （如 `pip install --index-url "$UV_DEFAULT_INDEX" uv==0.13.6`）；`COPY --from=ghcr.io/astral-sh/uv`
+  依赖 ghcr.io 可达，本机 Docker Hub 直连已不可达，不能假定。
+- **多阶段产物**：若采用多阶段构建，运行时层 MUST `COPY --from=<build> /app/.venv /app/.venv`；
+  entrypoint MUST 使用 `/app/.venv/bin/alembic`、`/app/.venv/bin/uvicorn`（或把 `/app/.venv/bin`
+  加入 `PATH`），否则 console scripts 不在运行时层的 `PATH` 内。
