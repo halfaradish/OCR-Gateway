@@ -7,7 +7,7 @@ ship-gate:
 # 实现验证报告 · m3-admin-panel
 
 > ⚠️ 单 session 自证：测试由主 session 触发；同模型、不同上下文，非独立验证。
-> 证据: verify-evidence-closeout.json @ c58e2c2；verify-evidence-retest.json @ 2d7dab9
+> 证据: verify-evidence-closeout.json @ e8e73db；verify-evidence-retest.json @ e8e73db
 > 触发条件：收尾票通过行共同 SHA 为 `4df8684`；`git diff 4df8684..HEAD` 含 `openspec/` 外路径
 > （代码审修复 4 个前端文件），故 closeout 与 retest 两套证据都跑。
 
@@ -121,11 +121,11 @@ ship-gate:
 
 ## 证据汇总
 
-- closeout：`verify-evidence-closeout.json` —— unit 214 passed / quality exit 0，SHA `c58e2c2`。
-- retest：`verify-evidence-retest.json` —— 同上，SHA `2d7dab9`，`clean_tree=true`、`ok=true`。
+- closeout：`verify-evidence-closeout.json` —— unit 214 passed / quality 3 道门，SHA `e8e73db`。
+- retest：`verify-evidence-retest.json` —— 同上，SHA `e8e73db`，`clean_tree=true`、`ok=true`。
 - 收尾票证据：`impl-reports/task7-verification.md` 通过 `check_impl_report.py`；层集来自
   `suite_scope.py --mode closeout`（未手抄）。
-- 用例数三态：两层均非 0（quality 无计数能力 → 报告「未知」，不判零用例）。
+- 用例数三态：两层均非 0（quality 层回显 3 道质量门：lint/typecheck/build，作为 3 个用例计入）。
 
 ## 缺口
 
