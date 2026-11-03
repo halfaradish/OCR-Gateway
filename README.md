@@ -134,20 +134,45 @@ server {
 ```
 
 - 默认不信任 `X-Forwarded-*`；只有当应用只监听回环/内网且前面是可信反代时，才设 `TRUST_PROXY_HEADERS=true`（仅用于登录限速的客户端 IP 识别，不用于鉴权）。
-- 回滚：无 schema 变更，停容器后用备份覆盖 `./data/ocr-gateway.db`，再以固定 tag 的上一版本镜像启动
-  （`latest` 不作为回滚依据）。
+### 发布与回滚
+
+以下脚本可在任意 cwd 调用（cron 友好），自动定位仓库根；默认路径均相对仓库根。
+
+```bash
+# 发布新版本（在目标服务器执行）：git pull → 预部署备份 → compose build → 起服务 → 等待健康 → 校验 /healthz
+scripts/deploy.sh               # 自动 git pull --ff-only；服务器无 git 远程时加 --skip-pull
+```
+
+每次发布自动做一次预部署备份，并把「时间戳 + git SHA + 备份路径」追加到 `data/backup/deploy-log`
+（回滚台账）。
+
+```bash
+# 回滚：停容器 → 校验备份 → 覆盖数据库 → 起服务 → 等待健康；不传参数则取最新备份
+scripts/rollback.sh [data/backup/ocr-gateway-<日期>-<时间>.db]
+```
+
+- 回滚口径：无 schema 变更 ⇒ 不需要 `alembic downgrade`；回滚 = 停容器 + 备份覆盖
+  `data/ocr-gateway.db` + 重新起服务。
+- 镜像 tag 回滚（以固定 tag 起上一版本镜像）在出现第二个版本时生效：版本升级 = 修改
+  `docker-compose.yml` 的 `image`/`build.tags` 后 `deploy.sh`；回滚旧版本 = `git checkout`
+  上一提交（compose 指向旧 tag，本地旧镜像仍在）再 `rollback.sh`。`latest` 不作回滚依据。
+- 镜像不发布 registry，仅存在于服务器本地（Q3=A）；如需对外发布，届时引入 registry 并按
+  digest 固定镜像。
 
 ## 备份与恢复
 
 ```bash
-# 每日备份（建议 cron），保留 7 天
-mkdir -p data/backup
-sqlite3 data/ocr-gateway.db ".backup 'data/backup/ocr-gateway-$(date +%F).db'"
-find data/backup -name 'ocr-gateway-*.db' -mtime +7 -delete
+# 每日备份（建议 cron），保留 7 天；联机备份，WAL 安全，无需停容器
+scripts/backup.sh
+# cron 示例（每天 03:00，日志落在 data/backup/backup.log）：
+# 0 3 * * * /path/to/ocr-gateway/scripts/backup.sh >> /path/to/ocr-gateway/data/backup/backup.log 2>&1
 ```
 
+备份文件 `data/backup/ocr-gateway-<日期>-<时间>.db`，保留天数可用 `BACKUP_RETENTION_DAYS`
+调整（默认 7）。
+
 - RPO：配额计数最多丢 2 秒（内存计数每 2 秒刷盘）；账户/Key/账号配置为上次备份。
-- RTO：重启进程（<5 秒）；恢复时停止进程、用备份覆盖 `data/ocr-gateway.db`、再启动。
+- RTO：重启进程（<5 秒）；恢复用 `scripts/rollback.sh`（停容器、覆盖 `data/ocr-gateway.db`、再启动）。
 - 备份文件与 `data/` 一样不得进仓。
 
 ## 测试
