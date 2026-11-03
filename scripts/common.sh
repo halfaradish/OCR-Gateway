@@ -11,7 +11,8 @@ DB_FILE=${DB_FILE:-data/ocr-gateway.db}
 BACKUP_DIR=${BACKUP_DIR:-data/backup}
 CONTAINER_NAME=ocr-gateway
 
-log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
+# 日志一律走 stderr，stdout 只留给机器可读输出（如 backup.sh 的备份路径）。
+log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*" >&2; }
 die() { printf '[%s] ERROR: %s\n' "$(date +%H:%M:%S)" "$*" >&2; exit 1; }
 
 require_cmd() {

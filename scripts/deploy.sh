@@ -48,8 +48,10 @@ else
 fi
 
 log "预部署备份 ..."
-backup_out=$(sh "$SCRIPTS_DIR/backup.sh")
-backup_file=$(printf '%s\n' "$backup_out" | tail -n 1)
+backup_file=$(sh "$SCRIPTS_DIR/backup.sh")
+if [ ! -f "$backup_file" ]; then
+    die "预部署备份失败：backup.sh 未返回有效路径（'$backup_file'）。"
+fi
 
 sha=$(git rev-parse HEAD)
 printf '%s %s %s\n' "$(date -Is)" "$sha" "$backup_file" >> "data/backup/deploy-log"

@@ -35,3 +35,6 @@ if [ "$BACKUP_RETENTION_DAYS" -gt 0 ]; then
     remaining=$(find "$BACKUP_DIR" -name 'ocr-gateway-*.db' | wc -l | tr -d ' ')
     log "已清理 ${BACKUP_RETENTION_DAYS} 天前的备份（现余 ${remaining} 个）"
 fi
+
+# stdout 仅输出机器可读的备份路径（deploy.sh 依赖；日志均走上游 stderr）。
+printf '%s\n' "$backup_file"
