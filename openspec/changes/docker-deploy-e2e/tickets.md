@@ -66,11 +66,11 @@
 
 验收标准：
 
-- [ ] README 部署段以 compose 一键起为主路径、本机 uv + uvicorn 为备选，含镜像索引说明、反代配置片段、TTHW 估算（步骤数/命令数 + 每步耗时假设 + 标注「估算」）与 uv 备选路径的前置说明
-- [ ] README 的 `DATA_DIR` 描述为「SQLite 数据目录」，日志描述为 stdout；保留原有 `uv sync` / `alembic upgrade head` / `--workers 1` / 备份与回滚口径
-- [ ] `.env.example` 含 `UV_DEFAULT_INDEX`（构建期，默认留空）与容器内 `DATA_DIR=/data` 由编排覆盖的注释；`DATA_DIR` 保持宿主机默认、`DATABASE_URL` 保持空、无真实凭证片段
-- [ ] 文档静态测试更新后断言 `docker compose up -d` 与 `UV_DEFAULT_INDEX`，且原有断言针全部保留；该测试文件全绿
-- [ ] 全量回归：`pytest backend/tests` 全绿，`ruff check backend` 与 `mypy backend/app` 无新增问题
+- [x] README 部署段以 compose 一键起为主路径、本机 uv + uvicorn 为备选，含镜像索引说明、反代配置片段、TTHW 估算（步骤数/命令数 + 每步耗时假设 + 标注「估算」）与 uv 备选路径的前置说明
+- [x] README 的 `DATA_DIR` 描述为「SQLite 数据目录」，日志描述为 stdout；保留原有 `uv sync` / `alembic upgrade head` / `--workers 1` / 备份与回滚口径
+- [x] `.env.example` 含 `UV_DEFAULT_INDEX`（构建期，默认留空）与容器内 `DATA_DIR=/data` 由编排覆盖的注释；`DATA_DIR` 保持宿主机默认、`DATABASE_URL` 保持空、无真实凭证片段
+- [x] 文档静态测试更新后断言 `docker compose up -d` 与 `UV_DEFAULT_INDEX`，且原有断言针全部保留；该测试文件全绿
+- [x] 全量回归：`pytest backend/tests` 全绿，`ruff check backend` 与 `mypy backend/app` 无新增问题
 
 ### Task 5: 真机端到端验收（S5）
 
