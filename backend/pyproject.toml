@@ -39,7 +39,11 @@ packages = ["app"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-markers = ["contract: real-vendor contract tests, skipped unless local credentials are configured"]
+addopts = "-m 'not slow'"
+markers = [
+    "contract: real-vendor contract tests, skipped unless local credentials are configured",
+    "slow: heavy benchmarks; run explicitly with -m slow",
+]
 filterwarnings = ["ignore::DeprecationWarning"]
 
 [tool.ruff]

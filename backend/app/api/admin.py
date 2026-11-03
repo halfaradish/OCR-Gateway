@@ -4,17 +4,26 @@ import asyncio
 import ipaddress
 import logging
 import time
-from datetime import UTC, datetime, timedelta
+from collections.abc import Iterable, Mapping
+from datetime import timedelta
 from io import BytesIO
 from typing import Any, Literal
 
 from fastapi import APIRouter, Body, Depends, File, Query, Request, Response, UploadFile
 from PIL import Image, ImageDraw
-from sqlalchemy import select
+from sqlalchemy import case, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import __version__
+from app.analytics import (
+    DAY_BUCKET_FORMAT,
+    LOCAL_DAY_MODIFIER,
+    TimeWindow,
+    parse_window,
+    to_local,
+    to_utc_naive,
+)
 from app.api.deps import (
     ADMIN_CSRF_COOKIE,
     ApiError,
@@ -26,10 +35,10 @@ from app.api.deps import (
     set_admin_cookies,
     set_csrf_cookie,
 )
-from app.core.quota import SHANGHAI
+from app.core.quota import daily_key, monthly_key
 from app.db import utcnow
 from app.models import Account, ApiKey, UsageEvent, User
-from app.providers.base import InputError, RetryableError
+from app.providers.base import PROVIDER_NAMES, AccountRuntime, InputError, RetryableError
 from app.providers.templates import DISCLAIMER, QUOTA_TEMPLATES
 from app.runtime_settings import (
     FIELD_RULES,
@@ -109,12 +118,67 @@ def _masked_credentials(state: AppState, account: Account) -> dict[str, str]:
     return {key: mask_secret(str(value)) for key, value in credentials.items()}
 
 
-def _account_out(state: AppState, account: Account) -> dict[str, Any]:
+def _quota_usage_from_runtime(
+    state: AppState, runtime: AccountRuntime
+) -> dict[str, Any]:
+    now = utcnow()
+    return {
+        "daily": {
+            "used": state.quota.used(runtime, "daily", now),
+            "limit": runtime.quota_daily,
+            "period_key": daily_key(now),
+        },
+        "monthly": {
+            "used": state.quota.used(runtime, "monthly", now),
+            "limit": runtime.quota_monthly,
+            "period_key": monthly_key(now, runtime.reset_day),
+        },
+        "total": {
+            "used": state.quota.used(runtime, "total", now),
+            "limit": runtime.quota_total,
+            "period_key": "all",
+        },
+    }
+
+
+def _quota_usage(state: AppState, account: Account) -> dict[str, Any]:
+    """Runtime counters are authoritative; a missing runtime degrades to zero + warning."""
+    runtime = state.registry.get(account.id)
+    if runtime is not None:
+        return _quota_usage_from_runtime(state, runtime)
+    logger.warning(
+        "account.runtime_missing", extra={"extra_fields": {"account_id": account.id}}
+    )
+    now = utcnow()
+    return {
+        "daily": {
+            "used": 0,
+            "limit": account.quota_daily,
+            "period_key": daily_key(now),
+        },
+        "monthly": {
+            "used": 0,
+            "limit": account.quota_monthly,
+            "period_key": monthly_key(now, account.reset_day),
+        },
+        "total": {"used": 0, "limit": account.quota_total, "period_key": "all"},
+    }
+
+
+def _account_out(
+    state: AppState,
+    account: Account,
+    owner_names: Mapping[int, str] | None = None,
+    owner_name: str | None = None,
+) -> dict[str, Any]:
+    if owner_name is None and owner_names is not None and account.owner_id is not None:
+        owner_name = owner_names.get(account.owner_id)
     return {
         "id": account.id,
         "provider": account.provider,
         "name": account.name,
         "owner_id": account.owner_id,
+        "owner_name": owner_name,
         "priority": account.priority,
         "weight": account.weight,
         "enabled": account.enabled,
@@ -125,6 +189,7 @@ def _account_out(state: AppState, account: Account) -> dict[str, Any]:
         "quota_monthly": account.quota_monthly,
         "quota_total": account.quota_total,
         "quota_unit": account.quota_unit,
+        "quota_usage": _quota_usage(state, account),
         "reset_day": account.reset_day,
         "state": account.state if account.enabled else "disabled",
         "last_error_code": account.last_error_code,
@@ -134,6 +199,26 @@ def _account_out(state: AppState, account: Account) -> dict[str, Any]:
         "created_at": account.created_at.isoformat(),
         "credential_fields": _masked_credentials(state, account),
     }
+
+
+async def _user_name_map(session: AsyncSession, user_ids: Iterable[int | None]) -> dict[int, str]:
+    ids = {user_id for user_id in user_ids if user_id is not None}
+    if not ids:
+        return {}
+    rows = (await session.execute(select(User.id, User.name).where(User.id.in_(ids)))).all()
+    return {int(row[0]): str(row[1]) for row in rows}
+
+
+async def _account_name_map(
+    session: AsyncSession, account_ids: Iterable[int | None]
+) -> dict[int, str]:
+    ids = {account_id for account_id in account_ids if account_id is not None}
+    if not ids:
+        return {}
+    rows = (
+        await session.execute(select(Account.id, Account.name).where(Account.id.in_(ids)))
+    ).all()
+    return {int(row[0]): str(row[1]) for row in rows}
 
 
 def _key_out(key: ApiKey) -> dict[str, Any]:
@@ -359,7 +444,8 @@ async def list_accounts(
     state: AppState = Depends(get_state),
 ) -> list[dict[str, Any]]:
     rows = (await session.execute(select(Account).order_by(Account.id))).scalars().all()
-    return [_account_out(state, row) for row in rows]
+    owners = await _user_name_map(session, [row.owner_id for row in rows])
+    return [_account_out(state, row, owners) for row in rows]
 
 
 @router.post("/accounts")
@@ -396,7 +482,8 @@ async def create_account(
     await session.commit()
     await session.refresh(account)
     state.registry.register(account)
-    return _account_out(state, account)
+    owner = await session.get(User, account.owner_id) if account.owner_id else None
+    return _account_out(state, account, owner_name=owner.name if owner else None)
 
 
 @router.patch("/accounts/{account_id}")
@@ -428,7 +515,8 @@ async def update_account(
     state.registry.update(account)
     if credentials is not None:
         state.adapters[account.provider].invalidate(account.id)
-    return _account_out(state, account)
+    owner = await session.get(User, account.owner_id) if account.owner_id else None
+    return _account_out(state, account, owner_name=owner.name if owner else None)
 
 
 @router.delete("/accounts/{account_id}")
@@ -446,6 +534,9 @@ async def delete_account(
     await session.commit()
     state.registry.remove(account_id)
     state.adapters[provider].invalidate(account_id)
+    # Drop in-memory counters too: a stale counter would make the next quota flush fail on the
+    # missing FK (and leak usage into a reused account id).
+    state.quota.reset_account(account_id)
     return Response(status_code=204)
 
 
@@ -544,16 +635,294 @@ async def quota_templates(_: str = Depends(require_admin)) -> dict[str, Any]:
     return {"disclaimer": DISCLAIMER, "providers": list(QUOTA_TEMPLATES.values())}
 
 
-def _parse_time(raw: str | None, default: datetime) -> datetime:
-    if not raw:
-        return default
-    try:
-        value = datetime.fromisoformat(raw.replace("Z", "+00:00"))
-    except ValueError as exc:
-        raise ApiError(400, "BAD_REQUEST", "invalid time filter") from exc
-    if value.tzinfo is None:
-        value = value.replace(tzinfo=SHANGHAI)
-    return value.astimezone(UTC).replace(tzinfo=None)
+def _log_query(path: str, started: float, rows: int) -> None:
+    logger.info(
+        "admin.query",
+        extra={
+            "extra_fields": {
+                "path": path,
+                "duration_ms": int((time.monotonic() - started) * 1000),
+                "rows": rows,
+            }
+        },
+    )
+
+
+def _event_conditions(
+    window: TimeWindow,
+    *,
+    user_id: int | None = None,
+    provider: str | None = None,
+    account_id: int | None = None,
+    success: bool | None = None,
+    error_code: str | None = None,
+) -> list[Any]:
+    conditions: list[Any] = window.conditions(UsageEvent.created_at)
+    if user_id is not None:
+        conditions.append(UsageEvent.user_id == user_id)
+    if provider is not None:
+        conditions.append(UsageEvent.provider == provider)
+    if account_id is not None:
+        conditions.append(UsageEvent.account_id == account_id)
+    if success is not None:
+        conditions.append(UsageEvent.success.is_(success))
+    if error_code is not None:
+        conditions.append(UsageEvent.error_code == error_code)
+    return conditions
+
+
+def _success_sum() -> Any:
+    return func.coalesce(func.sum(case((UsageEvent.success.is_(True), 1), else_=0)), 0)
+
+
+def _failure_sum() -> Any:
+    return func.coalesce(func.sum(case((UsageEvent.success.is_(False), 1), else_=0)), 0)
+
+
+def _cached_sum() -> Any:
+    return func.coalesce(func.sum(case((UsageEvent.cached.is_(True), 1), else_=0)), 0)
+
+
+def _avg_latency(value: Any) -> int | None:
+    if value is None:
+        return None
+    return int(round(float(value)))
+
+
+def _zero_day_bucket() -> dict[str, Any]:
+    return {
+        "requests": 0,
+        "success": 0,
+        "failure": 0,
+        "cached": 0,
+        "quota_used": 0,
+        "avg_latency_ms": None,
+        "auto_failures": 0,
+    }
+
+
+async def _daily_aggregates(
+    session: AsyncSession, window: TimeWindow, **filters: Any
+) -> dict[str, dict[str, Any]]:
+    """Aggregate per Shanghai local day in SQL; missing days are filled by the callers."""
+    day = func.strftime(
+        DAY_BUCKET_FORMAT, UsageEvent.created_at, LOCAL_DAY_MODIFIER
+    ).label("day")
+    statement = (
+        select(
+            day,
+            func.count(UsageEvent.id),
+            _success_sum(),
+            _failure_sum(),
+            _cached_sum(),
+            func.coalesce(func.sum(UsageEvent.quota_used), 0),
+            func.avg(UsageEvent.latency_ms),
+            # `auto` failures are counted separately so today's totals reconcile with the two
+            # provider rows (D-A3 / R-ADM-09).
+            func.coalesce(
+                func.sum(
+                    case(
+                        (
+                            (UsageEvent.provider == "auto")
+                            & (UsageEvent.success.is_(False)),
+                            1,
+                        ),
+                        else_=0,
+                    )
+                ),
+                0,
+            ),
+        )
+        .where(*_event_conditions(window, **filters))
+        .group_by(day)
+    )
+    result: dict[str, dict[str, Any]] = {}
+    for row in (await session.execute(statement)).all():
+        result[str(row[0])] = {
+            "requests": int(row[1]),
+            "success": int(row[2]),
+            "failure": int(row[3]),
+            "cached": int(row[4]),
+            "quota_used": int(row[5]),
+            "avg_latency_ms": _avg_latency(row[6]),
+            "auto_failures": int(row[7]),
+        }
+    return result
+
+
+@router.get("/overview")
+async def overview(
+    _: str = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+    state: AppState = Depends(get_state),
+) -> dict[str, Any]:
+    started = time.monotonic()
+    now = utcnow()
+    now_local = to_local(now)
+    today_start_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+    series_window = TimeWindow(
+        to_utc_naive(today_start_local - timedelta(days=6)), now, False
+    )
+    today_window = TimeWindow(to_utc_naive(today_start_local), now, False)
+
+    per_day = await _daily_aggregates(session, series_window)
+    today = dict(per_day.get(now_local.date().isoformat(), _zero_day_bucket()))
+    auto_failures = int(today.pop("auto_failures", 0))
+
+    provider_rows: dict[str, dict[str, int]] = {}
+    provider_statement = (
+        select(UsageEvent.provider, func.count(UsageEvent.id), _failure_sum())
+        .where(*_event_conditions(today_window))
+        .group_by(UsageEvent.provider)
+    )
+    for code, requests, failures in (await session.execute(provider_statement)).all():
+        provider_rows[str(code)] = {"requests": int(requests), "failures": int(failures)}
+
+    providers = []
+    for code in ("baidu", "tencent"):
+        stats = provider_rows.get(code, {"requests": 0, "failures": 0})
+        providers.append(
+            {
+                "code": code,
+                "name": PROVIDER_NAMES[code],
+                "accounts": len(
+                    [item for item in state.registry.all() if item.provider == code]
+                ),
+                "available_accounts": state.registry.available_count(code, state.quota),
+                "today_requests": stats["requests"],
+                "today_failures": stats["failures"],
+            }
+        )
+
+    account_rows = [
+        {
+            "id": runtime.id,
+            "name": runtime.name,
+            "provider": runtime.provider,
+            "state": runtime.state if runtime.enabled else "disabled",
+            "quota_usage": _quota_usage_from_runtime(state, runtime),
+        }
+        for runtime in state.registry.all()
+    ]
+
+    error_rows = (
+        await session.execute(
+            select(UsageEvent)
+            .where(UsageEvent.success.is_(False))
+            .order_by(UsageEvent.created_at.desc(), UsageEvent.id.desc())
+            .limit(10)
+        )
+    ).scalars().all()
+    account_names = await _account_name_map(
+        session, [event.account_id for event in error_rows]
+    )
+    recent_errors = [
+        {
+            "id": event.id,
+            "request_id": event.request_id,
+            "provider": event.provider,
+            "account_id": event.account_id,
+            "account_name": account_names.get(event.account_id)
+            if event.account_id is not None
+            else None,
+            "error_code": event.error_code,
+            "latency_ms": event.latency_ms,
+            "created_at": event.created_at.isoformat(),
+        }
+        for event in error_rows
+    ]
+
+    series = []
+    for day in series_window.local_dates():
+        bucket = per_day.get(day.isoformat(), _zero_day_bucket())
+        series.append(
+            {
+                "date": day.isoformat(),
+                "requests": bucket["requests"],
+                "success": bucket["success"],
+                "failure": bucket["failure"],
+                "cached": bucket["cached"],
+                "quota_used": bucket["quota_used"],
+                "avg_latency_ms": bucket["avg_latency_ms"],
+            }
+        )
+
+    requests_today = today["requests"]
+    success_today = today["success"]
+    _log_query("overview", started, len(series) + len(account_rows) + len(recent_errors))
+    return {
+        "generated_at": now_local.isoformat(),
+        "today": {
+            "requests": requests_today,
+            "success": success_today,
+            "failure": today["failure"],
+            "cached": today["cached"],
+            "quota_used": today["quota_used"],
+            "success_rate": round(success_today / requests_today, 4)
+            if requests_today
+            else None,
+            "cache_hit_rate": round(today["cached"] / requests_today, 4)
+            if requests_today
+            else None,
+            "avg_latency_ms": today["avg_latency_ms"],
+            "auto_failures": auto_failures,
+        },
+        "providers": providers,
+        "accounts": account_rows,
+        "recent_errors": recent_errors,
+        "cache": {
+            "enabled": state.runtime.cache_enabled,
+            "entries": len(state.cache),
+            "ttl_seconds": state.runtime.cache_ttl_seconds,
+            "max_entries": state.runtime.cache_max_entries,
+        },
+        "series": series,
+    }
+
+
+@router.get("/usage/series")
+async def usage_series(
+    from_: str | None = Query(default=None, alias="from"),
+    to: str | None = Query(default=None),
+    user_id: int | None = None,
+    provider: str | None = None,
+    account_id: int | None = None,
+    _: str = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    started = time.monotonic()
+    window = parse_window(from_, to)
+    per_day = await _daily_aggregates(
+        session, window, user_id=user_id, provider=provider, account_id=account_id
+    )
+    rows = []
+    for day in window.local_dates():
+        bucket = per_day.get(day.isoformat(), _zero_day_bucket())
+        rows.append(
+            {
+                "date": day.isoformat(),
+                "requests": bucket["requests"],
+                "success": bucket["success"],
+                "failure": bucket["failure"],
+                "cached": bucket["cached"],
+                "quota_used": bucket["quota_used"],
+                "avg_latency_ms": bucket["avg_latency_ms"],
+            }
+        )
+    _log_query("usage.series", started, len(rows))
+    return {
+        "from": to_local(window.start).isoformat(),
+        "to": to_local(window.end).isoformat(),
+        "bucket": "day",
+        "rows": rows,
+    }
+
+
+_GROUP_ATTRIBUTE: dict[str, Any] = {
+    "user": UsageEvent.user_id,
+    "provider": UsageEvent.provider,
+    "account": UsageEvent.account_id,
+}
 
 
 @router.get("/usage/summary")
@@ -561,39 +930,64 @@ async def usage_summary(
     from_: str | None = Query(default=None, alias="from"),
     to: str | None = Query(default=None),
     group_by: Literal["user", "provider", "account"] = "provider",
+    user_id: int | None = None,
+    provider: str | None = None,
+    account_id: int | None = None,
     _: str = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    end = _parse_time(to, datetime.now(UTC).replace(tzinfo=None))
-    start = _parse_time(from_, end - timedelta(days=7))
-    rows = (
-        await session.execute(
-            select(UsageEvent).where(
-                UsageEvent.created_at >= start, UsageEvent.created_at <= end
+    started = time.monotonic()
+    window = parse_window(from_, to)
+    attribute = _GROUP_ATTRIBUTE[group_by]
+    statement = (
+        select(
+            attribute,
+            func.count(UsageEvent.id),
+            _success_sum(),
+            _failure_sum(),
+            _cached_sum(),
+            func.coalesce(func.sum(UsageEvent.quota_used), 0),
+            func.avg(UsageEvent.latency_ms),
+        )
+        .where(
+            *_event_conditions(
+                window, user_id=user_id, provider=provider, account_id=account_id
             )
         )
-    ).scalars().all()
-    attribute = {"user": "user_id", "provider": "provider", "account": "account_id"}[group_by]
-    buckets: dict[Any, dict[str, Any]] = {}
-    for event in rows:
-        key = getattr(event, attribute)
-        bucket = buckets.setdefault(
-            key,
-            {"key": key, "requests": 0, "success": 0, "failure": 0, "cached": 0, "quota_used": 0},
-        )
-        bucket["requests"] += 1
-        if event.success:
-            bucket["success"] += 1
-        else:
-            bucket["failure"] += 1
-        if event.cached:
-            bucket["cached"] += 1
-        bucket["quota_used"] += event.quota_used
+        .group_by(attribute)
+    )
+    raw_rows = (await session.execute(statement)).all()
+
+    labels: dict[Any, str] = {}
+    if group_by == "user":
+        labels = await _user_name_map(session, [row[0] for row in raw_rows])
+    elif group_by == "account":
+        labels = await _account_name_map(session, [row[0] for row in raw_rows])
+    else:
+        labels = dict(PROVIDER_NAMES)
+        labels["auto"] = "自动路由"
+
+    rows = [
+        {
+            "key": row[0],
+            "label": labels.get(row[0]) if row[0] is not None else None,
+            "requests": int(row[1]),
+            "success": int(row[2]),
+            "failure": int(row[3]),
+            "cached": int(row[4]),
+            "quota_used": int(row[5]),
+            "avg_latency_ms": _avg_latency(row[6]),
+        }
+        for row in raw_rows
+    ]
+    # Ascending by key with the "deleted entity" bucket (null key) last.
+    rows.sort(key=lambda item: (item["key"] is None, item["key"] or 0))
+    _log_query("usage.summary", started, len(rows))
     return {
-        "from": start.isoformat(),
-        "to": end.isoformat(),
+        "from": window.start.isoformat(),
+        "to": window.end.isoformat(),
         "group_by": group_by,
-        "rows": list(buckets.values()),
+        "rows": rows,
     }
 
 
@@ -601,29 +995,60 @@ async def usage_summary(
 async def list_logs(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
+    from_: str | None = Query(default=None, alias="from"),
+    to: str | None = Query(default=None),
     success: bool | None = None,
     provider: str | None = None,
+    error_code: str | None = None,
+    user_id: int | None = None,
+    account_id: int | None = None,
     _: str = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    statement = select(UsageEvent).order_by(UsageEvent.id.desc())
-    if success is not None:
-        statement = statement.where(UsageEvent.success == success)
-    if provider is not None:
-        statement = statement.where(UsageEvent.provider == provider)
+    started = time.monotonic()
+    window = parse_window(from_, to)
+    conditions = _event_conditions(
+        window,
+        user_id=user_id,
+        provider=provider,
+        account_id=account_id,
+        success=success,
+        error_code=error_code,
+    )
+    total = int(
+        (
+            await session.execute(select(func.count(UsageEvent.id)).where(*conditions))
+        ).scalar_one()
+    )
     rows = (
-        await session.execute(statement.offset(offset).limit(limit))
+        await session.execute(
+            select(UsageEvent)
+            .where(*conditions)
+            .order_by(UsageEvent.id.desc())
+            .offset(offset)
+            .limit(limit)
+        )
     ).scalars().all()
+    user_names = await _user_name_map(session, [event.user_id for event in rows])
+    account_names = await _account_name_map(session, [event.account_id for event in rows])
+    _log_query("logs", started, len(rows))
     return {
         "limit": limit,
         "offset": offset,
+        "total": total,
         "rows": [
             {
                 "id": event.id,
                 "request_id": event.request_id,
                 "user_id": event.user_id,
+                "user_name": user_names.get(event.user_id)
+                if event.user_id is not None
+                else None,
                 "api_key_id": event.api_key_id,
                 "account_id": event.account_id,
+                "account_name": account_names.get(event.account_id)
+                if event.account_id is not None
+                else None,
                 "provider": event.provider,
                 "success": event.success,
                 "error_code": event.error_code,

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import ipaddress
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import httpx
 import respx
@@ -267,16 +268,28 @@ async def test_usage_summary_and_logs(client, admin_headers, app) -> None:
     assert rows["baidu"]["quota_used"] == 1
     assert "tencent" not in rows  # 30 days ago is outside the default 7-day window
 
-    logs = await client.get("/api/admin/logs?limit=2&offset=0", headers=admin_headers)
+    # R-ADM-06: logs share the 7-day default window with summary/series, so the 30-day-old
+    # event is only visible with an explicit window.
+    today = datetime.now(ZoneInfo("Asia/Shanghai")).date()
+    window = {
+        "from": (today - timedelta(days=40)).isoformat(),
+        "to": today.isoformat(),
+    }
+    logs = await client.get(
+        "/api/admin/logs", params={**window, "limit": 2, "offset": 0}, headers=admin_headers
+    )
     assert logs.status_code == 200
     assert len(logs.json()["rows"]) == 2
+    assert logs.json()["total"] == 3
     assert "text" not in logs.json()["rows"][0]
     second_page = await client.get(
-        "/api/admin/logs?limit=2&offset=2", headers=admin_headers
+        "/api/admin/logs", params={**window, "limit": 2, "offset": 2}, headers=admin_headers
     )
     assert len(second_page.json()["rows"]) == 1
     failures = await client.get(
-        "/api/admin/logs?success=false", headers=admin_headers
+        "/api/admin/logs",
+        params={**window, "success": "false"},
+        headers=admin_headers,
     )
     assert failures.json()["rows"][0]["error_code"] == "PROVIDER_ERROR"
 
