@@ -30,6 +30,7 @@ from app.panel import register_panel
 from app.providers.baidu import BaiduAdapter
 from app.providers.base import ProviderAdapter
 from app.providers.tencent import TencentAdapter
+from app.runtime_settings import load_runtime_settings
 from app.security_headers import SecurityHeadersMiddleware
 from app.state import AppState
 
@@ -61,6 +62,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         session_factory = make_session_factory(engine)
         async with session_factory() as session:
             accounts = (await session.execute(select(Account))).scalars().all()
+            runtime = await load_runtime_settings(session, resolved)
 
         registry = AccountRegistry(resolved.master_key_bytes)
         registry.load(list(accounts))
@@ -80,21 +82,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         }
         state = AppState(
             settings=resolved,
+            runtime=runtime,
             engine=engine,
             session_factory=session_factory,
             registry=registry,
             quota=quota,
             cache=ResultCache(
-                resolved.cache_enabled,
-                resolved.cache_max_entries,
-                resolved.cache_ttl_seconds,
+                runtime.cache_enabled,
+                runtime.cache_max_entries,
+                runtime.cache_ttl_seconds,
             ),
             http=http_client,
             adapters=adapters,
-            scheduler=Scheduler(
-                registry, quota, adapters, resolved.request_deadline_ms
-            ),
+            scheduler=Scheduler(registry, quota, adapters),
             semaphore=asyncio.Semaphore(resolved.max_concurrent_requests),
+            frontend_built=panel_available,
         )
         app.state.gw = state
         flush_task = asyncio.create_task(_quota_flush_loop(state))
@@ -136,11 +138,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.exception_handler(ApiError)
     async def api_error_handler(request: Request, exc: ApiError) -> JSONResponse:
+        error: dict[str, object] = {"code": exc.code, "message": exc.message}
+        if exc.fields:
+            error["fields"] = exc.fields
         return JSONResponse(
             status_code=exc.status_code,
             content={
                 "request_id": getattr(request.state, "request_id", ""),
-                "error": {"code": exc.code, "message": exc.message},
+                "error": error,
             },
         )
 
@@ -221,7 +226,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(public.router)
     app.include_router(admin.router)
     # The panel catch-all must come after every API route so it only sees leftovers.
-    register_panel(app, resolved.frontend_dist_path)
+    panel_available = register_panel(app, resolved.frontend_dist_path)
     # T1: stream-count every request body; covers chunked bodies without Content-Length.
     app.add_middleware(
         BodyLimitMiddleware, max_bytes=resolved.max_upload_bytes * 2

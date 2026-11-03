@@ -38,7 +38,8 @@ class AccountCreate(BaseModel):
     priority: int = 100
     weight: int = Field(default=1, ge=1)
     enabled: bool = True
-    timeout_ms: int = Field(default=8000, gt=0)
+    # Omitted => the runtime `default_timeout_ms` applies at creation time.
+    timeout_ms: int | None = Field(default=None, gt=0)
     max_concurrency: int = Field(default=2, ge=1)
     qps_limit: float | None = Field(default=5.0, gt=0)
     quota_daily: int | None = Field(default=None, ge=0)

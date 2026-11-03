@@ -8,12 +8,13 @@ from datetime import UTC, datetime, timedelta
 from io import BytesIO
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, File, Query, Request, Response, UploadFile
+from fastapi import APIRouter, Body, Depends, File, Query, Request, Response, UploadFile
 from PIL import Image, ImageDraw
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import __version__
 from app.api.deps import (
     ADMIN_CSRF_COOKIE,
     ApiError,
@@ -30,6 +31,12 @@ from app.db import utcnow
 from app.models import Account, ApiKey, UsageEvent, User
 from app.providers.base import InputError, RetryableError
 from app.providers.templates import DISCLAIMER, QUOTA_TEMPLATES
+from app.runtime_settings import (
+    FIELD_RULES,
+    RuntimeSettings,
+    upsert_settings,
+    validate_value,
+)
 from app.schemas import (
     AccountCreate,
     AccountUpdate,
@@ -374,7 +381,7 @@ async def create_account(
         priority=payload.priority,
         weight=payload.weight,
         enabled=payload.enabled,
-        timeout_ms=payload.timeout_ms,
+        timeout_ms=payload.timeout_ms or state.runtime.default_timeout_ms,
         max_concurrency=payload.max_concurrency,
         qps_limit=payload.qps_limit,
         quota_daily=payload.quota_daily,
@@ -404,6 +411,9 @@ async def update_account(
     if account is None:
         raise ApiError(404, "NOT_FOUND", "account not found")
     data = payload.model_dump(exclude_unset=True)
+    if "timeout_ms" in data and data["timeout_ms"] is None:
+        # accounts.timeout_ms is NOT NULL; "keep the current value" is expressed by omitting.
+        raise ApiError(400, "BAD_REQUEST", "timeout_ms cannot be null")
     credentials = data.pop("credentials", None)
     if credentials is not None:
         validated = _validate_credentials(account.provider, credentials)
@@ -633,3 +643,74 @@ async def clear_cache(
     _: str = Depends(require_admin), state: AppState = Depends(get_state)
 ) -> dict[str, int]:
     return {"cleared": state.cache.clear()}
+
+
+def _readonly_settings(state: AppState) -> dict[str, Any]:
+    return {
+        "api_auth_enabled": True,
+        "version": __version__,
+        "max_upload_bytes": state.settings.max_upload_bytes,
+        "max_image_pixels": state.settings.max_image_pixels,
+        "max_concurrent_requests": state.settings.max_concurrent_requests,
+        "session_ttl_seconds": state.settings.session_ttl_seconds,
+        "frontend_built": state.frontend_built,
+    }
+
+
+async def _apply_settings(
+    state: AppState, updates: dict[str, Any]
+) -> tuple[RuntimeSettings, bool]:
+    """Serialize merge+commit+apply; the runtime swap happens only after the commit returns."""
+    async with state.settings_lock:
+        async with state.session_factory() as session:
+            await upsert_settings(session, updates)
+            await session.commit()
+        merged = RuntimeSettings(**{**state.runtime.as_dict(), **updates})
+        cache_cleared = state.cache.reconfigure(
+            merged.cache_enabled, merged.cache_max_entries, merged.cache_ttl_seconds
+        )
+        state.runtime = merged
+        return merged, cache_cleared
+
+
+@router.get("/settings")
+async def get_settings(
+    _: str = Depends(require_admin), state: AppState = Depends(get_state)
+) -> dict[str, Any]:
+    return {"editable": state.runtime.as_dict(), "readonly": _readonly_settings(state)}
+
+
+@router.put("/settings")
+async def update_settings(
+    payload: dict[str, Any] = Body(...),
+    _: str = Depends(require_admin),
+    state: AppState = Depends(get_state),
+) -> dict[str, Any]:
+    errors: list[dict[str, str]] = []
+    updates: dict[str, Any] = {}
+    for key, value in payload.items():
+        if key not in FIELD_RULES:
+            errors.append({"field": key, "message": f"未知设置项：{key}。"})
+            continue
+        ok, normalized, message = validate_value(key, value)
+        if not ok:
+            errors.append({"field": key, "message": message})
+        else:
+            updates[key] = normalized
+    if errors:
+        logger.info(
+            "admin.settings.rejected",
+            extra={"extra_fields": {"fields": [item["field"] for item in errors]}},
+        )
+        raise ApiError(400, "BAD_REQUEST", "invalid settings", fields=errors)
+    try:
+        runtime, cache_cleared = await _apply_settings(state, updates)
+    except Exception as exc:  # noqa: BLE001 - DB failure must not leak internals
+        logger.exception("admin.settings.write_failed")
+        raise ApiError(
+            500, "INTERNAL_ERROR", "failed to save settings", fields=None
+        ) from exc
+    logger.info(
+        "admin.settings.updated", extra={"extra_fields": {"keys": sorted(updates)}}
+    )
+    return {"settings": runtime.as_dict(), "cache_cleared": cache_cleared}

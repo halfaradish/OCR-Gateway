@@ -205,6 +205,11 @@ def test_failure_marks_account_state() -> None:
     assert runtime.state == "quota_exhausted"
 
 
+def _deadline(seconds: float = 20.0) -> float:
+    """Absolute monotonic budget as computed by the public endpoint (R-SCH-03)."""
+    return time.monotonic() + seconds
+
+
 def _result(text: str = "ok") -> ProviderResult:
     return ProviderResult(provider="baidu", text=text, lines=[Line(text=text)])
 
@@ -218,8 +223,8 @@ async def test_scheduler_switches_on_retryable_error() -> None:
             _result("second"),
         ]
     )
-    scheduler = Scheduler(registry, quota, {"baidu": adapter}, 20000)
-    result = await scheduler.recognize("baidu", b"img", "zh")
+    scheduler = Scheduler(registry, quota, {"baidu": adapter})
+    result = await scheduler.recognize("baidu", b"img", "zh", _deadline())
     assert adapter.calls == [1, 2]
     assert result.account_id == 2
     assert result.text == "second"
@@ -229,9 +234,9 @@ async def test_scheduler_input_error_does_not_switch() -> None:
     registry = make_registry(make_account_model(1), make_account_model(2))
     quota = QuotaManager()
     adapter = FakeAdapter([InputError("bad image")])
-    scheduler = Scheduler(registry, quota, {"baidu": adapter}, 20000)
+    scheduler = Scheduler(registry, quota, {"baidu": adapter})
     with pytest.raises(InputError):
-        await scheduler.recognize("baidu", b"img", "zh")
+        await scheduler.recognize("baidu", b"img", "zh", _deadline())
     assert adapter.calls == [1]
 
 
@@ -241,17 +246,17 @@ async def test_scheduler_all_provider_errors_return_502() -> None:
     adapter = FakeAdapter(
         [RetryableError(ErrorKind.PROVIDER_ERROR, "server error")]
     )
-    scheduler = Scheduler(registry, quota, {"baidu": adapter}, 20000)
+    scheduler = Scheduler(registry, quota, {"baidu": adapter})
     with pytest.raises(UpstreamFailed) as raised:
-        await scheduler.recognize("baidu", b"img", "zh")
+        await scheduler.recognize("baidu", b"img", "zh", _deadline())
     assert raised.value.status_code == 502
 
 
 async def test_scheduler_no_candidate_returns_503() -> None:
     registry = make_registry()
-    scheduler = Scheduler(registry, QuotaManager(), {"baidu": FakeAdapter([])}, 20000)
+    scheduler = Scheduler(registry, QuotaManager(), {"baidu": FakeAdapter([])})
     with pytest.raises(NoCandidate) as raised:
-        await scheduler.recognize("auto", b"img", "zh")
+        await scheduler.recognize("auto", b"img", "zh", _deadline())
     assert raised.value.status_code == 503
 
 
@@ -259,15 +264,15 @@ async def test_scheduler_auth_failures_return_503() -> None:
     registry = make_registry(make_account_model(1))
     quota = QuotaManager()
     adapter = FakeAdapter([RetryableError(ErrorKind.AUTH_FAILED, "bad key")])
-    scheduler = Scheduler(registry, quota, {"baidu": adapter}, 20000)
+    scheduler = Scheduler(registry, quota, {"baidu": adapter})
     with pytest.raises(NoCandidate) as raised:
-        await scheduler.recognize("baidu", b"img", "zh")
+        await scheduler.recognize("baidu", b"img", "zh", _deadline())
     assert raised.value.status_code == 503
 
 
 async def test_scheduler_deadline_returns_504() -> None:
     registry = make_registry(make_account_model(1))
-    scheduler = Scheduler(registry, QuotaManager(), {"baidu": FakeAdapter([])}, 0)
+    scheduler = Scheduler(registry, QuotaManager(), {"baidu": FakeAdapter([])})
     with pytest.raises(DeadlineExceeded) as raised:
-        await scheduler.recognize("baidu", b"img", "zh")
+        await scheduler.recognize("baidu", b"img", "zh", _deadline(-1))
     assert raised.value.status_code == 504

@@ -197,7 +197,7 @@ async def ocr_image(
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     started = time.monotonic()
-    deadline = started + state.settings.request_deadline_ms / 1000.0
+    deadline = started + state.runtime.request_deadline_ms / 1000.0
     request_id: str = request.state.request_id
 
     try:
@@ -257,7 +257,7 @@ async def ocr_image(
     try:
         try:
             result = await state.scheduler.recognize(
-                parsed.provider, normalized, parsed.language
+                parsed.provider, normalized, parsed.language, deadline
             )
         finally:
             state.semaphore.release()

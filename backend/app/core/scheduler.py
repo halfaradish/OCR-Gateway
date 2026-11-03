@@ -63,21 +63,22 @@ class Scheduler:
         registry: AccountRegistry,
         quota: QuotaManager,
         adapters: Mapping[str, ProviderAdapter],
-        request_deadline_ms: int,
     ) -> None:
         self._registry = registry
         self._quota = quota
         self._adapters = adapters
-        self._deadline_seconds = request_deadline_ms / 1000.0
 
     async def recognize(
-        self, provider: str, image: bytes, language: str
+        self, provider: str, image: bytes, language: str, deadline: float
     ) -> ScheduleResult:
+        """`deadline` is an absolute `time.monotonic()` budget computed by the caller (R-SCH-03).
+
+        The runtime setting therefore covers the whole request, including semaphore waiting.
+        """
         candidates = self._registry.candidates(provider, self._quota, utcnow())
         if not candidates:
             raise NoCandidate("no available account")
 
-        deadline = time.monotonic() + self._deadline_seconds
         last_error: RetryableError | None = None
         last_provider: str | None = None
         last_account_id: int | None = None

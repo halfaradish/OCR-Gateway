@@ -11,6 +11,7 @@ from sqlalchemy import (
     Index,
     Integer,
     String,
+    Text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -160,4 +161,16 @@ class QuotaCounter(Base):
             "period_type IN ('daily', 'monthly', 'total')", name="ck_quota_period_type"
         ),
         CheckConstraint("used >= 0", name="ck_quota_used"),
+    )
+
+
+class Setting(Base):
+    """Runtime-editable settings (D-A2); `value` holds a JSON-encoded scalar."""
+
+    __tablename__ = "settings"
+
+    key: Mapped[str] = mapped_column(Text, primary_key=True)
+    value: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, onupdate=utcnow, nullable=False
     )

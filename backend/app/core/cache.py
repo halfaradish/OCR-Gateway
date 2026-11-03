@@ -12,9 +12,22 @@ MAX_RESULT_BYTES = 256 * 1024
 class ResultCache:
     def __init__(self, enabled: bool, max_entries: int, ttl_seconds: int) -> None:
         self.enabled = enabled
+        self._params = (enabled, max_entries, ttl_seconds)
         self._cache: TTLCache[str, dict[str, Any]] = TTLCache(
             maxsize=max_entries, ttl=ttl_seconds
         )
+
+    def reconfigure(self, enabled: bool, max_entries: int, ttl_seconds: int) -> bool:
+        """Rebuild the cache when its parameters change (D-A2: entries are dropped).
+
+        Returns True when the cache was rebuilt, False when nothing changed.
+        """
+        if (enabled, max_entries, ttl_seconds) == self._params:
+            return False
+        self.enabled = enabled
+        self._params = (enabled, max_entries, ttl_seconds)
+        self._cache = TTLCache(maxsize=max_entries, ttl=ttl_seconds)
+        return True
 
     @staticmethod
     def build_key(image_bytes: bytes, language: str, provider: str) -> str:

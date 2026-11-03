@@ -305,7 +305,7 @@ async def test_global_concurrency_returns_503(app_factory, settings) -> None:
 
     account = application.state.gw.registry.all()[0]
 
-    async def slow_recognize(provider, image, language):
+    async def slow_recognize(provider, image, language, deadline):
         await asyncio.sleep(0.4)
         return ScheduleResult(
             account_id=account.id,

@@ -14,6 +14,7 @@ from app.core.quota import QuotaManager
 from app.core.registry import AccountRegistry
 from app.core.scheduler import Scheduler
 from app.providers.base import ProviderAdapter
+from app.runtime_settings import RuntimeSettings
 
 
 class KeyRateLimiter:
@@ -91,6 +92,7 @@ class LoginLimiter:
 @dataclass
 class AppState:
     settings: Settings
+    runtime: RuntimeSettings
     engine: AsyncEngine
     session_factory: async_sessionmaker[AsyncSession]
     registry: AccountRegistry
@@ -100,5 +102,7 @@ class AppState:
     adapters: dict[str, ProviderAdapter]
     scheduler: Scheduler
     semaphore: asyncio.Semaphore
+    settings_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    frontend_built: bool = False
     key_limiter: KeyRateLimiter = field(default_factory=KeyRateLimiter)
     login_limiter: LoginLimiter = field(default_factory=LoginLimiter)
