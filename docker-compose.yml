@@ -7,11 +7,12 @@ services:
       # 构建期索引必须经 build.args 传入（env_file 只作用于运行期容器环境）。
       args:
         UV_DEFAULT_INDEX: "${UV_DEFAULT_INDEX:-}"
+        NPM_REGISTRY: "${NPM_REGISTRY:-}"
       tags:
-        # 主路径同时产出 0.1.0（回滚锚点）与 latest（便捷引用，不作回滚依据）。
-        - ocr-gateway:0.1.0
+        # M3 升到 0.2.0；0.1.0 是回滚锚点，MUST NOT 被本版本的构建覆盖。
+        - ocr-gateway:0.2.0
         - ocr-gateway:latest
-    image: ocr-gateway:0.1.0
+    image: ocr-gateway:0.2.0
     container_name: ocr-gateway
     env_file:
       - .env

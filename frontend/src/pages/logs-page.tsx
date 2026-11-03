@@ -163,15 +163,15 @@ export default function LogsPage() {
         <EmptyState title="没有符合条件的记录。" description="放宽时间范围或清除筛选后再试。" />
       ) : (
         <>
-          <Table className="min-w-[980px]">
+          <Table className="md:min-w-[980px]">
             <TableHead>
               <TableRow>
                 <TableHeaderCell>时间</TableHeaderCell>
-                <TableHeaderCell>request_id</TableHeaderCell>
-                <TableHeaderCell>用户</TableHeaderCell>
-                <TableHeaderCell>厂商</TableHeaderCell>
-                <TableHeaderCell>账号</TableHeaderCell>
-                <TableHeaderCell className="text-right">耗时</TableHeaderCell>
+                <TableHeaderCell className="hidden lg:table-cell">request_id</TableHeaderCell>
+                <TableHeaderCell className="hidden md:table-cell">用户</TableHeaderCell>
+                <TableHeaderCell className="hidden md:table-cell">厂商</TableHeaderCell>
+                <TableHeaderCell className="hidden lg:table-cell">账号</TableHeaderCell>
+                <TableHeaderCell className="hidden text-right md:table-cell">耗时</TableHeaderCell>
                 <TableHeaderCell>状态</TableHeaderCell>
                 <TableHeaderCell>错误码</TableHeaderCell>
               </TableRow>
@@ -186,13 +186,13 @@ export default function LogsPage() {
                   <TableCell className="whitespace-nowrap tabular-nums">
                     {formatDateTime(row.created_at)}
                   </TableCell>
-                  <TableCell className="max-w-[220px] truncate font-mono text-micro text-muted">
+                  <TableCell className="hidden max-w-[220px] truncate font-mono text-micro text-muted lg:table-cell">
                     {row.request_id}
                   </TableCell>
-                  <TableCell>{row.user_name ?? "已删除"}</TableCell>
-                  <TableCell>{row.provider}</TableCell>
-                  <TableCell>{row.account_name ?? "已删除"}</TableCell>
-                  <TableCell className="text-right tabular-nums">
+                  <TableCell className="hidden md:table-cell">{row.user_name ?? "已删除"}</TableCell>
+                  <TableCell className="hidden md:table-cell">{row.provider}</TableCell>
+                  <TableCell className="hidden lg:table-cell">{row.account_name ?? "已删除"}</TableCell>
+                  <TableCell className="hidden text-right tabular-nums md:table-cell">
                     {formatLatency(row.latency_ms)}
                   </TableCell>
                   <TableCell>

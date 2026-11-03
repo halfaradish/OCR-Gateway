@@ -329,15 +329,15 @@ export default function UsagePage() {
         ) : (summaryQuery.data?.rows.length ?? 0) === 0 ? (
           <EmptyState title="所选时间内没有请求。" description="放宽时间范围或清除筛选后再试。" />
         ) : (
-          <Table className="min-w-[820px]">
+          <Table className="md:min-w-[820px]">
             <TableHead>
               <TableRow>
                 <TableHeaderCell>维度</TableHeaderCell>
                 <TableHeaderCell className="text-right">请求</TableHeaderCell>
-                <TableHeaderCell className="text-right">成功</TableHeaderCell>
-                <TableHeaderCell className="text-right">失败</TableHeaderCell>
-                <TableHeaderCell className="text-right">缓存命中</TableHeaderCell>
-                <TableHeaderCell className="text-right">配额消耗</TableHeaderCell>
+                <TableHeaderCell className="hidden text-right md:table-cell">成功</TableHeaderCell>
+                <TableHeaderCell className="hidden text-right md:table-cell">失败</TableHeaderCell>
+                <TableHeaderCell className="hidden text-right lg:table-cell">缓存命中</TableHeaderCell>
+                <TableHeaderCell className="hidden text-right lg:table-cell">配额消耗</TableHeaderCell>
                 <TableHeaderCell className="text-right">平均延迟</TableHeaderCell>
               </TableRow>
             </TableHead>
@@ -348,16 +348,16 @@ export default function UsagePage() {
                   <TableCell className="text-right tabular-nums">
                     {formatNumber(row.requests)}
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">
+                  <TableCell className="hidden text-right tabular-nums md:table-cell">
                     {formatNumber(row.success)}
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">
+                  <TableCell className="hidden text-right tabular-nums md:table-cell">
                     {formatNumber(row.failure)}
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">
+                  <TableCell className="hidden text-right tabular-nums lg:table-cell">
                     {formatNumber(row.cached)}
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">
+                  <TableCell className="hidden text-right tabular-nums lg:table-cell">
                     {formatNumber(row.quota_used)}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">

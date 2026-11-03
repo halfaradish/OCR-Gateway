@@ -1,6 +1,17 @@
 # syntax=docker/dockerfile:1
-# 多阶段：构建阶段产出只含运行期依赖的虚拟环境，运行阶段仅带 venv + 应用源码。
+# 多阶段：前端构建 → Python 依赖构建 → 运行镜像（venv + 应用源码 + 面板静态产物）。
 ARG PYTHON_IMAGE=python:3.12-slim@sha256:b18b261e1b4974b4f321451ad5251ded85abb22c2b8b262da527dda1d031ab30
+ARG NODE_IMAGE=node:22-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da
+
+# ── 前端构建：pnpm 与依赖索引均可参数化（离线环境经 NPM_REGISTRY 指向镜像） ──────────
+FROM ${NODE_IMAGE} AS frontend-builder
+ARG NPM_REGISTRY=
+WORKDIR /app/frontend
+COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
+RUN if [ -n "$NPM_REGISTRY" ]; then         npm install -g pnpm@11.2.2 --registry "$NPM_REGISTRY";     else         npm install -g pnpm@11.2.2;     fi
+RUN if [ -n "$NPM_REGISTRY" ]; then         pnpm install --frozen-lockfile --registry "$NPM_REGISTRY";     else         pnpm install --frozen-lockfile;     fi
+COPY frontend/ ./
+RUN pnpm build
 
 FROM ${PYTHON_IMAGE} AS builder
 ARG UV_DEFAULT_INDEX=
@@ -47,7 +58,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     VIRTUAL_ENV=/app/.venv \
     PATH=/app/.venv/bin:$PATH \
-    DATA_DIR=/data
+    DATA_DIR=/data \
+    FRONTEND_DIST=/app/static
 
 WORKDIR /app
 
@@ -58,6 +70,7 @@ RUN groupadd --system --gid 10001 app \
     && chown app:app /data
 
 COPY --from=builder /app/.venv /app/.venv
+COPY --from=frontend-builder /app/frontend/dist /app/static
 COPY backend/app /app/app
 COPY backend/alembic /app/alembic
 COPY backend/alembic.ini /app/alembic.ini

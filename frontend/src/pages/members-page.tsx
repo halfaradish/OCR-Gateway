@@ -246,7 +246,7 @@ export default function MembersPage() {
         />
       ) : (
         <div className="space-y-10">
-          <Table className="min-w-[720px]">
+          <Table className="md:min-w-[720px]">
             <TableHead>
               <TableRow>
                 <TableHeaderCell>名称</TableHeaderCell>
@@ -323,14 +323,14 @@ export default function MembersPage() {
             {memberKeys.length === 0 ? (
               <EmptyState title="该成员还没有 Key。" description="创建后可立即用于调用公共 API。" />
             ) : (
-              <Table className="min-w-[860px]">
+              <Table className="md:min-w-[860px]">
                 <TableHead>
                   <TableRow>
                     <TableHeaderCell>前缀</TableHeaderCell>
                     <TableHeaderCell>名称</TableHeaderCell>
-                    <TableHeaderCell className="text-right">日限额</TableHeaderCell>
-                    <TableHeaderCell className="text-right">RPM</TableHeaderCell>
-                    <TableHeaderCell>最近使用</TableHeaderCell>
+                    <TableHeaderCell className="hidden text-right md:table-cell">日限额</TableHeaderCell>
+                    <TableHeaderCell className="hidden text-right md:table-cell">RPM</TableHeaderCell>
+                    <TableHeaderCell className="hidden lg:table-cell">最近使用</TableHeaderCell>
                     <TableHeaderCell>启用</TableHeaderCell>
                     <TableHeaderCell className="text-right">操作</TableHeaderCell>
                   </TableRow>
@@ -340,13 +340,13 @@ export default function MembersPage() {
                     <TableRow key={key.id}>
                       <TableCell className="font-mono text-meta">{key.key_prefix}…</TableCell>
                       <TableCell>{key.name}</TableCell>
-                      <TableCell className="text-right tabular-nums">
+                      <TableCell className="hidden text-right tabular-nums md:table-cell">
                         {key.daily_limit === null ? "不限" : formatNumber(key.daily_limit)}
                       </TableCell>
-                      <TableCell className="text-right tabular-nums">
+                      <TableCell className="hidden text-right tabular-nums md:table-cell">
                         {key.rpm_limit === null ? "不限" : formatNumber(key.rpm_limit)}
                       </TableCell>
-                      <TableCell className="whitespace-nowrap text-muted">
+                      <TableCell className="hidden whitespace-nowrap text-muted lg:table-cell">
                         {formatDateTime(key.last_used_at)}
                       </TableCell>
                       <TableCell>

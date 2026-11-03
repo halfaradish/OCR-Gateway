@@ -326,6 +326,44 @@ export default function AccountsPage() {
   const saving = saveMutation.isPending;
   const rowBusy = busyId !== null || toggleMutation.isPending || deleteMutation.isPending;
 
+  const renderActions = (account: Account) => (
+    <>
+      <Button size="sm" variant="ghost" disabled={rowBusy} onClick={() => void runTest(account)}>
+        测活
+      </Button>
+      <Button size="sm" variant="ghost" onClick={() => openEdit(account)}>
+        <Pencil aria-hidden="true" />
+        编辑
+      </Button>
+      <Button
+        size="sm"
+        variant="ghost"
+        disabled={rowBusy}
+        onClick={() => toggleMutation.mutate(account)}
+      >
+        {account.enabled ? "禁用" : "启用"}
+      </Button>
+      <Button
+        size="sm"
+        variant="ghost"
+        disabled={rowBusy}
+        onClick={() => setConfirm({ kind: "reset", account })}
+      >
+        重置
+      </Button>
+      <Button
+        size="sm"
+        variant="ghost"
+        className="text-danger"
+        disabled={rowBusy}
+        onClick={() => setConfirm({ kind: "delete", account })}
+      >
+        <Trash2 aria-hidden="true" />
+        删除
+      </Button>
+    </>
+  );
+
   return (
     <div>
       <PageHeader
@@ -399,17 +437,17 @@ export default function AccountsPage() {
           }
         />
       ) : (
-        <Table className="min-w-[1100px]">
+        <Table className="md:min-w-[1100px]">
           <TableHead>
             <TableRow>
-              <TableHeaderCell>厂商</TableHeaderCell>
+              <TableHeaderCell className="hidden md:table-cell">厂商</TableHeaderCell>
               <TableHeaderCell>名称</TableHeaderCell>
-              <TableHeaderCell>贡献者</TableHeaderCell>
-              <TableHeaderCell className="text-right">优先级</TableHeaderCell>
-              <TableHeaderCell>配额</TableHeaderCell>
+              <TableHeaderCell className="hidden md:table-cell">贡献者</TableHeaderCell>
+              <TableHeaderCell className="hidden text-right md:table-cell">优先级</TableHeaderCell>
+              <TableHeaderCell className="hidden lg:table-cell">配额</TableHeaderCell>
               <TableHeaderCell>状态</TableHeaderCell>
-              <TableHeaderCell className="text-right">EWMA</TableHeaderCell>
-              <TableHeaderCell>最近错误</TableHeaderCell>
+              <TableHeaderCell className="hidden text-right md:table-cell">EWMA</TableHeaderCell>
+              <TableHeaderCell className="hidden xl:table-cell">最近错误</TableHeaderCell>
               <TableHeaderCell className="text-right">操作</TableHeaderCell>
             </TableRow>
           </TableHead>
@@ -422,16 +460,24 @@ export default function AccountsPage() {
                 usage.total.limit === null;
               return (
                 <TableRow key={account.id}>
-                  <TableCell className="whitespace-nowrap">
+                  <TableCell className="hidden whitespace-nowrap md:table-cell">
                     {PROVIDERS.find((item) => item.value === account.provider)?.label ??
                       account.provider}
                   </TableCell>
-                  <TableCell className="whitespace-nowrap">{account.name}</TableCell>
-                  <TableCell className="whitespace-nowrap text-muted">
+                  <TableCell className="whitespace-nowrap">
+                    <span className="block">{account.name}</span>
+                    <span className="block text-micro text-muted md:hidden">
+                      {PROVIDERS.find((item) => item.value === account.provider)?.label ??
+                        account.provider}
+                    </span>
+                  </TableCell>
+                  <TableCell className="hidden whitespace-nowrap text-muted md:table-cell">
                     {account.owner_id === null ? "—" : (account.owner_name ?? "已删除")}
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">{account.priority}</TableCell>
-                  <TableCell>
+                  <TableCell className="hidden text-right tabular-nums md:table-cell">
+                    {account.priority}
+                  </TableCell>
+                  <TableCell className="hidden lg:table-cell">
                     {unconfigured ? (
                       <span className="text-meta text-warn">未配置额度，可能超用</span>
                     ) : (
@@ -441,10 +487,10 @@ export default function AccountsPage() {
                   <TableCell>
                     <StatusDot state={account.state} />
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">
+                  <TableCell className="hidden text-right tabular-nums md:table-cell">
                     {formatLatency(Math.round(account.ewma_latency_ms))}
                   </TableCell>
-                  <TableCell className="max-w-[180px] text-meta text-muted">
+                  <TableCell className="hidden max-w-[180px] text-meta text-muted xl:table-cell">
                     {account.last_error_code ? (
                       <span title={account.last_error_message ?? ""}>
                         {account.last_error_code}
@@ -454,45 +500,17 @@ export default function AccountsPage() {
                     )}
                   </TableCell>
                   <TableCell>
-                    <div className="flex flex-wrap justify-end gap-1">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={rowBusy}
-                        onClick={() => void runTest(account)}
-                      >
-                        测活
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={() => openEdit(account)}>
-                        <Pencil aria-hidden="true" />
-                        编辑
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={rowBusy}
-                        onClick={() => toggleMutation.mutate(account)}
-                      >
-                        {account.enabled ? "禁用" : "启用"}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={rowBusy}
-                        onClick={() => setConfirm({ kind: "reset", account })}
-                      >
-                        重置
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="text-danger"
-                        disabled={rowBusy}
-                        onClick={() => setConfirm({ kind: "delete", account })}
-                      >
-                        <Trash2 aria-hidden="true" />
-                        删除
-                      </Button>
+                    {/* Narrow screens keep name/state/actions visible; the actions collapse. */}
+                    <details className="md:hidden">
+                      <summary className="cursor-pointer select-none text-meta text-blue">
+                        操作
+                      </summary>
+                      <div className="mt-2 flex flex-col items-start gap-1">
+                        {renderActions(account)}
+                      </div>
+                    </details>
+                    <div className="hidden flex-wrap justify-end gap-1 md:flex">
+                      {renderActions(account)}
                     </div>
                   </TableCell>
                 </TableRow>

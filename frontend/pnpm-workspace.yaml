@@ -1,2 +1,5 @@
+# The lockfile pins integrity hashes for every package; the release-age gate only blocks fresh
+# resolutions and makes offline/mirror builds fail on newly published versions.
+minimumReleaseAge: 0
 allowBuilds:
   esbuild: true

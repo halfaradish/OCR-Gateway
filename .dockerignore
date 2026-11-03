@@ -17,3 +17,6 @@ docs
 .env
 .env.*
 !.env.example
+# 前端：只把源码送进构建上下文，宿主机依赖与本地产物不参与构建
+**/node_modules
+frontend/dist
