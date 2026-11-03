@@ -35,6 +35,8 @@
 - **迁移放在 entrypoint，而不是 compose 的 `command`** — entrypoint 内顺序执行「迁移 → 启动」，迁移失败即 `exit`，不会出现「uvicorn 起来了但表不存在」的中间态。备选：compose 里用两个 service / 依赖 `depends_on`（多一层编排、且 `depends_on` 只保证启动顺序不保证成功）。
 - **healthcheck 用 `python -c` 而非 `curl`/`wget`** — `python:3.12-slim` 不含 curl/wget，装它们只为探活不划算。用标准库 `urllib.request` 请求 `/healthz`，非 200 即非零退出。
 - **数据卷用 bind mount `./data`** — 与 `README.md` 既有的备份脚本（`sqlite3 data/ocr-gateway.db ".backup ..."`）路径一致，运维无需改习惯。备选：命名卷（备份需先进容器取文件，反而更绕）。
+- **运行身份与数据卷权限（Q1=A，人 2026-11-03 拍板）** — entrypoint 以 root 启动，先 `chown -R app:app /data`，再 `exec setpriv --reuid=app --regid=app --init-groups uvicorn ...` 降权；最终主进程非 root。理由：bind mount 下镜像期 `chown /data` 不作用于宿主目录，这是 Linux 目标态下不牺牲「一键起」的路径。
+- **镜像平台与 tag（Q3=A，人 2026-11-03 拍板）** — 仅构建 `linux/amd64`；镜像名 `ocr-gateway`，tag `0.1.0` + `latest`；不发布 registry；arm64 为 non-goal。理由：本机 daemon 是 linux/amd64，多架构构建超出「一键起」；回滚用固定 `0.1.0`，`latest` 不作回滚依据。
 - **容器内 `DATA_DIR=/data`（绝对路径）** — 规避 CWD 漂移（`backend/app/config.py:89-92`）。
 - **不设 `WEB_CONCURRENCY` / `UVICORN_WORKERS`** — 保持 `enforce_single_worker` 合规（`backend/app/config.py:108-130`）；uvicorn 默认单 worker 即满足。
 
@@ -83,7 +85,7 @@ compose `build.args: UV_DEFAULT_INDEX: ${UV_DEFAULT_INDEX:-}`（Compose 从项�
 
 ## 非功能需求（数字化）
 
-- **冷启动（空卷含迁移）** ≤ 90s；**稳态启动**（表已存在）≤ 10s。
+- **冷启动（镜像已构建、空卷含迁移）** ≤ 90s（Q2=A；首次镜像构建耗时单列记录，不计入）；**稳态启动**（表已存在）≤ 10s。
 - **healthcheck**：`interval=10s`、`timeout=3s`、`retries=5`、`start_period=30s` ⇒ 最迟约 80s 内判定 `healthy`。
 - **镜像大小** ≤ 400MB（`python:3.12-slim` + 运行期依赖，不含 dev 依赖与测试）。
 - **RTO / RPO**：沿用既有口径——重启进程 < 5s；配额计数最多丢 2 秒（`README.md` 备份与恢复段）。
@@ -92,7 +94,7 @@ compose `build.args: UV_DEFAULT_INDEX: ${UV_DEFAULT_INDEX:-}`（Compose 从项�
 ## 安全与数据保护
 
 - **凭证**：只经 `env_file` / 环境变量注入；`.dockerignore` 必须排除 `.env`、`data/`、`docs/`（本地凭证文档所在目录）；镜像层 MUST NOT 含任何真实凭证（验收含镜像内容扫描）。
-- **运行身份**：非 root 用户运行；`/data` 目录归属该用户。`[spec-review-amendment]` bind mount 下镜像构建期的 `chown /data` **不作用于宿主目录**；Linux 上宿主 `./data` 通常由 root 创建，非 root 容器用户迁移时会 EACCES。权限模型（entrypoint root→chown→drop / 命名卷 / 宿主侧 chown）待设计门 Q1 拍板。
+- **运行身份**：最终主进程以非 root 用户运行；entrypoint 以 root 完成 `/data` 属主修复后降权。`[spec-review-amendment]` bind mount 下镜像构建期的 `chown /data` **不作用于宿主目录**；Linux 上宿主 `./data` 通常由 root 创建，非 root 容器用户迁移时会 EACCES。**Q1 已拍板 A（人 2026-11-03）**：entrypoint 以 root 启动 → `chown -R app:app /data` → `exec setpriv --reuid=app --regid=app --init-groups` 降权，最终主进程 uid 非 0。
 - **网络暴露**：容器只暴露应用端口，不终结 TLS（D13）；生产由外层反代终结 HTTPS。
 - **数据**：`/data` 内是 SQLite 明文（与现状一致）；`usage_events` 仍不落 OCR 原文（C7），本 change 不改变这一点。
 - **构建供应链**：基础镜像经 mirror 拉取并固定 digest（`sha256:b18b261e...`）；依赖版本由 `uv.lock` 锁定。
@@ -125,7 +127,7 @@ compose `build.args: UV_DEFAULT_INDEX: ${UV_DEFAULT_INDEX:-}`（Compose 从项�
 - **构建强依赖 mirror** → 缓解：镜像源参数化（`ARG UV_DEFAULT_INDEX`），并文档化取值；mirror 不可达时构建快速失败而非产出半成品。
 - **entrypoint 内跑迁移意味着容器需要写权限** → 缓解：`/data` 显式归属非 root 用户；迁移失败即退出，不留中间态。
 - **`restart: unless-stopped` 与 fail-fast 的交互** → 取舍：配置错误或迁移持续失败会形成**重启循环**（Docker 退避重试）。接受理由：循环期间不进入服务态、退出码与日志可见；修复配置后自动恢复，无需人工 `up`。若要抑制循环需引入额外守卫，与「一键起」的简单性相悖。
-- **非 root + Windows bind mount 的权限行为未验证（A1）** → 缓解：若验收失败，降级为命名卷或调整 uid，并把结论回写到 design。`[spec-review-amendment]` A1 只覆盖 Windows Docker Desktop；目标态「搬到任意 Linux 服务器」的 bind mount 权限未覆盖，见安全与数据保护节与 Q1。
+- **非 root + Windows bind mount 的权限行为未验证（A1）** → 缓解：若验收失败，降级为命名卷或调整 uid，并把结论回写到 design。`[spec-review-amendment]` A1 只覆盖 Windows Docker Desktop；目标态「搬到任意 Linux 服务器」的 bind mount 权限未覆盖，见安全与数据保护节；Q1 已拍板 A（entrypoint root→chown→drop）。
 - **`uv export` 与 `uv.lock` 之间靠 `--frozen` 维持一致** → 缓解：`--frozen` 不一致即报错；升级依赖时仍用 `uv lock` 正常维护锁文件。
 - **healthcheck 只探数据库连通性** → 取舍：不额外探厂商可用性（会把外部故障误判为容器不健康，触发无意义重启）。
 - **bind mount 在 Windows 上 I/O 较慢** → 取舍：规模极小（日均 <500 次），可接受；若后续变慢再评估命名卷。
@@ -147,4 +149,4 @@ compose `build.args: UV_DEFAULT_INDEX: ${UV_DEFAULT_INDEX:-}`（Compose 从项�
 
 ## Open Questions
 
-- 镜像 tag / 目标平台策略（语义化版本 vs 日期戳 vs 仅 `latest`；`linux/amd64` vs 多架构）——负责人：人；截止：设计 HARD-GATE（Q3）。当前默认 `0.1.0` + `latest`、仅 `linux/amd64`，待拍板确认。`[spec-review-amendment]` 补 owner/截止，消除「可延后」与「当前双打」的自相矛盾（BASE-15）。
+- ~~镜像 tag / 目标平台策略~~ —— **已拍板（2026-11-03，Q3=A）**：仅 `linux/amd64`，`ocr-gateway:0.1.0` + `latest`，不发布 registry；arm64 为 non-goal。`[spec-review-amendment]` 关闭该问题。

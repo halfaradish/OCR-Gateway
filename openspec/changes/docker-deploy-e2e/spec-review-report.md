@@ -3,6 +3,7 @@
 >
 > 评审对象：`openspec/changes/docker-deploy-e2e/` 四件套 @ `4a9ebbf`（下称 **C1**）。
 > 本报告同批 amendments 产出 **C2**；对 C2 的窄复核见 §7。
+> 人 2026-11-03 批准 **Q1=A / Q2=A / Q3=A**，决策落盘产出 **C3**；拍板记录见 §10，锚写 C3。
 > 决策纪要机械门：`check_decision_memo.py` → `{"ok": true}`，exit 0。
 
 # 设计评审报告 · docker-deploy-e2e
@@ -15,19 +16,19 @@
 自答：锚 `proposal.md` `## Non-Goals`（24–31 行）+ `design.md` `## Goals / Non-Goals`（15–27 行）——范围是
 「compose 单服务 + 启动期自动迁移 + 最小加固 + 真机 E2E」；明确不做反代/TLS、多实例/Postgres、完整加固、
 业务逻辑改动；E2E 只验证既有能力，不重定义。范围自洽，未见蔓延（5 个切片落在 3–6 票预算内）。
-[ ] 认 [ ] 不认
+[x] 认 [ ] 不认
 
 **Q-deps 依赖/顺序认不认？**
 自答：锚 `design.md` `## 切片与依赖`（95–105 行）——S1→S2→S3→S4→S5，S5 依赖 S3/S4。顺序本身合理；
 但 **S1 的构建命令有 4 个会直接打断出镜像的缺陷**（D1 `uv export` 输出 `-e .`、D2 无 venv、D3 构建期
 镜像源无通路、D14 uv 自身未安装），必须先在 tasks/ADR 修正再出票。
-[ ] 认 [ ] 不认
+[x] 认 [ ] 不认
 
 **Q-risk 风险赌注与对策认不认？**
 自答：锚 `design.md` `## Risks / Trade-offs`（118–126 行）+ `proposal.md` `## 假设`（47–53 行）——主要赌注是
 registry/PyPI mirror 可达（A2）与 A1「非 root + bind mount 在 Windows Docker Desktop 下权限可用」。
 A1 **只覆盖 Windows，未覆盖目标 Linux 服务器**（Q1）；90s 指标未排除首次构建（Q2）；镜像平台/发布未定义（Q3）。
-[ ] 认 [ ] 不认
+[x] 认 [ ] 不认
 
 ## 决策登记区
 
@@ -311,7 +312,7 @@ A1 **只覆盖 Windows，未覆盖目标 Linux 服务器**（Q1）；90s 指标�
   - D9/D10 的 spec 措辞与 `openspec/specs/ocr-api/spec.md:103`、`backend/app/logging_setup.py:26` 对读一致；
     R-DEP-02 不再重述状态码，R-DEP-05 改为 `usage_events` + stdout 日志。
   - D4/D5/D6/D7/D8/D11/D12/D15/D20 均为任务级加固，未新增需求、未扩大范围。
-  - Q1/Q2/Q3 保持**未决**，C2 只在 design 加「待拍板」注记，没有替人做选择。
+  - Q1/Q2/Q3 在 C2 时**未决**，C2 只在 design 加「待拍板」注记；人 2026-11-03 拍板 A/A/A 后，C3 已把决策落盘（见 §10）。
 - **窄复核结论**：C2 与 C1 的发现一致，未发现新增矛盾；可以进入设计 HARD-GATE。
 
 ## 8. T/S 残差
@@ -331,9 +332,25 @@ A1 **只覆盖 Windows，未覆盖目标 Linux 服务器**（Q1）；90s 指标�
    就失败；这些不是「边角失败模式」，而是目标态主路径。
 2. **C2 已修**可机械修正的条目（见 §7），并把 3 个需要人判断的问题留在设计门：
    Q1（非 root + bind mount 权限模型）、Q2（90s 指标口径）、Q3（平台/tag/发布）。
-3. **建议进入设计 HARD-GATE**：人过本报告拍板后，按 Q1–Q3 的选择补最后一轮修订，再出票。
-4. 出票前请确认：D1/D2/D3/D14 的修正确实落到 tasks 1.2/1.3 与 ADR-0001；`docker compose up -d` 的
+3. **设计 HARD-GATE 已通过**：人 2026-11-03 批准 Q1=A / Q2=A / Q3=A；C3 已把决策落盘（见 §10），
+   `anchor_writeback.py` 写入 `design_approved=true` 与内容锚后，进入 `/sdflow-lite-ship docker-deploy-e2e`。
+4. 出票前请确认：D1/D2/D3/D14 的修正确实落到 tasks 1.2/1.3/2.1 与 ADR-0001；`docker compose up -d` 的
    `build.args` 通路已存在；`.dockerignore` 用 `**/` 模式。
+
+## 10. 拍板记录（2026-11-03）
+
+- **Q-scope = 认**：范围按 `proposal.md` `## Non-Goals` + `design.md` `## Goals / Non-Goals`。
+- **Q-deps = 认**：S1→S2→S3→S4→S5；S1 的构建缺陷已在 C2 修正。
+- **Q-risk = 认**。
+- **Q1 = A**：entrypoint 以 root 启动 → `chown -R app:app /data` → `exec setpriv --reuid=app --regid=app
+  --init-groups` 降权；最终主进程非 root。
+- **Q2 = A**：90s 冷启动以「镜像已构建」为前提；首次镜像构建耗时单列记录，不计入 90s。
+- **Q3 = A**：仅 `linux/amd64`；镜像 `ocr-gateway:0.1.0` + `latest`；不发布 registry；arm64 为 non-goal。
+- 决策已落盘到 `design.md`（Decisions / NFR / 安全与数据保护 / Open Questions）、`proposal.md`（Success
+  Metrics）、`tasks.md`（1.6 / 3.3 / 5.1 / 覆盖图）；C3 提交后由 `anchor_writeback.py` 写锚。
+- **C3 窄复核补记**：Q1=A 使「容器 SHALL 以非 root 用户运行」与「entrypoint 以 root 修 `/data` 属主」产生
+  措辞冲突；已把 R-DEP-08 改为「**主进程** SHALL 以非 root 用户运行；entrypoint MAY 在降权前以 root 修复
+  数据卷属主」，design 的运行身份同步改为「最终主进程非 root」。场景「主进程 uid 不为 0」不变。
 
 ---
 

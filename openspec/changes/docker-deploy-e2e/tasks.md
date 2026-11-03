@@ -15,6 +15,8 @@
   - R-ID: R-DEP-04
 - [ ] 1.5 对构建产物做凭证扫描；验证：用 `.env` 中的实际值扫描**停止态容器/镜像层**（如 `docker create` 后 `docker export | grep`，或 `docker save <img> | tar -xO`），确认 `MASTER_KEY`、`ADMIN_PASSWORD`、百度 `api_key`/`secret_key`、腾讯 `secret_id`/`secret_key` 的取值出现次数为 0；镜像历史中不含 `ENV MASTER_KEY` / `ENV ADMIN_PASSWORD`。`[spec-review-amendment]` 原命令只扫 `/app` 且只匹配 `AKID`/`MASTER_KEY=`，覆盖不到百度密钥与镜像其他路径；扫描须避开运行中容器的 `/proc/*/environ` 假阳性
   - R-ID: R-DEP-04
+- [ ] 1.6 构建后按 `ocr-gateway:0.1.0` 与 `ocr-gateway:latest` 打标签，并确认镜像平台为 `linux/amd64`；验证：`docker image inspect --format '{{.RepoTags}} {{.Os}}/{{.Architecture}}'` 输出含两个 tag 且为 `linux/amd64`。`[spec-review-amendment]` **Q3=A 已拍板（人 2026-11-03）**：仅 amd64、不发布 registry、arm64 为 non-goal
+  - R-ID: R-DEP-07
 
 ## 2. 启动契约（S2）
 
@@ -35,7 +37,7 @@
   - R-ID: R-DEP-05
 - [ ] 3.2 配置 healthcheck（`interval=10s`、`timeout=3s`、`retries=5`、`start_period=30s`），探测命令用容器内 Python 标准库请求 `/healthz`（镜像无 curl/wget）；验证：`docker compose up -d` 后 `docker inspect --format '{{.State.Health.Status}}'` 返回 `healthy`
   - R-ID: R-DEP-02
-- [ ] 3.3 以非 root 用户运行并让 `/data` 可写；验证：`docker compose exec ocr-gateway id -u` 不为 `0`，且配额刷盘与迁移均无权限错误。`[spec-review-amendment]` bind mount 下镜像期 `chown /data` 不作用于宿主目录；权限模型（entrypoint root→chown→drop / 命名卷 / 宿主侧 chown）待设计门 Q1 拍板后再定实现；若选 root→drop，`id -u` 须在降权后验证
+- [ ] 3.3 以非 root 用户运行并让 `/data` 可写；验证：`docker compose exec ocr-gateway id -u` 不为 `0`，且配额刷盘与迁移均无权限错误。`[spec-review-amendment]` **Q1=A 已拍板（人 2026-11-03）**：entrypoint 以 root 启动 → `chown -R app:app /data` → `exec setpriv --reuid=app --regid=app --init-groups` 降权；`id -u` 在降权后验证
   - R-ID: R-DEP-08
 - [ ] 3.4 配置 `restart: unless-stopped`、`stop_grace_period: 25s` 与日志轮转（`logging.driver: json-file` + `max-size` / `max-file`）；验证：`docker compose config` 中各项均存在，强制杀掉主进程后容器自动重启并重新达到 `healthy`。`[spec-review-amendment]` 补 `stop_grace_period`（大于 20s 请求预算，避免 SIGTERM 硬切在途请求）与显式 `json-file` 驱动（否则 `max-size` 在非 json-file 默认驱动的宿主机上静默失效）
   - R-ID: R-DEP-08
@@ -57,7 +59,7 @@
 
 > 本组只做跨组集成验证；三种输入、缓存、配额、切厂商的行为由既有能力拥有，此处**验证**而非重定义。
 
-- [ ] 5.1 冷启动计时；验证：在镜像已构建的前提下（首次构建耗时单列记录，不计入本项；口径待设计门 Q2 拍板），清空 `data/` 后 `docker compose up -d` 到 `healthy` 且 `/healthz` 200 的总耗时 ≤90s，记录时间戳
+- [ ] 5.1 冷启动计时；验证：在镜像已构建的前提下（首次构建耗时单列记录，不计入本项；**Q2=A 已拍板，人 2026-11-03**），清空 `data/` 后 `docker compose up -d` 到 `healthy` 且 `/healthz` 200 的总耗时 ≤90s，记录时间戳
   - R-ID: R-DEP-01, R-DEP-02
 - [ ] 5.2 经管理 API 完成配置；验证：`POST /api/admin/login` 取 token → 建成员、建 Key（记录唯一一次明文）、建百度与腾讯账号（真实凭证经 `env_file` 注入，不写入任何文件），`GET /api/admin/accounts` 返回两家且不含明文凭证
   - R-ID: R-ADM-02, R-ADM-03, R-ADM-04
@@ -80,6 +82,7 @@
 | --- | --- | --- |
 | `Dockerfile` 依赖层（`uv export --no-emit-project` + `uv pip install` + `/app/.venv`） | 构建验证 | 1.2：带 `--build-arg` 的构建成功 |
 | `Dockerfile` 运行时层（无 dev 依赖 / 无测试） | 构建验证 | 1.4：`import pytest` 必须失败 |
+| 镜像命名 / 平台 | 构建验证 | 1.6：两个 tag + `linux/amd64` 检查 |
 | 镜像与构建上下文（凭证） | 静态扫描 | 1.1 / 1.5：上下文清单 + 停止态镜像层实际值扫描 |
 | entrypoint 正常路径（迁移 → 启动） | 容器集成 | 2.1：空卷启动 → `/healthz` 200 + 五张表存在 |
 | entrypoint 失败路径（迁移失败 / 缺配置） | 容器集成 | 2.2 / 2.4：非零退出且不监听端口 |

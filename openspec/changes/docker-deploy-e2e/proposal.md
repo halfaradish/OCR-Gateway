@@ -17,7 +17,7 @@
 
 ## Success Metrics
 
-- **一键起可用** — 基准：干净 checkout 上 `uv sync` 因 PyPI 不可达失败、且无 `data/` 目录 → 目标：`docker compose up -d` 后 ≤90s 内 `/healthz` 返回 200 且 `docker compose ps` 显示 `healthy` — 度量方式：验收记录中的启动时间戳 + `curl -i /healthz` 原始输出。
+- **一键起可用** — 基准：干净 checkout 上 `uv sync` 因 PyPI 不可达失败、且无 `data/` 目录 → 目标：**在镜像已构建的前提下**，`docker compose up -d` 后 ≤90s 内 `/healthz` 返回 200 且 `docker compose ps` 显示 `healthy`；首次镜像构建耗时单列记录，不计入 90s（Q2=A，人 2026-11-03 拍板） — 度量方式：验收记录中的启动时间戳 + `curl -i /healthz` 原始输出 + 首次构建耗时。
 - **真机端到端通过** — 基准：网关 HTTP 路径的真实厂商调用次数为 0 → 目标：验收清单全部场景通过、0 失败 — 度量方式：逐项结果表 + 真 Key 响应中的 `provider`/`text`/`quota`/`cached` 字段。
 - **镜像不含凭证** — 基准：不存在镜像产物 → 目标：镜像文件系统内 `MASTER_KEY`、`ADMIN_PASSWORD`、百度/腾讯密钥出现次数为 0 — 度量方式：对镜像内容执行 `grep -r` 扫描并记录命令与输出。
 

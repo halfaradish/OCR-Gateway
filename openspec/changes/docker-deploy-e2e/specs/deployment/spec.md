@@ -113,7 +113,7 @@
 
 ### Requirement: R-DEP-08 运行身份与自愈
 
-容器 SHALL 以非 root 用户运行；进程异常退出后 SHALL 由编排自动重启；容器日志 SHALL 设有大小与份数上限。
+容器主进程 SHALL 以非 root 用户运行；entrypoint MAY 在降权前以 root 修复数据卷属主（Q1=A，人 2026-11-03 拍板）；进程异常退出后 SHALL 由编排自动重启；容器日志 SHALL 设有大小与份数上限。`[spec-review-amendment]` 明确「主进程非 root」而非「容器初始用户非 root」，与 Q1=A 的 root→chown→drop 一致。
 
 #### Scenario: 非 root 运行
 
