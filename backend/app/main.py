@@ -16,6 +16,7 @@ from sqlalchemy import select, text
 from app import __version__
 from app.api import admin, public
 from app.api.deps import ApiError, get_state
+from app.body_limit import BodyLimitMiddleware, BodyTooLarge
 from app.config import Settings, enforce_single_worker
 from app.core.cache import ResultCache
 from app.core.quota import QuotaManager
@@ -140,6 +141,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             },
         )
 
+    @app.exception_handler(BodyTooLarge)
+    async def body_too_large_handler(request: Request, exc: BodyTooLarge) -> JSONResponse:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "request_id": getattr(request.state, "request_id", ""),
+                "error": {
+                    "code": "BAD_REQUEST",
+                    "message": "request body exceeds the size limit",
+                },
+            },
+        )
+
     @app.exception_handler(RequestValidationError)
     async def validation_error_handler(
         request: Request, exc: RequestValidationError
@@ -180,6 +194,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(public.router)
     app.include_router(admin.router)
+    # T1: stream-count every request body; covers chunked bodies without Content-Length.
+    app.add_middleware(
+        BodyLimitMiddleware, max_bytes=resolved.max_upload_bytes * 2
+    )
     return app
 
 

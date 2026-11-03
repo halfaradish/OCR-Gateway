@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import logging
 from datetime import UTC, datetime, timedelta
@@ -33,6 +34,14 @@ class BaiduAdapter:
     def __init__(self, client: httpx.AsyncClient) -> None:
         self._client = client
         self._tokens: dict[int, tuple[str, datetime, str]] = {}
+        self._token_locks: dict[int, asyncio.Lock] = {}
+
+    def _token_lock(self, account_id: int) -> asyncio.Lock:
+        lock = self._token_locks.get(account_id)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._token_locks[account_id] = lock
+        return lock
 
     def invalidate(self, account_id: int) -> None:
         self._tokens.pop(account_id, None)
@@ -120,12 +129,28 @@ class BaiduAdapter:
         raise RetryableError(ErrorKind.AUTH_FAILED, "baidu auth failed")
 
     async def _get_token(self, account: AccountRuntime, timeout: float) -> str:
+        token = self._cached_token(account)
+        if token is not None:
+            return token
+        # T2: coalesce concurrent refreshes for the same account; the first waiter fetches,
+        # the rest re-check the cache after acquiring the lock.
+        async with self._token_lock(account.id):
+            token = self._cached_token(account)
+            if token is not None:
+                return token
+            return await self._fetch_token(account, timeout)
+
+    def _cached_token(self, account: AccountRuntime) -> str | None:
         cached = self._tokens.get(account.id)
         api_key = account.credentials.get("api_key", "")
         now = datetime.now(UTC)
         if cached is not None and cached[2] == api_key and cached[1] > now + TOKEN_REFRESH_MARGIN:
             return cached[0]
+        return None
 
+    async def _fetch_token(self, account: AccountRuntime, timeout: float) -> str:
+        api_key = account.credentials.get("api_key", "")
+        now = datetime.now(UTC)
         try:
             response = await self._client.post(
                 TOKEN_URL,
