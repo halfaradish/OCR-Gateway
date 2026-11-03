@@ -14,11 +14,11 @@
 
 **验收标准**
 
-- [ ] 登录响应同时返回 `token`、`expires_in`、`csrf_token`，并设置会话 cookie（`HttpOnly`、`SameSite=Lax`、`Path=/`、`Max-Age=session_ttl`）与可被前端读取的 CSRF cookie；请求经 HTTPS 或受信反代声明的 HTTPS 时两者都带 `Secure`。
-- [ ] 双轨鉴权：Bearer 有效可用；Bearer 存在但无效时直接 401 且不回退 cookie；cookie 会话可用于 GET；cookie 来源的写方法缺 `X-CSRF-Token` 或值不符返回 403，值相符才执行；Bearer 来源豁免 CSRF；`/me` 返回用户名与 CSRF 值并在 CSRF cookie 缺失时补发；`/logout` 返回 204 并清空两个 cookie；OpenAPI 文档含 Bearer security scheme（`/docs` 的 Authorize 可用）。
-- [ ] 安全响应头：所有响应含 `X-Content-Type-Options: nosniff`、`Referrer-Policy: no-referrer`、`X-Frame-Options: DENY`、`Permissions-Policy`；面板入口、静态资源与深链接回退响应含 CSP（`script-src 'self'`，不含 `'unsafe-inline'`）；`/docs` 与 API 响应不带 CSP；管理 API 响应带 `Cache-Control: no-store`；超大请求体的 400 响应同样带齐上述安全头（安全头覆盖到 body-limit 拒绝路径）。
-- [ ] 静态托管：产物存在时根路径与无扩展名的未知深链接返回面板入口且 `Cache-Control: no-store`，`/assets/*` 返回资源且带一年 immutable 缓存；带扩展名的缺失文件、以及 `api/`、`v1/`、`healthz` 前缀的未知路径返回 JSON 404，不被回退成 HTML；越界路径（含 `..`）不被读取；产物缺失时根路径返回 404 且错误码为 `FRONTEND_NOT_BUILT`（message 固定），公共与管理 API 不受影响。
-- [ ] 既有后端测试全部通过；测试客户端同时支持 Bearer 与 cookie 两种认证方式，原有用例无一被削弱或删除。
+- [x] 登录响应同时返回 `token`、`expires_in`、`csrf_token`，并设置会话 cookie（`HttpOnly`、`SameSite=Lax`、`Path=/`、`Max-Age=session_ttl`）与可被前端读取的 CSRF cookie；请求经 HTTPS 或受信反代声明的 HTTPS 时两者都带 `Secure`。
+- [x] 双轨鉴权：Bearer 有效可用；Bearer 存在但无效时直接 401 且不回退 cookie；cookie 会话可用于 GET；cookie 来源的写方法缺 `X-CSRF-Token` 或值不符返回 403，值相符才执行；Bearer 来源豁免 CSRF；`/me` 返回用户名与 CSRF 值并在 CSRF cookie 缺失时补发；`/logout` 返回 204 并清空两个 cookie；OpenAPI 文档含 Bearer security scheme（`/docs` 的 Authorize 可用）。
+- [x] 安全响应头：所有响应含 `X-Content-Type-Options: nosniff`、`Referrer-Policy: no-referrer`、`X-Frame-Options: DENY`、`Permissions-Policy`；面板入口、静态资源与深链接回退响应含 CSP（`script-src 'self'`，不含 `'unsafe-inline'`）；`/docs` 与 API 响应不带 CSP；管理 API 响应带 `Cache-Control: no-store`；超大请求体的 400 响应同样带齐上述安全头（安全头覆盖到 body-limit 拒绝路径）。
+- [x] 静态托管：产物存在时根路径与无扩展名的未知深链接返回面板入口且 `Cache-Control: no-store`，`/assets/*` 返回资源且带一年 immutable 缓存；带扩展名的缺失文件、以及 `api/`、`v1/`、`healthz` 前缀的未知路径返回 JSON 404，不被回退成 HTML；越界路径（含 `..`）不被读取；产物缺失时根路径返回 404 且错误码为 `FRONTEND_NOT_BUILT`（message 固定），公共与管理 API 不受影响。
+- [x] 既有后端测试全部通过；测试客户端同时支持 Bearer 与 cookie 两种认证方式，原有用例无一被削弱或删除。
 
 ### Task 2: 运行时设置
 

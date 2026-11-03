@@ -86,4 +86,12 @@ S5 切片，拆分会使功能票变 7 张、越过预算上限，且五页共�
 
 ## 5. 票外发现
 
-（实现阶段追加；出票阶段无。）
+### Task 1 期间
+
+- **既有红测：`test_run_docs_cover_quickstart_and_operations` 失败**（README 缺 `sqlite3` 备份命令）。
+  证据：`git show HEAD:README.md | grep -c sqlite3` → `0`；该测试断言 README 含 `sqlite3` 与 `.backup`，
+  在分支起点即失败，与 Task 1 的改动无关。
+  **处置：fold → Task 6**（Task 6.2 本就要重写 README 的部署/备份/回滚段，同一 capability、同一文件、
+  增量近零，符合 BASE-18 AND 门；不在 Task 1 顺手修）。Task 1 报告按 `DONE_WITH_CONCERNS` 记录此既有红测，
+  Task 6 修复后由收尾票聚合验证覆盖。
+

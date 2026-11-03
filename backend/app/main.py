@@ -12,6 +12,7 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy import select, text
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app import __version__
 from app.api import admin, public
@@ -25,9 +26,11 @@ from app.core.scheduler import Scheduler
 from app.db import make_engine, make_session_factory
 from app.logging_setup import configure_logging
 from app.models import Account
+from app.panel import register_panel
 from app.providers.baidu import BaiduAdapter
 from app.providers.base import ProviderAdapter
 from app.providers.tencent import TencentAdapter
+from app.security_headers import SecurityHeadersMiddleware
 from app.state import AppState
 
 logger = logging.getLogger(__name__)
@@ -141,6 +144,29 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             },
         )
 
+    @app.exception_handler(StarletteHTTPException)
+    async def http_error_handler(
+        request: Request, exc: StarletteHTTPException
+    ) -> JSONResponse:
+        code = {
+            400: "BAD_REQUEST",
+            404: "NOT_FOUND",
+            405: "METHOD_NOT_ALLOWED",
+        }.get(exc.status_code, "HTTP_ERROR")
+        message = {
+            400: "invalid request",
+            404: "not found",
+            405: "method not allowed",
+        }.get(exc.status_code, str(exc.detail))
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={
+                "request_id": getattr(request.state, "request_id", ""),
+                "error": {"code": code, "message": message},
+            },
+            headers=getattr(exc, "headers", None),
+        )
+
     @app.exception_handler(BodyTooLarge)
     async def body_too_large_handler(request: Request, exc: BodyTooLarge) -> JSONResponse:
         return JSONResponse(
@@ -194,10 +220,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(public.router)
     app.include_router(admin.router)
+    # The panel catch-all must come after every API route so it only sees leftovers.
+    register_panel(app, resolved.frontend_dist_path)
     # T1: stream-count every request body; covers chunked bodies without Content-Length.
     app.add_middleware(
         BodyLimitMiddleware, max_bytes=resolved.max_upload_bytes * 2
     )
+    # Added last => outermost, so even limit/error responses carry the headers (D-A4).
+    app.add_middleware(SecurityHeadersMiddleware)
     return app
 
 

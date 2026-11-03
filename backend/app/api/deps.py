@@ -1,17 +1,29 @@
 from __future__ import annotations
 
+import secrets
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from fastapi import Depends, Request
+from fastapi import Depends, Request, Response
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.quota import SHANGHAI
 from app.models import ApiKey, UsageEvent, User
-from app.security import hash_api_key, verify_admin_token
+from app.security import constant_time_equals, hash_api_key, verify_admin_token
 from app.state import AppState
+
+ADMIN_SESSION_COOKIE = "ocr_admin_session"
+ADMIN_CSRF_COOKIE = "ocr_csrf"
+ADMIN_CSRF_HEADER = "X-CSRF-Token"
+SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+
+# Declared (auto_error=False) so /docs renders an Authorize button; the token itself is read
+# from the raw header below, which lets us reject a bad Bearer instead of silently falling back
+# to the session cookie.
+bearer_scheme = HTTPBearer(auto_error=False, description="Admin bearer token")
 
 
 class ApiError(Exception):
@@ -48,15 +60,104 @@ def get_bearer_token(request: Request) -> str | None:
     return token.strip()
 
 
-async def require_admin(request: Request, state: AppState = Depends(get_state)) -> str:
-    token = get_bearer_token(request)
-    if token is None:
+async def require_admin(
+    request: Request,
+    state: AppState = Depends(get_state),
+    _credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> str:
+    """Accept a Bearer token or the admin session cookie, with CSRF for cookie writes.
+
+    A present-but-invalid `Authorization` header is a hard 401: falling back to a cookie would
+    let a stale header silently drive the browser session. Bearer callers never need CSRF.
+    """
+    if request.headers.get("Authorization") is not None:
+        token = get_bearer_token(request)
+        if token is None or not verify_admin_token(
+            state.settings.master_key_bytes, token, state.settings.session_ttl_seconds
+        ):
+            raise ApiError(401, "UNAUTHORIZED", "invalid admin token")
+        request.state.admin_auth_source = "bearer"
+        return "admin"
+
+    cookie = request.cookies.get(ADMIN_SESSION_COOKIE)
+    if not cookie:
         raise ApiError(401, "UNAUTHORIZED", "missing admin token")
     if not verify_admin_token(
-        state.settings.master_key_bytes, token, state.settings.session_ttl_seconds
+        state.settings.master_key_bytes, cookie, state.settings.session_ttl_seconds
     ):
         raise ApiError(401, "UNAUTHORIZED", "invalid admin token")
+
+    if request.method.upper() not in SAFE_METHODS:
+        supplied = request.headers.get(ADMIN_CSRF_HEADER, "")
+        expected = request.cookies.get(ADMIN_CSRF_COOKIE, "")
+        if not supplied or not expected or not constant_time_equals(supplied, expected):
+            raise ApiError(403, "FORBIDDEN", "csrf token missing or invalid")
+
+    request.state.admin_auth_source = "cookie"
     return "admin"
+
+
+def request_is_https(request: Request, state: AppState) -> bool:
+    """Decide the cookie `Secure` flag (direct TLS or a trusted reverse proxy)."""
+    if request.url.scheme == "https":
+        return True
+    if state.settings.trust_proxy_headers:
+        forwarded = request.headers.get("x-forwarded-proto", "")
+        first = forwarded.split(",")[0].strip().lower()
+        if first == "https":
+            return True
+    return False
+
+
+def new_csrf_token() -> str:
+    return secrets.token_urlsafe(32)
+
+
+def set_admin_cookies(
+    response: Response, request: Request, state: AppState, token: str, csrf_token: str
+) -> None:
+    ttl = state.settings.session_ttl_seconds
+    secure = request_is_https(request, state)
+    response.set_cookie(
+        ADMIN_SESSION_COOKIE,
+        token,
+        max_age=ttl,
+        path="/",
+        samesite="lax",
+        secure=secure,
+        httponly=True,
+    )
+    # Readable by the SPA so it can echo the value in X-CSRF-Token (double submit).
+    response.set_cookie(
+        ADMIN_CSRF_COOKIE,
+        csrf_token,
+        max_age=ttl,
+        path="/",
+        samesite="lax",
+        secure=secure,
+        httponly=False,
+    )
+
+
+def set_csrf_cookie(
+    response: Response, request: Request, state: AppState, csrf_token: str
+) -> None:
+    """Refresh only the CSRF cookie (used by GET /me; the session cookie stays untouched)."""
+    response.set_cookie(
+        ADMIN_CSRF_COOKIE,
+        csrf_token,
+        max_age=state.settings.session_ttl_seconds,
+        path="/",
+        samesite="lax",
+        secure=request_is_https(request, state),
+        httponly=False,
+    )
+
+
+def clear_admin_cookies(response: Response, request: Request, state: AppState) -> None:
+    secure = request_is_https(request, state)
+    for name in (ADMIN_SESSION_COOKIE, ADMIN_CSRF_COOKIE):
+        response.delete_cookie(name, path="/", samesite="lax", secure=secure)
 
 
 def utc_start_of_today() -> datetime:

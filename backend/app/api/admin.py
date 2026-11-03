@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import ipaddress
+import logging
 import time
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
@@ -13,7 +14,17 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import ApiError, get_session, get_state, require_admin
+from app.api.deps import (
+    ADMIN_CSRF_COOKIE,
+    ApiError,
+    clear_admin_cookies,
+    get_session,
+    get_state,
+    new_csrf_token,
+    require_admin,
+    set_admin_cookies,
+    set_csrf_cookie,
+)
 from app.core.quota import SHANGHAI
 from app.db import utcnow
 from app.models import Account, ApiKey, UsageEvent, User
@@ -42,6 +53,7 @@ from app.state import AppState
 from app.utils.images import normalize_image
 
 router = APIRouter(prefix="/api/admin")
+logger = logging.getLogger(__name__)
 
 REQUIRED_CREDENTIALS: dict[str, tuple[str, ...]] = {
     "baidu": ("app_id", "api_key", "secret_key"),
@@ -142,25 +154,67 @@ def _user_out(user: User) -> dict[str, Any]:
 
 @router.post("/login")
 async def login(
-    payload: LoginRequest, request: Request, state: AppState = Depends(get_state)
+    payload: LoginRequest,
+    request: Request,
+    response: Response,
+    state: AppState = Depends(get_state),
 ) -> dict[str, Any]:
     ip = _client_ip(request, state)
     if state.login_limiter.blocked(ip):
+        logger.info(
+            "admin.login.failed",
+            extra={"extra_fields": {"ip": ip, "reason": "rate_limited"}},
+        )
         raise ApiError(429, "RATE_LIMITED", "too many login attempts")
     if not constant_time_equals(payload.password, state.settings.admin_password):
         state.login_limiter.record_failure(ip)
+        logger.info(
+            "admin.login.failed",
+            extra={"extra_fields": {"ip": ip, "reason": "bad_password"}},
+        )
         delay = state.login_limiter.delay()
         if delay:
             await asyncio.sleep(delay)
         raise ApiError(401, "UNAUTHORIZED", "invalid password")
     state.login_limiter.record_success(ip)
     token = create_admin_token(state.settings.master_key_bytes)
-    return {"token": token, "expires_in": state.settings.session_ttl_seconds}
+    csrf_token = new_csrf_token()
+    set_admin_cookies(response, request, state, token, csrf_token)
+    logger.info("admin.login.succeeded", extra={"extra_fields": {"ip": ip}})
+    return {
+        "token": token,
+        "expires_in": state.settings.session_ttl_seconds,
+        "csrf_token": csrf_token,
+    }
 
 
 @router.get("/me")
-async def admin_me(_: str = Depends(require_admin)) -> dict[str, str]:
-    return {"username": "admin"}
+async def admin_me(
+    request: Request,
+    response: Response,
+    _: str = Depends(require_admin),
+    state: AppState = Depends(get_state),
+) -> dict[str, str]:
+    payload = {"username": "admin"}
+    if getattr(request.state, "admin_auth_source", "bearer") != "cookie":
+        # Bearer callers never depend on CSRF; the SPA reads the cookie instead.
+        return payload
+    csrf_token = request.cookies.get(ADMIN_CSRF_COOKIE)
+    if not csrf_token:
+        # Older session without the CSRF cookie: a GET may only refresh the cookie.
+        csrf_token = new_csrf_token()
+        set_csrf_cookie(response, request, state, csrf_token)
+    payload["csrf_token"] = csrf_token
+    return payload
+
+
+@router.post("/logout")
+async def logout(
+    request: Request, _: str = Depends(require_admin), state: AppState = Depends(get_state)
+) -> Response:
+    cleared = Response(status_code=204)
+    clear_admin_cookies(cleared, request, state)
+    return cleared
 
 
 @router.get("/users")

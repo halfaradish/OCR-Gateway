@@ -79,6 +79,7 @@ class Settings(BaseSettings):
     url_fetch_max_bytes: int = 10 * 1024 * 1024
     session_ttl_seconds: int = 43200
     trust_proxy_headers: bool = False
+    frontend_dist: str = ""
     log_level: str = "INFO"
 
     @model_validator(mode="after")
@@ -98,6 +99,13 @@ class Settings(BaseSettings):
     @property
     def data_path(self) -> Path:
         return Path(self.data_dir)
+
+    @property
+    def frontend_dist_path(self) -> Path:
+        """Where the built panel lives; `FRONTEND_DIST` overrides the in-repo default."""
+        if self.frontend_dist:
+            return Path(self.frontend_dist)
+        return Path(__file__).resolve().parents[2] / "frontend" / "dist"
 
     def test_overrides(self, **kwargs: Any) -> Settings:
         data = self.model_dump()
