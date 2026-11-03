@@ -15,3 +15,9 @@
 `ship-gate:` frontmatter（`design_approved` / `code_review` / `verify`），MUST 由
 `anchor_writeback.py` 写入，MUST NOT 手写。
 <!-- sdflow-lite:init:end -->
+
+## 本地私有凭证文档约定
+
+任何被跟踪文件（文档、报告、注释、提交说明）提及本机私有凭证文档时，一律使用
+「仓库外的本地私有凭证文档」代称；MUST NOT 写出其具体路径或文件名。
+历史提交中已存在的具体名称不作追溯处理（人 2026-11-03 拍板）。
