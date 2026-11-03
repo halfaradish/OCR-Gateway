@@ -51,6 +51,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# 非 root 运行身份：entrypoint 以 root 修复数据卷属主后降权到 app。
+RUN groupadd --system --gid 10001 app \
+    && useradd --system --uid 10001 --gid app --home-dir /app --shell /usr/sbin/nologin app \
+    && mkdir -p /data \
+    && chown app:app /data
+
 COPY --from=builder /app/.venv /app/.venv
 COPY backend/app /app/app
 COPY backend/alembic /app/alembic

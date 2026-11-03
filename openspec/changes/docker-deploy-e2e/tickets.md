@@ -50,11 +50,11 @@
 
 验收标准：
 
-- [ ] 编排解析结果：单服务、端口映射到 `127.0.0.1:8000`、构建期索引参数来自环境插值、运行期 `DATA_DIR=/data` 为绝对路径且 `DATABASE_URL` 为空、根目录 `.env` 提供运行期变量
-- [ ] 健康探测参数为 `interval=10s`、`timeout=3s`、`retries=5`、`start_period=30s`，探测命令只用镜像内 Python 标准库；`docker compose up -d` 后容器状态达到 `healthy`
-- [ ] 主进程 `id -u` 不为 0，且迁移与配额刷盘均无权限错误（entrypoint 先修复数据卷属主再降权）
-- [ ] 编排含 `restart: unless-stopped`、`stop_grace_period: 25s` 与显式 `json-file` 日志驱动的 `max-size` / `max-file`；强杀主进程后容器自动重启并重新达到 `healthy`
-- [ ] 经管理 API 创建成员后执行 `down` 与 `up -d`，该成员仍可经 `GET /api/admin/users` 查到
+- [x] 编排解析结果：单服务、端口映射到 `127.0.0.1:8000`、构建期索引参数来自环境插值、运行期 `DATA_DIR=/data` 为绝对路径且 `DATABASE_URL` 为空、根目录 `.env` 提供运行期变量
+- [x] 健康探测参数为 `interval=10s`、`timeout=3s`、`retries=5`、`start_period=30s`，探测命令只用镜像内 Python 标准库；`docker compose up -d` 后容器状态达到 `healthy`
+- [x] 主进程 `id -u` 不为 0，且迁移与配额刷盘均无权限错误（entrypoint 先修复数据卷属主再降权）
+- [x] 编排含 `restart: unless-stopped`、`stop_grace_period: 25s` 与显式 `json-file` 日志驱动的 `max-size` / `max-file`；强杀主进程后容器自动重启并重新达到 `healthy`
+- [x] 经管理 API 创建成员后执行 `down` 与 `up -d`，该成员仍可经 `GET /api/admin/users` 查到
 
 ### Task 4: 文档与配置面（S4）
 

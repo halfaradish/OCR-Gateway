@@ -1,0 +1,44 @@
+name: ocr-gateway
+
+services:
+  ocr-gateway:
+    build:
+      context: .
+      # 构建期索引必须经 build.args 传入（env_file 只作用于运行期容器环境）。
+      args:
+        UV_DEFAULT_INDEX: "${UV_DEFAULT_INDEX:-}"
+    image: ocr-gateway:0.1.0
+    container_name: ocr-gateway
+    env_file:
+      - .env
+    environment:
+      # 容器内固定绝对路径；DATABASE_URL 置空以强制从 DATA_DIR 推导。
+      DATA_DIR: /data
+      DATABASE_URL: ""
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - ./data:/data
+    restart: unless-stopped
+    stop_grace_period: 25s
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - |
+          import sys, urllib.request
+          try:
+              with urllib.request.urlopen("http://127.0.0.1:8000/healthz", timeout=2) as response:
+                  sys.exit(0 if response.status == 200 else 1)
+          except Exception:
+              sys.exit(1)
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
