@@ -20,7 +20,8 @@ services:
       DATA_DIR: /data
       DATABASE_URL: ""
     ports:
-      - "127.0.0.1:8000:8000"
+      # 宿主机端口可经 .env 的 HOST_PORT 自定义；容器内固定 8000（entrypoint 与 healthcheck 均按 8000）。
+      - "127.0.0.1:${HOST_PORT:-8000}:8000"
     volumes:
       - ./data:/data
     restart: unless-stopped

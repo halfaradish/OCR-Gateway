@@ -34,6 +34,10 @@ docker compose ps
 curl -i http://127.0.0.1:8000/healthz
 ```
 
+宿主机端口默认 `8000`，可在 `.env` 中用 `HOST_PORT` 覆盖（容器内始终监听 `8000`）。改端口后，
+上面及下文的访问地址、反代目标需一并替换，例如 `HOST_PORT=18000` 对应
+<http://127.0.0.1:18000/docs>。
+
 容器主进程以非 root 运行，业务数据落在宿主 `./data`（SQLite），进程日志走 stdout 由容器日志驱动
 轮转（`max-size` / `max-file`）。打开 <http://127.0.0.1:8000/docs>，先 `POST /api/admin/login`
 拿 Bearer token，再在右上角 Authorize 填入 token，即可完成成员、Key、账号、用量查询等全部运营动作。
@@ -68,6 +72,7 @@ uv run --project backend uvicorn app.main:app --host 127.0.0.1 --port 8000 --wor
 | --- | --- | --- | --- |
 | `MASTER_KEY` | 是 | — | 32 字节；凭证 AES-256-GCM 与 admin token 派生密钥 |
 | `ADMIN_PASSWORD` | 是 | — | ≥8 字符 |
+| `HOST_PORT` | 否 | `8000` | 宿主机监听端口（仅 compose 端口映射；容器内固定 `8000`） |
 | `DATA_DIR` | 否 | `./data` | SQLite 数据目录（容器内由 compose 固定为 `/data`） |
 | `DATABASE_URL` | 否 | `sqlite+aiosqlite:///<DATA_DIR>/ocr-gateway.db` | 容器内由 compose 置空，强制从 `DATA_DIR` 推导 |
 | `UV_DEFAULT_INDEX` | 否 | 空 | **构建期**镜像/包索引（如 `https://pypi.tuna.tsinghua.edu.cn/simple`）；离线环境必填 |
@@ -94,7 +99,8 @@ uv run --project backend uvicorn app.main:app --host 127.0.0.1 --port 8000 --wor
 **主路径：Docker Compose 一键起**（见「快速开始」）。`docker compose up -d` 后容器自动执行
 `alembic upgrade head` 再启动服务；迁移失败即退出，不会出现「服务已起但表不存在」的中间态。
 
-- 应用**不终结 TLS**：compose 只把端口绑定到 `127.0.0.1`，由 Caddy/Nginx 反代终结 HTTPS。
+- 应用**不终结 TLS**：compose 只把端口绑定到 `127.0.0.1`，由 Caddy/Nginx 反代终结 HTTPS；
+  宿主机端口由 `HOST_PORT`（默认 `8000`）控制，反代目标随之调整。
 - **必须单 worker**：启动日志与 README 都声明该约束；检测到 `WEB_CONCURRENCY`、`UVICORN_WORKERS`
   或 `--workers` 大于 1 会拒绝启动。内存计数/注册表/缓存都只在一个事件循环内读写。
 - 运行身份：entrypoint 以 root 修复数据卷属主后降权到 `app`，**主进程非 root**。

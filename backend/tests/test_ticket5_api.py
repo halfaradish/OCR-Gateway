@@ -298,9 +298,11 @@ def test_run_docs_cover_quickstart_and_operations() -> None:
         "RTO",
         "docker compose up -d",
         "UV_DEFAULT_INDEX",
+        "HOST_PORT",
     ):
         assert needle in readme
     example = (root / ".env.example").read_text(encoding="utf-8")
     assert "change-me-please" in example
     assert "UV_DEFAULT_INDEX" in example
+    assert "HOST_PORT" in example
     assert "AKID" not in example
