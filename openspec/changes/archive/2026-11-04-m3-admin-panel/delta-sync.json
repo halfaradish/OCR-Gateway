@@ -1,14 +1,7 @@
 {
-  "ok": false,
+  "ok": true,
   "change": "m3-admin-panel",
-  "archive_dir": "openspec\\changes\\m3-admin-panel",
-  "checked_at": "2026-11-03T21:23:03.153424+00:00",
-  "missing": [
-    "admin-api: ADDED 未同步：R-ADM-08 运行时设置读写",
-    "admin-api: ADDED 未同步：R-ADM-09 总览聚合",
-    "admin-api: ADDED 未同步：R-ADM-10 账号列表用量与归属",
-    "admin-panel: 主 spec 不存在（openspec\\specs\\admin-panel\\spec.md），delta 一条都没同步",
-    "deployment: ADDED 未同步：R-DEP-09 面板产物随镜像交付",
-    "deployment: ADDED 未同步：R-DEP-10 发布版本与回滚锚"
-  ]
+  "archive_dir": "openspec\\changes\\archive\\2026-11-04-m3-admin-panel",
+  "checked_at": "2026-11-03T21:33:20.450360+00:00",
+  "missing": []
 }
