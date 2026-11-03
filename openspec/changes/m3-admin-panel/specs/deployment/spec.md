@@ -22,7 +22,7 @@
 
 ### Requirement: R-DEP-09 面板产物随镜像交付
 
-运行镜像 SHALL 包含当前版本的前端构建产物，构建 MUST NOT 依赖宿主机预装 Node 或宿主机预先构建的产物；产物 MUST NOT 包含任何凭证或 Key 明文。
+运行镜像 SHALL 包含当前版本的前端构建产物，构建 MUST NOT 依赖宿主机预装 Node 或宿主机预先构建的产物；产物 MUST NOT 包含任何凭证或 Key 明文。`[spec-review-amendment R-01]`
 
 #### Scenario: 镜像内构建
 - **WHEN** 在干净检出上执行镜像构建
@@ -38,4 +38,18 @@
 
 #### Scenario: 回滚镜像
 - **WHEN** 回滚到不含面板产物的旧镜像
-- **THEN** 公共与管理 API 仍正常，`/` 返回 404（旧镜像没有面板路由）
+- **THEN** 先把数据库恢复到与旧镜像匹配的 schema 版本（部署前备份或显式 `alembic downgrade`），旧镜像启动后公共与管理 API 仍正常，`/` 返回 404（旧镜像没有面板路由）
+
+## ADDED Requirements
+
+### Requirement: R-DEP-10 发布版本与回滚锚
+
+发布镜像的版本 tag SHALL 不可变；新版本 MUST 使用新 tag，MUST NOT 覆盖既有发布 tag；回滚 MUST 同时恢复与目标镜像匹配的数据库 schema 版本（部署前备份或显式 downgrade）。`[spec-review-amendment R-01]`
+
+#### Scenario: 新版本不覆盖旧 tag
+- **WHEN** 发布 `0.2.0`
+- **THEN** `0.1.0` tag 仍指向旧镜像
+
+#### Scenario: 回滚到 0.1.0
+- **WHEN** 数据库已升级到 `0002` 后回滚到 `0.1.0`
+- **THEN** 先恢复部署前备份（或执行 `downgrade`）再启动旧镜像，`/healthz` 返回 200

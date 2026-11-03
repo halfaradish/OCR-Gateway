@@ -1,0 +1,57 @@
+{
+  "v": 1,
+  "page": "design-gate.html",
+  "revisions": [
+    {
+      "n": 1,
+      "at": "2026-11-04T02:34:34+08:00",
+      "event": "首次生成",
+      "docs": {
+        "spec-review-report": {
+          "path": "openspec/changes/m3-admin-panel/spec-review-report.md",
+          "sha256": "f83d740182a82aaba3e331561270c76000f72c848f3a1e130013c04e3dfd4180"
+        },
+        "proposal": {
+          "path": "openspec/changes/m3-admin-panel/proposal.md",
+          "sha256": "2db848689b3c2f19f858f358d7fbd49b3b4ceffd9f59a2038556d80ff09bba1c"
+        },
+        "design": {
+          "path": "openspec/changes/m3-admin-panel/design.md",
+          "sha256": "ee3b2d3d8e5f11ee8a00b18751f8a97e08d52625acdf5ec3ef705e9ea7190be2"
+        },
+        "spec:account-pool-scheduling": {
+          "path": "openspec/changes/m3-admin-panel/specs/account-pool-scheduling/spec.md",
+          "sha256": "29ccc986153a380adc4b1c1e143490c675571be080ecec998cc2f201ff141243"
+        },
+        "spec:admin-api": {
+          "path": "openspec/changes/m3-admin-panel/specs/admin-api/spec.md",
+          "sha256": "5926f3002177e7cdbe16bc5a661bbeb0c00e9ced31d8bf93e3322c6160603c6d"
+        },
+        "spec:admin-panel": {
+          "path": "openspec/changes/m3-admin-panel/specs/admin-panel/spec.md",
+          "sha256": "a5ced36c4f0563b398b3a414a39f6d8e4d3f613e5d4d216a3c878df6357f2f18"
+        },
+        "spec:deployment": {
+          "path": "openspec/changes/m3-admin-panel/specs/deployment/spec.md",
+          "sha256": "80a2ba73657761636ec6c15c45b3b07eb6b4a9a1e933960515017a1db91f17be"
+        },
+        "spec:result-cache": {
+          "path": "openspec/changes/m3-admin-panel/specs/result-cache/spec.md",
+          "sha256": "9622bd1067b65070a60af2b52f97afb48e7bcb4748ab90a32db9add48d555d11"
+        },
+        "tasks": {
+          "path": "openspec/changes/m3-admin-panel/tasks.md",
+          "sha256": "c5eb11a876b47c774ddd9ec146bdd02577c058fd7a08e452d579bfc403da7a60"
+        },
+        "decision-memo": {
+          "path": "openspec/changes/m3-admin-panel/decision-memo.md",
+          "sha256": "061e75d9d648a08339c8142d2de618b3897c0f0515725f46f968cdedf6d48e41"
+        }
+      },
+      "notes": 0,
+      "dispositions": 0,
+      "changed": [],
+      "fp": "781f2f1af47f2311f0d5b455ca0295df0b2847045f7f7528e8f1a1691686fcd0"
+    }
+  ]
+}

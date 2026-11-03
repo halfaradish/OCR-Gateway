@@ -4,7 +4,7 @@
 
 现状（均已用代码/命令核验，锚见括号）：
 
-- 管理 API 只有 Bearer token：登录换签名 token，`require_admin` 从 `Authorization` 取 token（`backend/app/api/deps.py:41-60`）；20 个管理路由中 19 个非登录路由全部经该依赖（`backend/app/api/admin.py`）。
+- 管理 API 只有 Bearer token：登录换签名 token，`require_admin` 从 `Authorization` 取 token（`backend/app/api/deps.py:41-59`）；20 个管理路由中 19 个非登录路由全部经该依赖（`backend/app/api/admin.py`）。`[spec-review-amendment R-49]`
 - 没有前端工程、没有静态托管：`frontend/` 不存在；`backend/app/main.py:195-200` 只挂公共/管理路由；`Dockerfile` 没有 Node 阶段。`.gitignore:18-20` 已预留 `node_modules/` 与 `frontend/dist/`。
 - 没有 settings 表：`backend/app/models.py` 无该模型，`backend/alembic/versions/` 只有 `0001_initial.py`；缓存 TTL/容量与请求 deadline 在启动时固化（`backend/app/core/cache.py:13-17`、`backend/app/core/scheduler.py:56-73`、`backend/app/main.py:84-95`）。
 - 数据面缺口：`_account_out` 无已用配额（`backend/app/api/admin.py:93-117`）；`usage_summary` 只有整段聚合行、无时间序列（`:495-535`）；`list_logs` 无时间过滤与总数（`:536-575`）。
@@ -53,10 +53,11 @@
   - `ocr_csrf`：32 字节 `secrets.token_urlsafe`；`Path=/; SameSite=Lax; Max-Age=<session_ttl_seconds>`；**不**加 `HttpOnly`（前端要读）。
 - `require_admin` 先看 `Authorization: Bearer`；没有再看 `ocr_admin_session` cookie。Bearer 存在但无效时直接 401，不回退 cookie（避免陈旧 Authorization 头把浏览器会话带进不确定状态）；两者都无/无效 → 401。
 - 认证来源为 cookie 且方法属于 `POST/PUT/PATCH/DELETE` 时，校验 `X-CSRF-Token` 与 `ocr_csrf` cookie 常量时间相等；缺失或不符 → 403 `FORBIDDEN`。Bearer 来源豁免 CSRF。
-- `GET /api/admin/me` 返回 `{"username":"admin","csrf_token":"…"}`；若 cookie 会话存在但 `ocr_csrf` 缺失，则补发 CSRF cookie（GET 只补 cookie，不改变业务状态）。
-- `POST /api/admin/logout`：经 `require_admin`；清空两个 cookie（`Max-Age=0`），返回 204。无服务端会话表，Bearer token 仍按原语义到期失效。
-- `Secure` 判定：`request.url.scheme == "https"`，或 `TRUST_PROXY_HEADERS=true` 且 `X-Forwarded-Proto` 首跳为 `https`。
+- `GET /api/admin/me` 返回 `{"username":"admin","csrf_token":"…"}`；若 cookie 会话存在但 `ocr_csrf` 缺失，则补发 CSRF cookie（GET 只补 cookie，不改变业务状态）。Bearer 调用不依赖 CSRF，`csrf_token` 可省略；前端以 `ocr_csrf` cookie 为唯一来源。`[spec-review-amendment R-30]`
+- `POST /api/admin/logout`：经 `require_admin`；清空两个 cookie（`Max-Age=0`），返回 204。无服务端会话表，Bearer token 仍按原语义到期失效；已泄露的签名 token 在 12h TTL 内仍有效，这是 v1 接受的残留风险（HttpOnly + SameSite=Lax；服务端即时吊销另开 change）。`[spec-review-amendment R-53]`
+- `Secure` 判定：`request.url.scheme == "https"`，或 `TRUST_PROXY_HEADERS=true` 且 `X-Forwarded-Proto` 首值（逗号分隔的第一个）为 `https`。反向代理部署 MUST 同时转发 `X-Forwarded-Proto` 并设置 `TRUST_PROXY_HEADERS=true`；README 的 nginx 示例与镜像冒烟按此验收。`[spec-review-amendment R-04]`
 - CSRF 失败与未登录都走现有错误 envelope：`{"request_id": "...", "error": {"code": "...", "message": "..."}}`。
+- `require_admin` 用 `HTTPBearer(auto_error=False)` 声明 Bearer security scheme，使 `/docs` 的 Authorize 可用；cookie 回退保留。Swagger 写操作用 Bearer；cookie 会话写操作仍需 `X-CSRF-Token`。`[spec-review-amendment R-49]`
 
 **为什么不是别的**
 
@@ -72,14 +73,16 @@
 
 - 新表 `settings(key TEXT PK, value TEXT NOT NULL, updated_at DATETIME NOT NULL)`；`value` 存 JSON 编码（bool/int），读取时校验类型与范围。
 - 启动顺序：迁移完成后加载表 → 与 env 默认值合并 → 构造 `RuntimeSettings` → 用其构造 `ResultCache`/`Scheduler`；非法存量值忽略并记 warning，不阻塞启动。
-- `RuntimeSettings` 是普通 dataclass，字段与 env 同名；单事件循环内整体替换字段，读写无锁。设置更新路径不含 `await` 中断，DB 提交完成后再应用运行时；并发请求只会看到旧值或新值，不会看到半更新状态。不引入线程/进程共享状态。
-- 缓存重建（`reconfigure`）在写请求的同步段内完成；正在路上的 OCR 请求可能已持有旧 cache 引用，下一次请求使用新 cache，属于可接受的一次性过渡。
-- `Scheduler` 改为每次 `recognize` 读取 `runtime_settings.request_deadline_ms`（不再在构造时固化）。
-- `ResultCache` 增加 `reconfigure(enabled, ttl_seconds, max_entries) -> bool`：参数不变返回 False；变化则重建 `TTLCache`（清空旧条目）并返回 True。
-- `AccountCreate.timeout_ms` 默认从 `8000` 改为 `None`；`create_account` 用 `payload.timeout_ms or runtime.default_timeout_ms`。PATCH 语义不变。
-- `PUT /api/admin/settings` 接受部分字段；先全量校验，再单事务 upsert；提交成功后才应用运行时；返回 `cache_cleared` 标志。任何校验失败 → 400，DB 与运行时都不变。请求模型 `extra="forbid"`，未知键也返回 400（防拼写错误被静默忽略）。
-- 可编辑项：`cache_enabled`（bool）、`cache_ttl_seconds`（60–86400）、`cache_max_entries`（10–10000）、`request_deadline_ms`（1000–60000）、`default_timeout_ms`（1000–60000）。
-- 只读项（GET 返回）：`api_auth_enabled`（恒 true）、`version`、`max_upload_bytes`、`max_image_pixels`、`max_concurrent_requests`、`session_ttl_seconds`、`frontend_built`。
+- `RuntimeSettings` 是普通 dataclass，字段与 env 同名；单事件循环内整体替换字段，字段替换段无 `await`。DB `commit()` 是唯一 `await`；merge+commit+apply 用进程内 `asyncio.Lock` 串行化，提交返回后再整体应用运行时，避免两个并发 PUT 的提交顺序与应用顺序分叉。不引入线程/进程共享状态。`[spec-review-amendment R-10]`
+- 缓存重建（`reconfigure`）在写请求的同步段内完成；已在重建前取到旧条目的在途请求仍返回旧结果，下一次读取使用新缓存，属于可接受的一次性过渡。`[spec-review-amendment R-16]`
+- `Scheduler` 改为 `recognize(..., deadline: float)`：由 `public.py` 在请求开始时从 `RuntimeSettings.request_deadline_ms` 计算一次绝对 deadline 并传入；`Scheduler` 不再在构造时固化，也不再自行起算。这样调大/调小都作用于真实总预算（含信号量等待）。`[spec-review-amendment R-02/R-17]`
+- `ResultCache` 增加 `reconfigure(enabled, max_entries, ttl_seconds) -> bool`（与构造函数参数顺序一致，或强制关键字）：参数不变返回 False；变化则重建 `TTLCache`（清空旧条目）并返回 True。`[spec-review-amendment R-16]`
+- `AccountCreate.timeout_ms` 默认从 `8000` 改为 `None`；`create_account` 用 `payload.timeout_ms or runtime.default_timeout_ms`。PATCH 语义：显式 `null` 返回 400（`accounts.timeout_ms` 是 NOT NULL）；编辑表单留空表示省略该字段（保持原值），新建表单留空表示使用运行时默认。`[spec-review-amendment R-14]`
+- `PUT /api/admin/settings` 接受部分字段；先全量校验，再单事务 upsert；提交成功后才应用运行时；返回 `cache_cleared` 标志。任何校验失败 → 400，DB 与运行时都不变。请求模型 `extra="forbid"`，未知键也返回 400（防拼写错误被静默忽略）；显式 `null` 一律 400，部分更新只由省略字段表达。`[spec-review-amendment R-15]`
+- settings 端点的校验错误 MUST 返回字段级信息：`{"request_id":"…","error":{"code":"BAD_REQUEST","message":"invalid settings","fields":[{"field":"cache_ttl_seconds","message":"must be between 60 and 86400"}]}}`。未知键、字符串数字、超范围都必须带字段名；不依赖全局 `RequestValidationError` 的泛化 `invalid request`。`[spec-review-amendment R-05]`
+- SQLite 写路径显式设置 `busy_timeout=5s`；settings 写失败/锁等待/磁盘满返回 500，事务回滚、运行时不应用，并记结构化日志。`[spec-review-amendment R-44]`
+- 可编辑项：`cache_enabled`（bool）、`cache_ttl_seconds`（60–86400）、`cache_max_entries`（10–2000，按单条 256KB 估算最坏约 512MB）、`request_deadline_ms`（1000–20000，须小于 compose `stop_grace_period` 25s）、`default_timeout_ms`（1000–60000）。`[spec-review-amendment R-03/R-08]`
+- 只读项（GET 返回）：`api_auth_enabled`（恒 true）、`version`、`max_upload_bytes`、`max_image_pixels`、`max_concurrent_requests`、`session_ttl_seconds`、`frontend_built`（启动快照；构建产物后需重启才变 true）。`[spec-review-amendment R-56]`
 
 **为什么不是别的**
 
@@ -95,10 +98,17 @@
 
 - `GET /api/admin/overview` 一次返回今日指标、厂商可用账号、账号配额用量、最近 10 条错误、缓存状态；今日窗口固定 `Asia/Shanghai` 00:00 到当前。
 - `GET /api/admin/usage/series` 返回按本地日分桶的序列；缺日补零；默认 7 天，最大 90 天；支持 `user_id/provider/account_id` 过滤。
-- `GET /api/admin/usage/summary` 增加 `avg_latency_ms` 与同样的过滤参数；行按 key 升序；每行增加 `label`（成员名/账号名/厂商名），已删除实体为「已删除」或 `null`。
+- `GET /api/admin/usage/summary` 增加 `avg_latency_ms` 与同样的过滤参数；行按 key 升序、`null` 最后；每行增加 `label`（成员名/账号名/厂商名），已删除实体一律为 `null`（前端显示「已删除」）；`provider='auto'` 的 label 为「自动路由」。`[spec-review-amendment R-52]`
 - `GET /api/admin/logs` 增加 `from/to/error_code` 过滤与 `total`；保持 `limit/offset` 分页与 id 倒序；每行增加 `user_name`、`account_name`（可为 `null`）。
 - `GET /api/admin/accounts` 增加 `quota_usage` 与 `owner_name`：配额从 `AccountRegistry` 取 runtime、从 `QuotaManager.used()` 取日/月/总量，period_key 用现有 `period_key()` 规则；`owner_name` 来自成员表。
 - 名称补充用一次成员/账号映射查询（小规模），不在每行做 N+1；已删除成员/账号的名称返回 `null`，前端显示「已删除」。
+- summary/series/logs 共用时间窗口与 90 天上限；summary MUST 也拒绝超过 90 天的范围（400），并把聚合尽量下推 SQL `GROUP BY`；`logs.total` 与过滤共用 `created_at` 索引。`[spec-review-amendment R-06]`
+- `group_by=user/account` 的已删除实体合并为 `key=null` 的单行（历史归属已被 `SET NULL` 丢失，不在本 change 补快照列）；排序时 `null` 最后。`[spec-review-amendment R-11]`
+- `provider='auto'`：成功事件记录实际厂商（baidu/tencent）；无候选/解析前的失败事件可能记为 `auto`。summary/overview 必须能为 `auto` 提供显示名「自动路由」；`overview.providers` 只列两家厂商，`today.auto_failures` 单独计数，避免今日总数与厂商行对不上。`[spec-review-amendment R-52]`
+- 默认窗口按 `Asia/Shanghai` 本地日对齐：`to` 默认取当前时刻，`from` 默认取本地日 00:00 往前 6 天（共 7 个日桶）；日期形式的 `to` 表示该本地日的结束，用半开区间 `[from, next_local_day_00:00)`，日期形式 `from` 表示当日 00:00；90 天按本地日历日差含当日 ≤90。summary/logs/series 共用。`[spec-review-amendment R-12]`
+- `avg_latency_ms` 为四舍五入到整数的均值；`success_rate`/`cache_hit_rate` 保留 4 位小数；`recent_errors` 定义为 `success=false` 按 `created_at desc` 取前 10。`[spec-review-amendment R-52]`
+- `available_accounts` 是「瞬时可调度数」（含并发已满/令牌桶暂时为空等瞬时排除）；overview 只读快照，不触发 `_recover`/状态迁移/dirty 标记；若需要配置口径，另给字段。`[spec-review-amendment R-21]`
+- 时间序列化：summary 的 `from/to` 保持 UTC naive（兼容既有响应），series/overview 的 `from/to/generated_at` 带 `+08:00`；前端按字段分别解析。`[spec-review-amendment R-52]`
 - `overview.recent_errors` 增加 `account_name`（可为 `null`），避免总览要求前端再拉账号列表。
 
 **为什么不是别的**
@@ -115,11 +125,11 @@
 - 配置 `FRONTEND_DIST`（默认 `<repo>/frontend/dist`，Docker 内 `/app/static`）。启动时若 `index.html` 存在：
   - `GET /assets/*` 由 `StaticFiles` 托管，`Cache-Control: public, max-age=31536000, immutable`（Vite 文件名带 hash）。
   - 根级静态文件（`favicon.svg` 等）存在则直接返回；`index.html` 用 `Cache-Control: no-store`。
-  - 兜底 GET：路径以 `api/`、`v1/`、`healthz` 开头或带扩展名且文件不存在 → JSON 404；否则返回 `index.html`。兜底路由注册在所有 API 路由之后。
-- 产物不存在时：`GET /` 返回 404 JSON（`FRONTEND_NOT_BUILT`），API 不受影响；启动日志 warning。
+  - 兜底 GET：路径以 `api/`、`v1/`、`healthz` 开头 → JSON 404；非 API 且无扩展名的未知路径 → `index.html`；非 API 但带扩展名且文件不存在 → JSON 404（不得把缺失静态资源回退成 HTML）。兜底路由注册在所有 API 路由之后。`[spec-review-amendment R-13]`
+- 产物不存在时：`GET /` 返回 404 JSON（`FRONTEND_NOT_BUILT`），message 固定为 `panel assets are not built; run pnpm build or use an image with the panel`；API 不受影响；启动日志 warning。`[spec-review-amendment R-23]`
 - 安全头中间件：
-  - 所有响应追加 `X-Content-Type-Options: nosniff`、`Referrer-Policy: no-referrer`、`X-Frame-Options: DENY`、`Permissions-Policy: camera=(), microphone=(), geolocation=()`。
-  - **CSP 只作用于面板入口与静态资源**：`Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'`。
+  - 所有响应追加 `X-Content-Type-Options: nosniff`、`Referrer-Policy: no-referrer`、`X-Frame-Options: DENY`、`Permissions-Policy: camera=(), microphone=(), geolocation=()`。安全头中间件 MUST 在最外层（在 `BodyLimitMiddleware` 之后 add），确保 body-too-large/异常响应也带齐；测试断言超限请求的 400 响应头。`[spec-review-amendment R-20]`
+  - **CSP 作用于所有返回 `index.html` 的响应（含 SPA 深链接回退）与静态资源**〔spec-review-amendment R-36〕：`Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'`。
   - `/docs` 与 `/openapi.json` 不加 CSP：FastAPI 自带 Swagger UI 默认从公共 CDN 加载 JS/CSS，`default-src 'self'` 会直接打不开现有 `/docs` 工作流（README 仍以它作为 Bearer 操作入口）。API 响应保持无 CSP，但仍有类型/Referrer/frame 头。
   - 管理 API 响应追加 `Cache-Control: no-store`，避免 `/me` 的 `csrf_token` 或账号数据被中间缓存。
 - `style-src` 允许 `'unsafe-inline'`：Recharts/React 会写元素 `style` 属性；不放宽 `script-src`，构建产物不含内联脚本。不引入第三方脚本，故不需要 nonce 渐进路径。
@@ -136,15 +146,15 @@
 - 质量门：`pnpm lint`、`pnpm typecheck`、`pnpm build` 三条；不引入 Prettier（格式化非本 change 的交付门）。
 - 构建关闭 `build.modulePreload.polyfill`（目标常青浏览器），避免 Vite 向 `index.html` 注入内联脚本；构建后 grep 确认所有 `<script>` 都带 `src`，与 CSP `script-src 'self'` 一致。
 - 设置 `build.assetsInlineLimit: 0`：避免字体被内联成 data URI 后触发 `font-src 'self'` 拦截；图标使用 lucide 组件而非图片资产。
-- 路由（react-router-dom）：`/login`、`/`（总览）、`/accounts`、`/members`、`/usage`、`/logs`、`/settings`、`*`（404）。页面级 `React.lazy` + 一个路由级 Suspense 骨架。
-- 鉴权引导：应用挂载时 `GET /api/admin/me`；401 → 清缓存并跳 `/login`；成功后 `AuthContext` 持有 `username` 与 `csrf_token`（登录响应或 `/me`）。不把 token 写入 localStorage/sessionStorage。登出时清空 React Query 缓存、重置本地会话状态并跳登录，避免下一位管理员看到上一位的缓存数据。
-- 数据层：`apiFetch<T>()` 统一处理 `credentials: "same-origin"`、写方法从 cookie 读 `ocr_csrf` 并加 `X-CSRF-Token`、15s `AbortController` 超时、错误 envelope 归一化；401 抛 `SessionExpiredError` 并由顶层统一跳登录。
-- 时间显示：现有 admin 接口的 `created_at`/`last_used_at` 是 UTC naive ISO 字符串（`backend/app/api/admin.py:114-115`、`:129`、`:570`），前端统一用 `parseServerTime()` 显式按 UTC 解析再格式化到 `Asia/Shanghai`，不能直接 `new Date(naive)`（浏览器会当本地时间，差 8 小时）；`overview.generated_at` 与序列的 `from/to` 带偏移，按 ISO 正常解析；序列的 `date` 是本地日期字符串，直接展示。
-- React Query：GET `staleTime` 30s、窗口聚焦刷新；写操作成功后精确失效相关 query；写操作不做乐观更新（避免回滚逻辑），用 pending 按钮态 + 成功 toast；GET 自动重试 1 次，写不自动重试。
+- 路由（react-router-dom）：`/login`、`/`（总览）、`/accounts`、`/members`、`/usage`、`/logs`、`/settings`、`*`（404）。页面级 `React.lazy`；每个路由提供与最终布局同尺寸的 Suspense fallback（总览图表单独 Suspense，骨架高度=图表高度）；`ErrorBoundary` 包在 `Suspense`/`lazy` 外层，chunk 失败由本页边界捕获。`[spec-review-amendment R-31/R-32]`
+- 鉴权引导：应用挂载时 `GET /api/admin/me`；401 → 清缓存并跳 `/login`；非 401 失败显示可重试的启动错误页。`/me` 与首屏数据查询并行（统一 401 处理），或明确串行并把 `/me` 计入首屏往返。成功后 `AuthContext` 只持有 `username`；`csrf_token` 单一来源是 `ocr_csrf` cookie，不复制进 context。不把 token 写入 localStorage/sessionStorage。登出时清空 React Query 缓存、重置本地会话状态并跳登录，避免下一位管理员看到上一位的缓存数据；跨标签 401/403 也走同一清理路径。`[spec-review-amendment R-30/R-33]`
+- 数据层：`apiFetch<T>()` 统一处理 `credentials: "same-origin"`、写方法从 cookie 读 `ocr_csrf` 并加 `X-CSRF-Token`、15s `AbortController` 默认超时（账号测活按 `account.timeout_ms + 5s` 覆盖，204 不解析 JSON）、错误 envelope 归一化；401 抛 `SessionExpiredError` 并由顶层统一跳登录，login 请求设 `skipAuthRedirect` 以便就地显示密码错误；403 CSRF 时 GET `/me` 刷新 cookie 后单次重试。`[spec-review-amendment R-26/R-27/R-30]`
+- 时间显示：所有 UTC naive ISO 字符串（现有 `created_at`/`last_used_at`，以及新增 `overview.recent_errors.created_at`、`logs.created_at`、`summary.from/to`）统一用 `parseServerTime()` 显式按 UTC 解析再格式化到 `Asia/Shanghai`，不能直接 `new Date(naive)`（浏览器会当本地时间，差 8 小时）；`overview.generated_at` 与序列的 `from/to` 带偏移，按 ISO 正常解析；序列的 `date` 是本地日期字符串，直接展示。`[spec-review-amendment R-34]`
+- React Query：GET `staleTime` 30s、窗口聚焦刷新；写操作成功后精确失效相关 query（账号 CRUD/reset → accounts+overview；cache clear/缓存设置 → overview+settings；成员/Key → members+accounts+overview）；用量/日志筛选变化用 `placeholderData: keepPreviousData` 保留上一结果。写操作不做乐观更新，用 pending 按钮态 + 成功 toast；GET 仅对网络/5xx 重试 1 次，401/403/400 不重试，写不自动重试。`[spec-review-amendment R-28/R-35/R-41]`
 - 表单：react-hook-form + zod；格式类校验 blur 后显示，跨字段/提交时汇总；错误文案贴近字段；账号凭证编辑不回填掩码值；密码字段 `autocomplete="current-password"`。
-- 表单默认值：账号 `priority=100`、`weight=1`、`max_concurrency=2`、`qps_limit=5`、`reset_day=1`，超时留空用运行时默认，配额留空表示不限；Key 表单预填日限额 100、RPM 30，提供「不限」开关（提交 `null`）；编辑账号时凭证字段留空表示不修改。
+- 表单默认值：账号 `priority=100`、`weight=1`、`max_concurrency=2`、`qps_limit=5`、`reset_day=1`；新建账号超时留空用运行时默认，编辑账号超时留空表示省略该字段（保持原值，不提交 null），配额留空表示不限；Key 表单预填日限额 100、RPM 30，提供「不限」开关（提交 `null`）；编辑账号时凭证字段留空表示不修改。`[spec-review-amendment R-14]`
 - Key 的「禁用」走 `PATCH enabled=false`，「吊销」走 `DELETE`；两者都使该 Key 立即失效（R-ADM-03）。成员/账号的「禁用」与「删除」同理区分，删除前必须确认。
-- 状态：远端数据不复制进 `useState`；筛选/分页/指标切换进 URL（`useSearchParams`）；对话框开关、侧栏折叠等局部状态留在组件。
+- 状态：远端数据不复制进 `useState`；筛选/分页/指标切换进 URL（`useSearchParams`）；筛选变化时 offset 归零；登录页保存同源相对 `returnTo`，成功后回跳；声明滚动恢复策略。对话框开关、侧栏折叠等局部状态留在组件。`[spec-review-amendment R-37]`
 - CSV 导出使用 UTF-8 BOM + CRLF，Excel 打开中文不乱码；按 RFC 4180 转义逗号/引号/换行；对以 `= + - @` 开头的单元格加前缀 `'`，防公式注入；导出内容为当前筛选后的汇总表。
 - 错误边界：每个路由一个 ErrorBoundary（白屏半径=单页），根级兜底页；无第三方脚本。
 - 可访问性：所有表单有 `<label>`；对话框焦点陷阱与 Esc；焦点环 2px；图标按钮有 `aria-label`；表格数字右对齐但保留表头语义。
@@ -239,6 +249,9 @@
 - 选 pnpm 而非 npm：npm lockfile 的 `resolved` 字段会固化下载 URL（本机经 npmmirror 生成后，换环境会指向镜像）；pnpm lockfile 以 integrity 为主，registry 通过参数注入，更符合 R-DEP-07 的「构建不依赖默认源」。
 - `docker-compose.yml` 的 `build.args` 增加 `NPM_REGISTRY: "${NPM_REGISTRY:-}"`；`.env.example` 增加说明；README 更新面板入口与前端开发命令。
 - `.dockerignore` 增加 `frontend/node_modules` 与 `frontend/dist`：只把源码送进构建上下文，避免宿主机依赖目录拖慢/污染镜像。
+- 发布版本：M3 将 `image`/`build.tags` 升到 `ocr-gateway:0.2.0`，保持 `0.1.0` 不可变；`.env.example` 增加 `NPM_REGISTRY` 与升级说明（只配 `UV_DEFAULT_INDEX` 的离线部署升级后必须补 `NPM_REGISTRY`；`DEFAULT_TIMEOUT_MS` 从“账号创建不生效”变为生效；`TRUST_PROXY_HEADERS` 新增 Secure 判定用途）。`[spec-review-amendment R-01/R-22]`
+- `FRONTEND_DIST` 默认 `<repo>/frontend/dist`（Docker 内 `/app/static`）；README 环境变量表与 `.env.example` 必须列出；命名与 `DATA_DIR` 的差异按“DIST=构建产物目录、DIR=数据目录”说明。`[spec-review-amendment R-25]`
+- 构建产物扫描：镜像构建/CI 断言 dist 不含 `MASTER_KEY`、`ADMIN_PASSWORD`、凭证或 Key 明文；前端不得用 `VITE_*` 承载秘密（Vite 会内联进产物）。`[spec-review-amendment R-48]`
 - 依赖层与代码层分开 COPY，前端依赖变更才失效；`pnpm` store 不跨阶段保留，避免镜像膨胀。
 
 ### D-A8 切片与依赖
@@ -254,6 +267,8 @@
 | S5 管理页 | 账号、成员与 Key、用量、日志、设置五页 | S4 |
 | S6 交付与视觉验收 | Docker 多阶段、README、镜像冒烟、七路由截图验收 | S5 |
 
+S6 的回滚依赖不可变 `0.2.0`/`0.1.0` tag + 部署前 DB 备份；详见 Migration Plan。`[spec-review-amendment R-01]`
+
 ## 数据模型与迁移（D-2）
 
 `settings` 为新表，无旧表。
@@ -264,7 +279,7 @@
 
 | 列 | 类型 | 约束 | 默认 | nullable |
 |---|---|---|---|---|
-| `key` | `VARCHAR(64)` | PRIMARY KEY | 无 | NOT NULL |
+| `key` | `TEXT` | PRIMARY KEY | 无 | NOT NULL |
 | `value` | `TEXT` | 无 | 无 | NOT NULL |
 | `updated_at` | `DATETIME` | 无 | 应用层 `utcnow()` | NOT NULL |
 
@@ -276,11 +291,14 @@
 |---|---|---|---|
 | `cache_enabled` | bool | `CACHE_ENABLED` | 必须是 bool |
 | `cache_ttl_seconds` | int | `CACHE_TTL_SECONDS` | 60–86400 |
-| `cache_max_entries` | int | `CACHE_MAX_ENTRIES` | 10–10000 |
-| `request_deadline_ms` | int | `REQUEST_DEADLINE_MS` | 1000–60000 |
+| `cache_max_entries` | int | `CACHE_MAX_ENTRIES` | 10–2000（最坏约 512MB） |
+| `request_deadline_ms` | int | `REQUEST_DEADLINE_MS` | 1000–20000（须 < stop_grace_period 25s） |
 | `default_timeout_ms` | int | `DEFAULT_TIMEOUT_MS` | 1000–60000 |
 
 生命周期：启动加载 → 管理员 PUT 部分更新（单事务 upsert）→ 提交成功后应用到内存；删除账号/成员不影响设置；无归档。
+
+> `key` 类型统一为 `TEXT`（与 D-A2 首段一致；SQLite 下与 VARCHAR 亲和性相同，契约仍取唯一写法）。`[spec-review-amendment R-18]`
+> settings 随 SQLite 备份/恢复；丢失时回退 env 默认。RPO=最近一次备份（默认每日），RTO=`scripts/rollback.sh` 恢复时间。`[spec-review-amendment R-43]`
 
 ## 接口契约（D-1 已核验现有路径/字段）
 
@@ -335,7 +353,7 @@
   },
   "readonly": {
     "api_auth_enabled": true,
-    "version": "0.1.0",
+    "version": "0.2.0",
     "max_upload_bytes": 10485760,
     "max_image_pixels": 40000000,
     "max_concurrent_requests": 8,
@@ -357,7 +375,7 @@
 { "settings": { "...": "同 editable 全量" }, "cache_cleared": true }
 ```
 
-400 `BAD_REQUEST`（字段类型/范围非法；消息含字段名）；500 `INTERNAL_ERROR`（DB 写失败，运行时不生效）。
+400 `BAD_REQUEST`（字段类型/范围非法；`error.fields` 含字段名与原因）；显式 `null` 也 400；500 `INTERNAL_ERROR`（DB 写失败，运行时不生效）。`[spec-review-amendment R-05/R-15]`
 
 ### 总览
 
@@ -369,7 +387,7 @@
   "today": {
     "requests": 128, "success": 127, "failure": 1, "cached": 49,
     "quota_used": 79, "success_rate": 0.9922, "cache_hit_rate": 0.3828,
-    "avg_latency_ms": 412
+    "avg_latency_ms": 412, "auto_failures": 0
   },
   "providers": [
     { "code": "baidu", "name": "百度智能云", "accounts": 2, "available_accounts": 2,
@@ -388,17 +406,21 @@
       "account_name": "腾讯-小李", "error_code": "TIMEOUT", "latency_ms": 8000,
       "created_at": "2026-11-04T00:59:00" }
   ],
-  "cache": { "enabled": true, "entries": 123, "ttl_seconds": 3600, "max_entries": 1000 }
+  "cache": { "enabled": true, "entries": 123, "ttl_seconds": 3600, "max_entries": 1000 },
+  "series": [
+    { "date": "2026-10-29", "requests": 10, "success": 9, "failure": 1,
+      "cached": 3, "quota_used": 7, "avg_latency_ms": 380 }
+  ]
 }
 ```
 
-`success_rate`/`cache_hit_rate` 在请求数为 0 时为 `null`。`available_accounts` 用 `AccountRegistry.available_count()`（`backend/app/core/registry.py:188`）。
+`success_rate`/`cache_hit_rate` 在请求数为 0 时为 `null`。`available_accounts` 用 `AccountRegistry.available_count()`（`backend/app/core/registry.py:188`），口径为瞬时可调度数（含并发/QPS 瞬时排除），overview 只读快照、不触发状态迁移；`today.auto_failures` 单独计数 `provider='auto'` 的失败；`series` 为近 7 个本地日桶（与 `/usage/series` 同口径），总览页首屏不再额外拉序列。`[spec-review-amendment R-09/R-21/R-52]`
 
 ### 用量汇总与序列
 
 `GET /api/admin/usage/summary?from&to&group_by=user|provider|account&user_id&provider&account_id`
 
-在现有响应基础上，每行增加 `avg_latency_ms`（int 或 null）与 `label`（成员名/账号名/厂商名；已删除实体为 `null`），行按 key 升序；其余字段不变。
+在现有响应基础上，每行增加 `avg_latency_ms`（int 或 null）与 `label`（成员名/账号名/厂商名；已删除实体为 `null`，`auto` 为「自动路由」），行按 key 升序且 `null` 最后；summary 也受 90 天跨度上限约束（超出 400）；其余字段不变。`[spec-review-amendment R-06/R-11/R-52]`
 
 `GET /api/admin/usage/series?from&to&user_id&provider&account_id`
 
@@ -414,15 +436,15 @@
 }
 ```
 
-- 日桶按 `Asia/Shanghai`；范围内缺日补零；`from` 默认 `to - 7d`；最大跨度 90 天，超出 400。
-- 时间参数接受 ISO datetime 或 `YYYY-MM-DD`；**仅日期形式的 `to` 表示该本地日的结束（含当日）**，避免用户按日期筛选时少看最后一天；`from` 的日期形式表示当日 00:00。summary/logs/series 共用这一口径；`from` 晚于 `to` 返回 400。
-- `avg_latency_ms` 为该日全部事件 `latency_ms` 的整数均值（含失败；失败也代表真实耗时）。
+- 日桶按 `Asia/Shanghai`；范围内缺日补零；`to` 默认当前时刻，`from` 默认本地日 00:00 往前 6 天（7 个日桶）；最大跨度按本地日历日差含当日 ≤90，超出 400。
+- 时间参数接受 ISO datetime 或 `YYYY-MM-DD`；**仅日期形式的 `to` 表示该本地日的结束（含当日）**，实现用半开区间 `[from, next_local_day_00:00)`；`from` 的日期形式表示当日 00:00。summary/logs/series 共用这一口径；`from` 晚于 `to` 返回 400。
+- `avg_latency_ms` 为该日全部事件 `latency_ms` 四舍五入到整数的均值（含失败；失败也代表真实耗时）。`[spec-review-amendment R-12/R-52]`
 
 ### 日志
 
 `GET /api/admin/logs?limit=50&offset=0&from&to&success&provider&error_code`
 
-响应在现有字段上增加 `total`（同过滤条件的总数）与每行的 `user_name`、`account_name`（可为 `null`）；`limit` 1–200；`offset >= 0`；id 倒序。不含 OCR 原文。
+响应在现有字段上增加 `total`（同过滤条件的总数）与每行的 `user_name`、`account_name`（可为 `null`）；`limit` 1–200；`offset >= 0`；id 倒序。`provider` 过滤接受 `auto|baidu|tencent`；`from/to` 与 summary/series 共用口径与 90 天上限。不含 OCR 原文。`[spec-review-amendment R-06/R-12/R-52]`
 
 ### 账号
 
@@ -437,7 +459,7 @@
 }
 ```
 
-runtime 缺失时 `used=0` 并记 warning（正常路径不缺失：启动加载、创建注册、删除移除）。
+runtime 缺失时 `used=0` 并记 warning（正常路径不缺失：启动加载、创建注册、删除移除）；`delete_account` MUST 同步 `state.quota.reset_account(account_id)`，避免内存计数残留导致 flush FK 失败或 id 复用继承旧用量。`[spec-review-amendment R-07]`
 
 ## 组件与依赖
 
@@ -505,10 +527,10 @@ usage_events (UTC naive)
 
 ### 请求瀑布
 
-- 总览：单请求 `/overview`（内含 accounts/providers/recent_errors），首屏只有一次网络往返。
+- 总览：`/overview`（内含 accounts/providers/recent_errors/cache/series）+ 鉴权 `/me` 并行；首屏数据一次往返，鉴权可并行。`[spec-review-amendment R-09/R-33]`
 - 成员与 Key：`/users` 与 `/api-keys` 并行；选中成员后本地过滤，不追加请求。
 - 账号：`/accounts` 与 `/users` 并行（列表名称由 `owner_name` 带回，`/users` 只用于新建/编辑的贡献者下拉）。
-- 用量：`/usage/summary`、`/usage/series`、`/users`、`/accounts` 并行（前两者出图与表，后两者只填充筛选下拉）。
+- 用量：`/usage/summary`、`/usage/series`、`/users`、`/accounts` 并行；筛选源有自己的 loading/error 降级，不阻塞图表/表格。`[spec-review-amendment R-31]`
 - 日志：`/logs` 单请求（含 `total`、`user_name`、`account_name`）。
 - 设置：`/settings` 与 `/quota-templates` 并行。
 - 名称类字段由后端随响应返回；`/users`、`/accounts` 只在需要下拉选项的页面并行拉取，列表本身不再做 N+1 映射。
@@ -522,12 +544,15 @@ usage_events (UTC naive)
 | 图表 | 同高占位 + 发丝网格 | 「所选时间内没有请求」 | 图表区错误 + 重试 |
 | 表单对话框 | 提交按钮 pending/禁用 | — | 字段级错误 + 顶部汇总 |
 | 设置 | 骨架 | — | 保留旧值 + toast |
+| 鉴权引导 | 全屏 Boot 骨架 | — | 启动错误页 + 重试（401 直接跳登录） |
+| 筛选源（`/users`、`/accounts`） | 下拉禁用 + 小骨架 | 「暂无选项」 | 下拉禁用 + 行内错误，不把整页打成错误 |
 
 ### 交互边界（FE-01/03/10）
 
-- 所有提交按钮 pending 时禁用；同一资源写操作加 `mutationKey` 串行，防双击。
+- 所有提交按钮 pending 时禁用；同一资源写操作加 `scope`（React Query v5）或提交 guard 串行，防双击；`mutationKey` 只作标识，不承担串行/去重。`[spec-review-amendment R-29]`
 - 慢网络：15s 超时后显示「请求超时，请重试」；不自动重试写操作。
-- 并发标签页：会话 cookie 共享；一个标签页登出后，另一个标签页下一次请求 401 → 跳登录。
+- 并发标签页：会话 cookie 共享；一个标签页登出后，另一个标签页下一次请求 401 → 清缓存并跳登录；登录轮换 CSRF cookie 后旧标签页写请求 403 → GET `/me` 刷新 token 后单次重试。`[spec-review-amendment R-30]`
+- 脏表单：`beforeunload` 与路由离开确认；同表单双标签明确 last-write-wins 并提示。`[spec-review-amendment R-38]`
 - 编辑账号时凭证字段留空表示不修改；任一凭证字段填写则要求该厂商全部必填字段；掩码值不回填、不回传。
 - Key 明文只在创建成功对话框显示一次，带复制按钮与「关闭后无法再次查看」提示；剪贴板不可用时回退为可选中文本。
 - 删除成员/账号/Key 用确认对话框；删除成员提示会一并吊销其 Key（DB `ON DELETE CASCADE` 已启用，`backend/app/db.py` 的 `PRAGMA foreign_keys=ON`）。
@@ -535,35 +560,36 @@ usage_events (UTC naive)
 
 ### URL 即状态（FE-09）
 
-- 用量：`from/to/user/provider/account/metric/group` 全部进 query；刷新/分享/后退保持。
+- 用量：`from/to/user/provider/account/metric/group` 全部进 query；刷新/分享/后退保持；筛选变化时 offset 归零。
 - 日志：`from/to/status/provider/error/limit/offset` 进 query；翻页即改 query。
 - 账号：`provider/state` 过滤进 query。
 - 成员与 Key：`member` 选中进 query。
 - 设置：不把表单草稿放进 URL（避免误分享未保存值）。
+- 登录：受保护路由未认证跳转时保存同源相对 `returnTo`，登录成功回跳；滚动恢复按路由/query 记录。`[spec-review-amendment R-37]`
 
 ### 视觉与响应式（FE-04/05/13）
 
 - 首屏可辨识：侧栏 wordmark + 深墨蓝 + 刻度标尺；不使用图标+圆圈+三列卡片套路。
 - 黑名单自查：无紫色渐变、无 blob/几何装饰、无 emoji 图标、无全局居中排版。
-- 断点：`<768` 顶部抽屉 + 表格横向滚动（首列 sticky）；`768–1279` 侧栏 208px；`≥1280` 232px；内容最大宽 1280px。
+- 断点：`<768` 顶部抽屉 + 表格横向滚动（首列 sticky）；`768–1279` 侧栏 208px；`≥1280` 232px；内容最大宽 1280px；最小支持宽度 360px，登录列 `width: min(360px, 100% - 32px)`，对话框窄屏全宽，图表最小高度固定。`[spec-review-amendment R-40]`
 - 表格在窄屏保留关键列（名称/状态/操作），其余横向滚动；不把表格改造成卡片列表。
 - `prefers-reduced-motion` 下关闭过渡；动效只用于对话框/抽屉开合与页面首次淡入（120–180ms ease-out）。
 
 ### CWV 与 NFR（FE-06 / BASE-16）
 
-- 目标（75 分位、生产构建、LAN）：LCP ≤ 2.5s、INP ≤ 200ms、CLS ≤ 0.1。
-- 首屏 JS 预算：gzip 后 ≤ 250KB（登录+shell+总览，图表库按路由懒加载）。
+- 目标（75 分位、生产构建、LAN）：LCP ≤ 2.5s、INP ≤ 200ms、CLS ≤ 0.1。验收方式：Lighthouse 移动端/4G 跑一次并记录实测值（不新增 CI）；与 task 4.4/6.5 的截图一起归档。`[spec-review-amendment R-39]`
+- 首屏 JS 预算：登录+shell gzip 后 ≤ 150KB；总览路由 chunk（含 Recharts）gzip 后 ≤ 350KB；task 4.4 记录实际 chunk 清单，不把“懒加载”当作未计量。`[spec-review-amendment R-19]`
 - 设置保存 p95 ≤ 500ms（localhost SQLite，5 行 upsert）。
-- 用量序列/日志查询 p95 ≤ 300ms（10 万条 `usage_events` 以内，本地 SQLite，`created_at` 索引）。
+- 用量序列/汇总/日志查询 p95 ≤ 300ms（10 万条 `usage_events` 以内，本地 SQLite，`created_at` 索引；summary 也受 90 天上限约束并有基准覆盖）。`[spec-review-amendment R-06]`
 - 无可用性 SLA（单实例内部工具）；沿用配额计数 RPO ≤ 2s 的既有语义。
 
 ## 失败模式与可观测性
 
 | 场景 | 检测 | 处理 / 降级 | 用户可见 | 测试 |
 |---|---|---|---|---|
-| 密码错误 | 401 | 不建会话 | 「密码不正确，请重新输入」 | pytest |
-| 登录过频 | 429 | 保持登录页 | 「尝试过多，请稍后再试」 | pytest |
-| 会话过期 | 401 | 清前端会话状态 | 跳登录 + 「登录已过期」 | pytest + 手工 |
+| 密码错误 | 401 | 不建会话 | 「密码不正确，请检查后重试。」 | pytest |
+| 登录过频 | 429 | 保持登录页 | 「尝试次数过多，请 1 分钟后再试。」 | pytest |
+| 会话过期 | 401 | 清前端会话状态 | 跳登录 + 「登录已过期，请重新登录。」 | pytest + 手工 |
 | CSRF 缺失/不符 | 403 | 不执行写 | 「页面已过期，请刷新后重试」 | pytest |
 | 设置字段非法 | 400 | 不写 DB、不改运行时 | 字段级错误 | pytest |
 | 设置 DB 写失败 | 500 | 事务回滚，运行时不变 | 「保存失败，请重试」 | pytest（注入失败） |
@@ -575,11 +601,18 @@ usage_events (UTC naive)
 | 账号测活失败 | 200 `ok=false` | 不写事件、不扣配额 | 错误码 + 消息 | pytest |
 | 修改缓存设置 | `cache_cleared=true` | 重建缓存 | toast 提示缓存已清空 | pytest + 手工 |
 | 删除成员 | 204 | 级联删除 Key | 确认框已提示 | pytest |
+| 回滚 DB schema 不匹配 | 旧入口迁移失败 | `scripts/rollback.sh` 恢复部署前备份；0.2.0/0.1.0 tag 不可变 | 启动失败/重启循环 | 手工演练 |
+| 缓存内存超预算 | entries × 256KB | 上限 2000；后续 byte budget 另开 | 服务变慢/OOM | 单元 + 手工 |
+| summary 全表扫描 | 跨度/行数 | 90 天 400；SQL 聚合 | 「时间范围无效」/超时 | pytest + 基准 |
+| 并发 PUT settings | Lock 串行 | DB/runtime 一致 | 保存后值不生效 | pytest |
+| 删除账号后配额 flush | FK 错误日志 | `quota.reset_account` | 配额统计停更 | pytest |
+| CSRF 403（其他标签页旧 token） | 403 | GET `/me` 刷新后重试 | 「页面已过期」 | 手工 |
+`[spec-review-amendment R-01/R-03/R-06/R-10/R-07/R-30]`
 
 **可观测性**
 
 - 沿用请求中间件日志：`request_id`、method、path、status、latency_ms（`backend/app/main.py:114-132`）。
-- 新增结构化日志：`admin.login.succeeded/failed`（IP，不含密码）、`admin.settings.updated`（变更键名，不含凭证）、`admin.panel.static_missing`（启动警告）。
+- 新增结构化日志：`admin.login.succeeded/failed`（IP，不含密码）、`admin.settings.updated`（变更键名，不含凭证）、`admin.settings.rejected`（字段名/原因）、`admin.query`（path、duration_ms、rows，overview/series/summary/logs）、`admin.panel.static_missing`（启动警告）。`[spec-review-amendment R-45]`
 - 不新增 metrics/追踪端点（Prometheus 属 M5）；前端不接第三方分析。
 - 健康检查不变：`GET /healthz` 只判 DB。
 
@@ -594,16 +627,21 @@ usage_events (UTC naive)
 - CSRF：双提交 + `SameSite=Lax`；Bearer 路径不依赖 cookie。
 - Cookie：session `HttpOnly`；HTTPS 时 `Secure`；不设 `Domain`；`Path=/`。
 - 数据外发：除百度/腾讯 OCR 调用外无第三方；前端无统计/字体 CDN（字体自托管）。
+- 登出只清客户端 cookie；签名 token 在 12h 内仍有效（无服务端会话表），这是 v1 接受的残留风险；服务端即时吊销另开 change。`[spec-review-amendment R-53]`
+- `/docs`：`require_admin` 声明 `HTTPBearer` security scheme，Swagger Authorize 可用；cookie 会话的写操作仍需 `X-CSRF-Token`。`[spec-review-amendment R-49]`
+- 反代：README 的 nginx 示例 MUST 转发 `X-Forwarded-Proto`，部署 MUST 设置 `TRUST_PROXY_HEADERS=true`；HTTPS 下登录响应 cookie 必须带 `Secure`，镜像冒烟断言。`[spec-review-amendment R-04]`
 - 合规：不涉及 PII 存储；OCR 原文默认不落库；无数据居留/行业合规要求（项目为内部小团队工具）。
 
 ## DX / 上手与文案
 
 **TTHW（估算，非实测）**
 
-- **Docker 路径**：`cp .env.example .env` → 填 2 个必填值 → `docker compose up -d` → `curl /healthz`，共 3 条命令。假设：镜像已构建、`.env` 填写约 1 分钟、健康等待 30–90 秒；**估算约 2 分钟**（不含首次镜像构建）。README 沿用此口径。
-- **前端源码开发路径**：`uv sync --project backend` → `pnpm install` → 启动后端 → `pnpm dev`，共 4 条命令。假设：首次依赖下载 1–3 分钟、后端启动 1–2 秒；**估算约 4–6 分钟**（首次），后续热启动 <1 分钟。README 标注「估算」与假设。
+- **Docker 路径**：`cp .env.example .env` → 填 2 个必填值 → `docker compose up -d` → `curl /healthz`，共 3 条命令。假设：镜像已构建、`.env` 填写约 1 分钟、健康等待 30–90 秒；**面板可用 TTHW 约 2 分钟 + 10 秒登录**（估算，不含首次镜像构建）。README 沿用此口径，并把「打开面板并登录」作为终点。
+- **前端源码开发路径**：`uv sync --project backend`（按 1–3 分钟）→ `pnpm install --registry <镜像>`（按 1–3 分钟）→ 启动后端（1–2 秒）→ `pnpm dev`（1–2 秒），共 4 条命令；**估算约 4–6 分钟**（首次，按区间相加），后续热启动 <1 分钟。前置：Node 22 + pnpm；默认 npm 源不可达时用 `--registry`/`.npmrc`。README 标注「估算」与假设。`[spec-review-amendment R-24]`
 
 **新增用户可见错误文案（problem / cause / fix）**
+
+> 本表是用户可见文案的唯一真相源；失败模式表的同一错误只引用本表原文。`[spec-review-amendment R-23]`
 
 | 文案 | problem | cause | fix |
 |---|---|---|---|
@@ -612,33 +650,53 @@ usage_events (UTC naive)
 | 登录已过期，请重新登录。 | 会话失效 | cookie 过期或服务重启/密钥轮换 | 重新登录 |
 | 页面已过期，请刷新后重试。 | 写操作被拒 | CSRF 头缺失或与 cookie 不一致 | 刷新页面后重试；仍失败则重新登录 |
 | 缓存 TTL 需在 60 到 86400 秒之间。 | 设置未保存 | 输入超出允许范围 | 按提示范围修改 |
+| 缓存容量需在 10 到 2000 条之间。 | 设置未保存 | 输入超出允许范围 | 按提示范围修改 |
+| 请求总预算需在 1000 到 20000 毫秒之间。 | 设置未保存 | 输入超出允许范围 | 按提示范围修改 |
+| 账号默认超时需在 1000 到 60000 毫秒之间。 | 设置未保存 | 输入超出允许范围 | 按提示范围修改 |
+| 未知设置项：<字段名>。 | 设置未保存 | 请求包含未定义的键 | 删除该键后重试 |
 | 保存失败，请重试；若持续失败，请查看服务日志。 | 设置未保存 | 数据库写入失败 | 重试；持续失败时查服务端日志 |
 | 无法连接网关，请确认服务正在运行。 | 数据未加载 | 网络不可达或后端未启动 | 检查服务状态与网络后重试 |
 | 请求超时，请重试。 | 请求未完成 | 超过 15 秒客户端超时 | 重试；持续超时查服务端 |
-| 面板尚未构建，请先运行 pnpm build。 | 面板不可用 | 镜像/目录缺少前端产物 | 构建前端或使用含面板的镜像 |
+| 面板尚未构建，请先运行 pnpm build。 | 面板不可用 | 源码环境缺少前端产物 | 在源码环境运行 pnpm build 后重启 |
+| 面板资源未构建，请使用包含面板的镜像。 | 面板不可用 | 当前镜像没有前端产物 | 改用含面板的镜像，或按部署文档重新构建 |
 | 所选时间内没有请求。 | 图表为空 | 筛选范围内没有事件 | 放宽时间范围 |
 
 **命名与默认值**
 
-- 设置键沿用 env 的 snake_case 与语义：`cache_enabled` / `cache_ttl_seconds` / `cache_max_entries` / `request_deadline_ms` / `default_timeout_ms`；默认值来自同名 env，升级不改变既有部署行为；范围校验见「数据模型与迁移」。
-- `NPM_REGISTRY` 与既有 `UV_DEFAULT_INDEX` 同构：空值表示使用默认源，非空表示指定镜像。
+- 设置键沿用 env 的 snake_case 与语义：`cache_enabled` / `cache_ttl_seconds` / `cache_max_entries` / `request_deadline_ms` / `default_timeout_ms`；默认值来自同名 env。升级影响：`DEFAULT_TIMEOUT_MS` 过去对账号创建不生效，升级后生效（自定义过该值的部署新账号超时会变）；`TRUST_PROXY_HEADERS` 新增 Secure 判定用途；离线部署需补 `NPM_REGISTRY`。范围校验见「数据模型与迁移」。`[spec-review-amendment R-22]`
+- `NPM_REGISTRY` 与既有 `UV_DEFAULT_INDEX` 语义同构（空值=默认源，非空=指定镜像），词形不同；两者并列写在 `.env.example` 并加相邻注释。`[spec-review-amendment R-25]`
+- `FRONTEND_DIST`：默认 `<repo>/frontend/dist`，Docker 内 `/app/static`；`DIST` 表示构建产物目录，区别于 `DATA_DIR` 的数据目录；README/.env.example 必须列出。`[spec-review-amendment R-25]`
 - 新端点沿用 `/api/admin/<resource>` 复数/只读命名：`/overview`、`/usage/series`、`/settings`、`/logout`。
 - cookie 统一 `ocr_` 前缀：`ocr_admin_session`、`ocr_csrf`。
-- 无废弃项：Bearer 保留，旧脚本与 `/docs` 不受影响（DX-04 N/A）；本次不新增/修改 SKILL.md（DX-05 N/A）。
+- 升级路径：Bearer 保留；旧脚本与 curl 不受影响。`/docs` 的 Authorize 本次补 HTTPBearer scheme 后可用。**DX-04 不判 N/A**：离线部署需新增 `NPM_REGISTRY`，`DEFAULT_TIMEOUT_MS` 语义变化，`TRUST_PROXY_HEADERS` 用途扩展；升级说明见 README/.env.example。本次不新增/修改 SKILL.md（DX-05 N/A）。`[spec-review-amendment R-22/R-49]`
 
 ## Compliance
 
-- **D-1**：本设计引用的函数/字段/路径均已 `grep`/读文件核验（`require_admin`、`_account_out`、`usage_summary`、`list_logs`、`QuotaManager.used`、`ResultCache`、`Scheduler.__init__`、`settings` 缺失、`0001_initial` 唯一迁移）。
+- **D-1**：本设计引用的函数/字段/路径均已 `grep`/读文件核验（`require_admin`、`_account_out`、`usage_summary`、`list_logs`、`QuotaManager.used`、`ResultCache`、`Scheduler.__init__`、`settings` 缺失、`0001_initial` 唯一迁移）。**补记**：`request_deadline_ms` 的消费点除 `config.py:71`/`scheduler.py` 外还有 `public.py:200`（外层总预算）；本次一并切换。`[spec-review-amendment R-02]`
 - **D-2**：`settings` 表的 v_old/v_new 列清单见「数据模型与迁移」。
 - **D-3**：proposal 的 Non-Goals 每条附可证伪假设。
 - **D-4**：不新增外部运行时依赖；前端同源 fetch 15s 超时；SQLite 为本地文件；写操作事务回滚；无第三方网络调用（除既有 OCR 厂商）。
 - **D-5**：proposal 含 Success Metrics（3 条，可观察）。
 - **D-6**：`settings` 只属于本应用，不跨产品/模块共享；未触碰 `users/api_keys/accounts` 的共享边界；无越界。
 - **技术选型**：遵守 `docs/tech-selection.md` §11（cookie/CSRF/CSP/日志）、§12（页面与交互）、§15（前端类型检查+构建）；不擅自引入 SSR/新状态库/新 UI 框架。
+- **显式豁免**：密码存储沿用 MVP D22（`ADMIN_PASSWORD` env 常量时间比较，不引 argon2）；API 鉴权开关/本地 OCR 开关按 decision-memo D3 与 proposal Non-Goals 砍掉。`[spec-review-amendment R-51]`
 - **部署**：遵守 `openspec/specs/deployment/spec.md` R-DEP-07（索引参数化）与 R-DEP-08（非 root、自愈）；镜像仍单进程、单 worker。
 - **AGENTS.md**：提及本机私有凭证文档时只用「仓库外的本地私有凭证文档」代称。
 - **BASE 质量项**：BASE-06 失败模式表、BASE-11 可观测性、BASE-12 决策记录（`decision-memo.md` + 本节）、BASE-16 NFR 数字、BASE-19 图（组件/时序/数据流）、BASE-24 数据模型、BASE-25 组件清单、BASE-28 安全、BASE-31 切片。
 - **FE/REACT/BE/DX**：FE-01/02/03/04/05/06/07/09/10/11/13、REACT-01/02、BE-01~07/09/10、DX-01~03 已在对应小节落地；FE-12（i18n）与 REACT-03（RSC）不适用；BE-11 SLA 不适用（内部工具）。
+
+### 契约同步清单（scope-check，`[spec-review-amendment R-50]`）
+
+| 文档 | 本次是否改 | 理由 |
+|---|---|---|
+| `openspec/specs/admin-api/spec.md` | 改（MODIFIED） | R-ADM-01/06/08/09 |
+| `openspec/specs/deployment/spec.md` | 改（MODIFIED/ADDED） | R-DEP-07/09/10 |
+| `openspec/specs/account-pool-scheduling/spec.md` | 改（MODIFIED R-SCH-03） | deadline 来源改为运行时设置 |
+| `openspec/specs/result-cache/spec.md` | 改（MODIFIED R-CAC-02） | TTL/容量可运行时覆盖，变更清空 |
+| `openspec/specs/quota-accounting/spec.md` | 不改 | 记账语义不变；仅展示已用量 |
+| `openspec/specs/ocr-api/spec.md` | 不改 | 公共 API 契约不变 |
+| `openspec/specs/provider-adapters/spec.md` | 不改 | 适配器不变 |
+| `README.md` / `.env.example` / `docker-compose.yml` | 改（tasks 6.1/6.2） | 面板入口、NPM_REGISTRY、升级/回滚 |
 
 ## Risks / Trade-offs
 
@@ -656,13 +714,21 @@ usage_events (UTC naive)
 | 时区分桶错位 | 复用 `SHANGHAI` 与 `period_key`；单测覆盖跨日/月边界 |
 | 镜像构建时间增加 | 前端依赖层缓存；Node 阶段与运行阶段分离；构建失败不产出镜像 |
 | 旧镜像回滚后设置表无用数据 | 旧代码忽略新表；`downgrade` 可删；数据仅 5 行 |
+| 回滚时 DB 已到 0002、旧镜像迁移失败；0.1.0 tag 被覆盖 | 发布前备份 + `scripts/rollback.sh` 恢复；0.2.0/0.1.0 tag 不可变；6.6 演练 |
+| 缓存条目上限导致内存膨胀 | `cache_max_entries` ≤2000（最坏约 512MB）；后续 byte budget 另开 |
+| summary 全表扫描 | 90 天上限 + SQL 聚合 + 基准覆盖 |
+| 请求预算调大后被停机宽限截断 | `request_deadline_ms` ≤20000 或 `stop_grace_period` >60s |
+| 删除账号后配额 flush FK 失败 | `delete_account` 同步 `quota.reset_account` + 回归测试 |
+| 并发 PUT 设置 DB/runtime 分叉 | `asyncio.Lock` 串行 merge+commit+apply |
+`[spec-review-amendment R-01/R-03/R-06/R-08/R-07/R-10]`
 
 ## Migration Plan
 
 1. 合并后 `alembic upgrade head` 创建 `settings` 表（entrypoint 已自动迁移）。
 2. 启动加载 settings；非法值回退 env 默认并 warning。
-3. 构建镜像：Node 阶段产出 `dist` → 运行镜像 `/app/static`；`docker compose up -d` 后 `/` 返回面板，`/healthz` 不变。
-4. 回滚：`docker compose` 回到 `ocr-gateway:0.1.0`；旧代码不读 settings 表；浏览器会话因旧代码只认 Bearer 而失效，管理员可用 `/docs`。`alembic downgrade -1` 可删表（不必要）。
+3. 构建镜像：M3 版本升 `0.2.0`，`image`/`build.tags` 改为 `ocr-gateway:0.2.0`，保持 `0.1.0` 不可变；Node 阶段产出 `dist` → 运行镜像 `/app/static`；`docker compose up -d` 后 `/` 返回面板，`/healthz` 不变。`[spec-review-amendment R-01]`
+4. 回滚：先 `git checkout` 上一提交（compose 指向 `ocr-gateway:0.1.0`，该 tag 必须未被 M3 构建覆盖），再 `scripts/rollback.sh <部署前备份>` 把 DB 恢复到 0001；仅切镜像不恢复 DB 会让旧 entrypoint 的 `alembic upgrade head` 遇到未知 revision 0002 并退出。旧代码只认 Bearer，管理员可用 `/docs`（本次补 HTTPBearer scheme）。`[spec-review-amendment R-01]`
 5. 前端本地开发：`pnpm install && pnpm dev`（代理 8000）；生产验证用 `pnpm build` + 后端静态托管。
-6. 备份：沿用 `scripts/backup.sh` 的 SQLite 备份；新增表随库一起备份。
+6. 备份：沿用 `scripts/backup.sh` 的 SQLite 备份；新增表随库一起备份；settings 丢失时回退 env，RPO=最近一次备份，RTO=`scripts/rollback.sh` 恢复时间。`[spec-review-amendment R-43]`
+7. 升级提示：只配 `UV_DEFAULT_INDEX` 的离线部署需补 `NPM_REGISTRY`；`DEFAULT_TIMEOUT_MS` 现在对账号创建生效；`TRUST_PROXY_HEADERS` 新增 Secure 判定用途；`/docs` 的 Authorize 本次补 HTTPBearer scheme 后可用。`[spec-review-amendment R-22/R-49]`
 

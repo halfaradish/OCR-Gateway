@@ -60,7 +60,7 @@
 
 ### Requirement: R-PANEL-04 账号管理界面
 
-账号页 SHALL 列表展示厂商、名称、贡献者、优先级、配额、状态、EWMA 延迟与最近错误，并支持新建、编辑、测活、重置状态、启用/禁用与删除；凭证字段 MUST 按厂商渲染，编辑时 MUST NOT 回填明文。
+账号页 SHALL 列表展示厂商、名称、贡献者、优先级、配额、状态、EWMA 延迟与最近错误，并支持新建、编辑、测活、重置状态、启用/禁用与删除；凭证字段 MUST 按厂商渲染，编辑时 MUST NOT 回填明文；编辑时超时留空 MUST 省略字段而不是提交 `null`。`[spec-review-amendment R-14]`
 
 #### Scenario: 新建账号
 - **WHEN** 管理员选择厂商并填写该厂商全部必填凭证
@@ -69,6 +69,10 @@
 #### Scenario: 编辑时保留凭证
 - **WHEN** 管理员编辑账号但凭证字段留空
 - **THEN** 保存后原凭证仍可用，测活成功
+
+#### Scenario: 编辑时超时留空
+- **WHEN** 管理员编辑账号且超时字段留空
+- **THEN** 提交省略该字段，原超时保持不变，不发送 `null`
 
 #### Scenario: 测活结果
 - **WHEN** 管理员点击测活
@@ -204,7 +208,7 @@
 
 ### Requirement: R-PANEL-11 同源托管与回退
 
-网关 SHALL 在面板构建产物存在时同源托管 SPA 与静态资源；对非 API 的未知路径 MUST 回退到入口 HTML；对 `/api/*`、`/v1/*`、`/healthz` 的未知路径 MUST 返回 JSON 404，不得被回退吞掉；产物缺失时 MUST 明确提示且不影响公共与管理 API。
+网关 SHALL 在面板构建产物存在时同源托管 SPA 与静态资源；对非 API 且无文件扩展名的未知路径 MUST 回退到入口 HTML；对 `/api/*`、`/v1/*`、`/healthz` 的未知路径 MUST 返回 JSON 404，不得被回退吞掉；非 API 但带扩展名且文件不存在的请求 MUST 返回 404 JSON，不得回退成 HTML；产物缺失时 MUST 明确提示且不影响公共与管理 API。`[spec-review-amendment R-13]`
 
 #### Scenario: 根路径
 - **WHEN** 构建产物存在且访问 `/`
@@ -218,13 +222,21 @@
 - **WHEN** 访问不存在的 `/api/admin/not-exist`
 - **THEN** 返回 JSON 404，而不是入口 HTML
 
+#### Scenario: 缺失静态资源
+- **WHEN** 访问不存在的 `/assets/not-exist.js`
+- **THEN** 返回 404 JSON，不返回入口 HTML
+
+#### Scenario: 深链接入口
+- **WHEN** 访问 `/accounts` 且构建产物存在
+- **THEN** 返回入口 HTML
+
 #### Scenario: 产物缺失
 - **WHEN** 构建产物不存在且访问 `/`
 - **THEN** 返回明确的未构建提示，`/healthz` 与 `/v1/ocr/image` 仍正常
 
 ### Requirement: R-PANEL-12 前端安全与数据最小化
 
-面板 MUST NOT 把管理员 token、账号凭证或 API Key 明文写入 localStorage、sessionStorage 或 URL；登录后的写请求 MUST 携带 CSRF 头；面板入口与静态资源响应 MUST 带 CSP，所有响应 MUST 带 `X-Content-Type-Options`、`Referrer-Policy` 与 frame 限制头；CSP MUST NOT 允许内联脚本，且 MUST NOT 阻断既有 `/docs`。
+面板 MUST NOT 把管理员 token、账号凭证或 API Key 明文写入 localStorage、sessionStorage 或 URL；登录后的写请求 MUST 携带 CSRF 头；面板入口、静态资源与所有返回入口 HTML 的深链接响应 MUST 带 CSP，所有响应 MUST 带 `X-Content-Type-Options`、`Referrer-Policy` 与 frame 限制头；CSP MUST NOT 允许内联脚本，且 MUST NOT 阻断既有 `/docs`。`[spec-review-amendment R-36]`
 
 #### Scenario: 不持久化敏感值
 - **WHEN** 管理员登录并创建 Key
@@ -235,7 +247,7 @@
 - **THEN** 请求包含与 CSRF cookie 一致的 `X-CSRF-Token`
 
 #### Scenario: 安全响应头
-- **WHEN** 请求面板入口
+- **WHEN** 请求面板入口或任意返回入口 HTML 的深链接
 - **THEN** 响应包含 CSP、`X-Content-Type-Options: nosniff`、`Referrer-Policy` 与 frame 限制头
 
 #### Scenario: API 安全头

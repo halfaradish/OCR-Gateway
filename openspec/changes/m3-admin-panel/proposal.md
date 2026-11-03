@@ -12,9 +12,10 @@
 - 补齐面板数据面：新增 `GET /api/admin/overview` 与 `GET /api/admin/usage/series`；扩展 `GET /api/admin/usage/summary`（平均延迟与筛选）、`GET /api/admin/logs`（时间过滤与总数）、`GET /api/admin/accounts`（当前周期已用配额）。
 - 同源静态托管：FastAPI 在存在构建产物时挂载 `/assets` 并对非 API 的 GET 路径回退 `index.html`；增加 CSP、`X-Content-Type-Options`、`Referrer-Policy`、`X-Frame-Options` 安全头。
 - 镜像与部署：`Dockerfile` 增加 Node 构建阶段，`NPM_REGISTRY` 构建参数与 `UV_DEFAULT_INDEX` 同模式；`docker-compose.yml` 传递该参数；README 与 `.env.example` 更新面板入口、前端开发与构建说明。
+- 发布与回滚：M3 镜像版本升 `0.2.0`，保持 `0.1.0` tag 不可变；回滚用 `scripts/rollback.sh` 恢复部署前 DB 备份。`[spec-review-amendment R-01]`
 - 仓库卫生：`.zcode/` 加入 `.gitignore`（人 2026-11-04 拍板）。
 
-无破坏性变更：Bearer 管理鉴权继续可用，`/docs` 与 curl 工作流不受影响；新增的响应字段与端点均为增量。
+无破坏性变更：Bearer 管理鉴权继续可用；curl 工作流不受影响；`/docs` 在本次补 HTTPBearer security scheme 后 Authorize 可用（当前实测无 securitySchemes）。新增的响应字段与端点均为增量。`[spec-review-amendment R-49]`
 
 ## Success Metrics
 
