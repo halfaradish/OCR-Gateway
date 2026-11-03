@@ -32,8 +32,8 @@
         ],
         "layers": {
           "quality": {
-            "full": "pnpm --dir frontend lint && pnpm --dir frontend typecheck && pnpm --dir frontend build",
-            "count_regex": "^(?!frontend)x",
+            "full": "pnpm --dir frontend lint && pnpm --dir frontend typecheck && pnpm --dir frontend build && echo \"frontend quality gates passed: 3\"",
+            "count_regex": "quality gates passed: (\\d+)",
             "timeout_sec": 900
           }
         }
