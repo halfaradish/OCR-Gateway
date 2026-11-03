@@ -70,9 +70,15 @@ def _panel_missing(request: Request) -> JSONResponse:
     )
 
 
-def _index_response(index_bytes: bytes) -> Response:
+def _index_response(index_path: Path, fallback: bytes) -> Response:
+    # Read per request: a rebuild must not leave the process serving an HTML shell that
+    # references hashed assets this build already deleted.
+    try:
+        content = index_path.read_bytes()
+    except OSError:
+        content = fallback
     return Response(
-        content=index_bytes,
+        content=content,
         media_type="text/html; charset=utf-8",
         headers={"Cache-Control": "no-store"},
     )
@@ -120,13 +126,13 @@ def register_panel(app: FastAPI, dist_dir: Path) -> bool:
         if _looks_like_api(path):
             raise ApiError(404, "NOT_FOUND", "not found")
         if Path(path).name == "index.html":
-            return _index_response(index_bytes)
+            return _index_response(index_path, index_bytes)
         candidate = _resolve_within(dist, path)
         if candidate is not None:
             return FileResponse(candidate, headers={"Cache-Control": ROOT_FILE_CACHE})
         # A missing asset must not be answered with the HTML shell.
         if Path(path).suffix:
             raise ApiError(404, "NOT_FOUND", "not found")
-        return _index_response(index_bytes)
+        return _index_response(index_path, index_bytes)
 
     return True

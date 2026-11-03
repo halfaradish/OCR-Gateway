@@ -205,7 +205,7 @@ def _build_dist(tmp_path: Path) -> Path:
     dist = tmp_path / "dist"
     (dist / "assets").mkdir(parents=True)
     (dist / "index.html").write_text(
-        '<!doctype html><html><body><div id="root"></div>'
+        '<!doctype html><html><body><div id="root" data-build="v1"></div>'
         '<script src="/assets/app.js"></script></body></html>',
         encoding="utf-8",
     )
@@ -250,6 +250,24 @@ async def test_panel_serves_entry_assets_and_fallbacks(app_factory, settings, tm
         assert response.headers["content-type"].startswith("application/json")
 
     assert (await client.get("/healthz")).status_code == 200
+
+
+async def test_panel_index_is_reread_after_rebuild(app_factory, settings, tmp_path) -> None:
+    dist = _build_dist(tmp_path)
+    configured = settings.test_overrides(frontend_dist=str(dist))
+    _app, client = await app_factory(configured)
+
+    version_one = (await client.get("/")).content
+    assert b"v1" in version_one
+
+    # Simulate `vite build` replacing the shell while the process keeps running.
+    (dist / "index.html").write_text(
+        '<!doctype html><html><body><div id="root" data-build="v2"></div>'
+        '<script src="/assets/app.js"></script></body></html>',
+        encoding="utf-8",
+    )
+    version_two = (await client.get("/")).content
+    assert b"v2" in version_two and version_two != version_one
 
 
 def test_resolve_within_rejects_traversal(tmp_path: Path) -> None:
