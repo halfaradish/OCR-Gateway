@@ -7,7 +7,8 @@ ship-gate:
 # 需求核对 · docker-deploy-e2e
 
 > ⚠️ 单 session 自证：测试由主 session 触发；同模型、不同上下文，非独立验证。
-> 证据: verify-evidence-closeout.json @ base=2620307 head=f447a77；verify-evidence-retest.json @ head=87eac81
+> 证据: verify-evidence-closeout.json @ base=2620307 head=4ee0da1（归档提交，含代码审修复）；
+> verify-evidence-retest.json @ base=2620307 head=87eac81（归档前、代码审修复后的重跑）
 
 核对口径：不信任复选框与既有报告措辞，逐条对照 `tasks.md`、`specs/deployment/spec.md`（R-DEP-01..08）
 与 delta 引用的既有能力需求（R-ADM/R-API/R-CAC/R-QTA/R-SCH）；每条 ✅ 附可机验锚点。
@@ -50,6 +51,9 @@ ship-gate:
 - 归档前 delta 核对：`delta-sync.json`（pre-archive）`ok=false`，原因是 `deployment` 为**新能力**、
   `openspec/specs/deployment/spec.md` 尚未存在——主 spec 由随后 `openspec archive` 同步生成；
   归档后已重跑核对并置 `ok=true`（见归档提交）。
+- 证据重生成：首次 closeout 以 `--head HEAD` 运行，证据 `head` 字段记录了字面量 `HEAD`，被 gate 判
+  非法；遂在归档提交（`4ee0da1`）上重跑 closeout 并把 `head` 写为实际 SHA；retest 证据保留其运行
+  SHA（`87eac81`）并同步修正 `head` 字段。两次运行均为真实执行（unit 152 passed）。
 
 ## 结论
 

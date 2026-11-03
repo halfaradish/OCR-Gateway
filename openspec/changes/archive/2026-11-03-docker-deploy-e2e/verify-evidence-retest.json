@@ -3,7 +3,7 @@
   "change": "docker-deploy-e2e",
   "mode": "retest",
   "base": "262030784e71f9f37ef8579c0eb0b74accd3e6fc",
-  "head": "HEAD",
+  "head": "87eac81de5f0f8f653b76efa53e14e7d47d39315",
   "generated_at": "2026-11-03T07:16:41.318747+00:00",
   "clean_tree": true,
   "dirty_paths": [],
