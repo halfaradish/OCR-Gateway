@@ -82,14 +82,14 @@
 
 验收标准：
 
-- [ ] [e2e] 镜像已构建前提下清空数据卷，`docker compose up -d` 到 `healthy` 且 `/healthz` 200 的总耗时 ≤90s，记录时间戳
-- [ ] [e2e] 经 `POST /api/admin/login` 取 token → 建成员 → 建 Key（明文只出现一次）→ 建百度与腾讯账号（真实凭证经环境注入，不写入任何文件）；`GET /api/admin/accounts` 返回两家且不含明文凭证
-- [ ] [e2e] 用真 Key 分别提交 multipart 文件、base64、公网 `image_url`（`https://baidu-ai.bj.bcebos.com/ocr/general.png`）：三次均 200 且 `text` 非空、`lines` 为非空数组，记录每次 `text` 片段与 `latency_ms`
-- [ ] [e2e] 重复提交同一图片且 `language`/`provider` 不变：第二次 `cached=true` 且 `quota.used=0`
-- [ ] [e2e] `GET /api/admin/usage/summary` 与 `GET /api/admin/logs` 反映本次调用（成功计数 +1、缓存命中 +0），日志不含 OCR 原文
-- [ ] [e2e] 禁用全部百度账号后请求 `provider=baidu`：返回错误而非由腾讯完成
-- [ ] [e2e] 禁用全部百度账号后请求 `provider=auto`：由腾讯账号完成，响应 `provider` 为 `tencent`
-- [ ] 验收证据写入本 change 目录（命令、时间戳、响应片段、镜像扫描结果、`docker inspect` 健康状态），逐条对应上述场景；证据中不含任何密钥明文，编排解析输出只保留过滤后的非敏感字段
+- [x] [e2e] 镜像已构建前提下清空数据卷，`docker compose up -d` 到 `healthy` 且 `/healthz` 200 的总耗时 ≤90s，记录时间戳
+- [x] [e2e] 经 `POST /api/admin/login` 取 token → 建成员 → 建 Key（明文只出现一次）→ 建百度与腾讯账号（真实凭证经环境注入，不写入任何文件）；`GET /api/admin/accounts` 返回两家且不含明文凭证
+- [x] [e2e] 用真 Key 分别提交 multipart 文件、base64、公网 `image_url`（`https://baidu-ai.bj.bcebos.com/ocr/general.png`）：三次均 200 且 `text` 非空、`lines` 为非空数组，记录每次 `text` 片段与 `latency_ms`
+- [x] [e2e] 重复提交同一图片且 `language`/`provider` 不变：第二次 `cached=true` 且 `quota.used=0`
+- [x] [e2e] `GET /api/admin/usage/summary` 与 `GET /api/admin/logs` 反映本次调用（成功计数 +1、缓存命中 +0），日志不含 OCR 原文
+- [x] [e2e] 禁用全部百度账号后请求 `provider=baidu`：返回错误而非由腾讯完成
+- [x] [e2e] 禁用全部百度账号后请求 `provider=auto`：由腾讯账号完成，响应 `provider` 为 `tencent`
+- [x] 验收证据写入本 change 目录（命令、时间戳、响应片段、镜像扫描结果、`docker inspect` 健康状态），逐条对应上述场景；证据中不含任何密钥明文，编排解析输出只保留过滤后的非敏感字段
 
 ### Task 6: 实现验证（收尾）
 
