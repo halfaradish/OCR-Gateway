@@ -14,12 +14,12 @@
 
 验收标准：
 
-- [ ] 构建上下文不含 `.env`、`data/`、`docs/`、`openspec/`、测试代码、虚拟环境与各类缓存目录；可经构建日志或上下文清单核对
-- [ ] 以可达镜像索引为参数执行构建成功，依赖层只依赖依赖清单与锁文件，安装版本与锁文件一致（导出计 38 个 `==` 锁定项）
-- [ ] 镜像内 `python -c "import app; print(app.__version__)"` 输出 `0.1.0`
-- [ ] 镜像内 `python -c "import pytest"` 以非零退出（无 dev 依赖），且镜像内不存在 `tests` 目录
-- [ ] 对停止态镜像/镜像层做凭证扫描：`MASTER_KEY`、`ADMIN_PASSWORD`、百度与腾讯密钥的实际取值出现 0 次，镜像历史无 `ENV MASTER_KEY` / `ENV ADMIN_PASSWORD`
-- [ ] 镜像大小 ≤ 400MB，`RepoTags` 含 `ocr-gateway:0.1.0` 与 `ocr-gateway:latest`，平台为 `linux/amd64`
+- [x] 构建上下文不含 `.env`、`data/`、`docs/`、`openspec/`、测试代码、虚拟环境与各类缓存目录；可经构建日志或上下文清单核对
+- [x] 以可达镜像索引为参数执行构建成功，依赖层只依赖依赖清单与锁文件，安装版本与锁文件一致（导出计 38 个 `==` 锁定项）
+- [x] 镜像内 `python -c "import app; print(app.__version__)"` 输出 `0.1.0`
+- [x] 镜像内 `python -c "import pytest"` 以非零退出（无 dev 依赖），且镜像内不存在 `tests` 目录
+- [x] 对停止态镜像/镜像层做凭证扫描：`MASTER_KEY`、`ADMIN_PASSWORD`、百度与腾讯密钥的实际取值出现 0 次，镜像历史无 `ENV MASTER_KEY` / `ENV ADMIN_PASSWORD`
+- [x] 镜像大小 ≤ 400MB，`RepoTags` 含 `ocr-gateway:0.1.0` 与 `ocr-gateway:latest`，平台为 `linux/amd64`
 
 ### Task 2: 启动契约（S2）
 

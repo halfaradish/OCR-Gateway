@@ -1,0 +1,19 @@
+# 构建上下文排除：凭证、本地数据、开发与文档产物（容器镜像只需运行期内容）
+.git
+.gitignore
+**/.venv
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.ruff_cache
+**/.mypy_cache
+**/tests
+**/data
+**/*.db
+**/*.db-wal
+**/*.db-shm
+openspec
+docs
+.env
+.env.*
+!.env.example
