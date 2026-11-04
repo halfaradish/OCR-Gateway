@@ -19,14 +19,14 @@
 
 ## Success Metrics
 
-- **云全挂兜底成功率** — 基准 0%（当前返回 503）→ 目标：本地已启用且 worker 就绪时，≤2000px 的截图 100% 返回 200 或明确 504 → 度量：集成测试（停用/移除全部云账号）+ 手工验收。
-- **本地识别延迟** — 基准 无（未实现）→ 目标：热调用 p95 ≤3s（本机 900×220 实测 0.49s）→ 度量：状态接口 `last_latency_ms`、单元/基准测试与镜像冒烟。
-- **镜像启动不回归** — 目标：0.3.0 镜像在无外网环境启动，开启开关后 worker 30s 内进入 `ready` → 度量：镜像冒烟脚本读 `/api/admin/local-ocr/status`。
+- **云全挂兜底成功率** — 基准 0%（当前返回 503）→ 目标：本地已启用且 worker 就绪时，最长边 ≤2000px 的截图 ≥95% 返回 200 且 `provider="local"`；504/5xx 单独计失败并留样（`[spec-review-amendment R-16]`）→ 度量：集成测试（停用/移除全部云账号）+ 手工验收。
+- **本地识别延迟** — 基准 无（未实现）→ 目标：热调用 p95 ≤3s（本机 900×220 实测 0.49s）→ 度量：固定 N 次（≥30）基准脚本计算 p95 + 镜像冒烟；不使用 `last_latency_ms` 单样本。
+- **镜像启动不回归** — 目标：0.3.0 镜像在无外网环境启动，开启开关后 worker ≤10s 进入 `ready`（目标 ≤5s）→ 度量：镜像冒烟脚本读 `/api/admin/local-ocr/status`。
 
 ## Non-Goals
 
 - **不做模型下载/自定义模型目录/多语言模型** — 可证伪假设：rapidocr 3.10 内置 PP-OCRv6 small 对中文截图与中英混排足够好（本机实测 score 0.975）；若真实业务截图准确率明显不足，再另开 change 引入语言模型下载。
-- **不做本地独立配额/限流** — 可证伪假设：本地只在云全挂时承接兜底流量，且默认并发 1；若观测到本地 CPU 被持续打满，再引入本地限额。
+- **不做本地独立配额/限流** — 可证伪假设：自动兜底只在云全挂时触发，显式 `provider=local` 仅受 Key RPM 与全局并发约束（默认本地并发 1）；若观测到本地 CPU 被持续打满，再引入本地限额（`[spec-review-amendment R-15]`）。
 - **不做本地账号管理/多并发调优/GPU** — 可证伪假设：兜底场景不需要与云同等吞吐；并发保留 env 旋钮即可。
 - **不做多实例开关广播** — 可证伪假设：v1 强制单 worker（R-DEP-06），不存在多进程读到不同开关的情况。
 - **不做批量接口/PDF/结构化识别** — 既有 Non-Goals，不在 M4 扩大。
@@ -63,13 +63,14 @@
 - `ocr-api`: `provider` 枚举与 local 语义、local 成功/失败响应与 `quota.used`、`/v1/providers` 条目。
 - `account-pool-scheduling`: `auto` 兜底本地的触发条件与云阶段预算预留。
 - `quota-accounting`: 本地事件的记账口径（quota_used=0、account_id 为空）。
+- `result-cache`: provider 可用性门禁先于缓存命中；本地开关切换时清缓存（`[spec-review-amendment R-02]`）。
 - `admin-api`: 运行时设置新增 `local_ocr_enabled`；新增 local OCR 状态端点。
 - `admin-panel`: 设置页本地 OCR 开关与状态展示。
 - `deployment`: 运行镜像内置 local extra；新版本 tag 与回滚锚点。
 
 ## Impact
 
-- **代码**：`backend/app/workers/local_ocr.py`（新）、`core/scheduler.py`、`api/public.py`、`api/admin.py`、`utils/images.py`、`runtime_settings.py`、`config.py`、`main.py`、`state.py`、`models.py`、`providers/base.py`；前端 `settings-page.tsx`、`types.ts`、`lib/providers.ts`、日志/用量页筛选。
+- **代码**：`backend/app/workers/local_ocr.py`（新）、`core/local_engine.py`（新）、`core/scheduler.py`、`core/cache.py`（门禁/清理）、`api/public.py`、`api/admin.py`、`utils/images.py`、`runtime_settings.py`、`config.py`、`main.py`、`state.py`、`models.py`、`providers/base.py`；前端 `settings-page.tsx`、`usage-page.tsx`、`logs-page.tsx`、`types.ts`、`lib/providers.ts`。
 - **API**：`/v1/ocr/image`（provider 语义）、`/v1/providers`、`/api/admin/settings`、`/api/admin/local-ocr/status`。
 - **DB**：新增迁移 `0003`（放宽 `ck_usage_provider`）。
 - **依赖**：`rapidocr>=3.10,<4`、`onnxruntime>=1.20`（optional extra `local`）；`uv.lock` 重新解析。

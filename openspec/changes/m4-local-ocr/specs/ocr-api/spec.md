@@ -3,7 +3,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: R-API-01 单张图片识别
-系统 SHALL 接受 multipart 文件或 JSON base64 二选一，将图片交给调度器识别并返回归一化结果；同一请求同时提供两种输入 MUST 返回 400。`language` 只接受 `zh`（默认）/`en`/`auto`，其它值 MUST 返回 400，并按厂商映射表传给适配器。`provider` 只接受 `auto`（默认）/`baidu`/`tencent`/`local`；显式 `local` 在本地 OCR 未启用或依赖不可用时 MUST 返回 403 `FORBIDDEN`，其它未知值 MUST 返回 400 `BAD_REQUEST`。`[spec-review-amendment D4]` `[m4-local-ocr]`
+系统 SHALL 接受 multipart 文件或 JSON base64 二选一，将图片交给调度器识别并返回归一化结果；同一请求同时提供两种输入 MUST 返回 400。`language` 只接受 `zh`（默认）/`en`/`auto`，其它值 MUST 返回 400，并按厂商映射表传给适配器。`provider` 只接受 `auto`（默认）/`baidu`/`tencent`/`local`；显式 `local` 在本地 OCR 未启用或依赖不可用时 MUST 返回 403 `FORBIDDEN`，其它未知值 MUST 返回 400 `BAD_REQUEST`。该 403 判定 MUST 先于缓存读取；缓存 MUST NOT 让已禁用的 local 返回成功结果。`[spec-review-amendment D4/R-02]` `[m4-local-ocr]`
 
 #### Scenario: multipart 识别成功
 - **WHEN** 客户端携带 Bearer Key 上传 `file` 且未指定 provider
@@ -25,6 +25,10 @@
 - **WHEN** 请求 `provider=local` 且本地 OCR 未启用或依赖不可用
 - **THEN** 系统返回 403 `FORBIDDEN`，不调用任何厂商
 
+#### Scenario: 禁用后缓存不绕过
+- **WHEN** 先在启用状态缓存一张 local 结果，再关闭本地开关并重新请求同一图片与 provider
+- **THEN** 返回 403 `FORBIDDEN`，不返回旧的缓存 200；auto 请求不返回 `provider="local"` 的缓存结果
+
 #### Scenario: 不支持的 provider
 - **WHEN** 请求的 `provider` 不在 `auto`、`baidu`、`tencent`、`local` 之内
 - **THEN** 系统返回 400 `BAD_REQUEST`，不调用任何厂商
@@ -34,7 +38,7 @@
 - **THEN** 系统返回 400 `BAD_REQUEST`，不调用任何厂商
 
 ### Requirement: R-API-03 图片规范化
-系统 SHALL 用 Pillow 校验真实图片内容并只接受 JPEG/PNG/BMP；入口上限 10MB（按解码后的图片字节数）；MUST 在解码前拒绝 >40M 像素或最长边 >10000 的图片；MUST 按 EXIF 方向旋转，并按厂商限制（百度：base64+urlencode 后 ≤8MB、最短边 ≥15px、最长边 ≤4096px）等比缩放/转 JPEG，仍超限返回 400。`provider=local` 时 MUST 使用原始 JPEG 字节上限（`MAX_UPLOAD_BYTES`）与最长边 10000，MUST NOT 套用 base64 膨胀上限。`[spec-review-amendment D8/D10/D11]` `[m4-local-ocr]`
+系统 SHALL 用 Pillow 校验真实图片内容并只接受 JPEG/PNG/BMP；入口上限 10MB（按解码后的图片字节数）；MUST 在解码前拒绝 >40M 像素或最长边 >10000 的图片；MUST 按 EXIF 方向旋转，并按厂商限制（百度：base64+urlencode 后 ≤8MB、最短边 ≥15px、最长边 ≤4096px）等比缩放/转 JPEG，仍超限返回 400。`provider=local` 时 MUST 同样执行 Pillow 校验、EXIF 旋转与 JPEG 重编码；字节上限 MUST 作用于**重编码后的 JPEG 字节**（`MAX_UPLOAD_BYTES`），最长边 10000，MUST NOT 套用 base64 膨胀上限。`[spec-review-amendment D8/D10/D11/R-30]` `[m4-local-ocr]`
 
 #### Scenario: 超限自动缩放
 - **WHEN** 上传 9MB 的 PNG 且 `provider=auto`
@@ -57,7 +61,7 @@
 - **THEN** 系统按原始字节上限校验并完成识别，不因 base64 膨胀返回 400
 
 ### Requirement: R-API-05 统一响应与错误码
-成功响应 SHALL 含 `request_id`、`provider`、`text`、`lines[{text, confidence}]`、`latency_ms`、`cached`、`quota{unit,used}`、`warnings`；失败响应 SHALL 为 `{"request_id","error":{"code","message"}}` 并遵守约定 HTTP 状态。`quota.used` 对云厂商成功调用为 1，对本地识别成功 MUST 为 0。网关全局并发饱和且等待超过剩余预算时 SHALL 返回 503 `PROVIDER_UNAVAILABLE`（message 标注 gateway at capacity）；本地识别运行失败 SHALL 返回 502 `PROVIDER_ERROR`。`[spec-review-amendment Q5]` `[m4-local-ocr]`
+成功响应 SHALL 含 `request_id`、`provider`、`text`、`lines[{text, confidence}]`、`latency_ms`、`cached`、`quota{unit,used}`、`warnings`；失败响应 SHALL 为 `{"request_id","error":{"code","message"}}` 并遵守约定 HTTP 状态。`quota.used` 对云厂商成功调用为 1，对本地识别成功 MUST 为 0；响应与 `usage_event.quota_used` MUST 由实际 `provider` 派生，MUST NOT 对成功路径硬编码 1。网关全局并发饱和且等待超过剩余预算时 SHALL 返回 503 `PROVIDER_UNAVAILABLE`（message 标注 gateway at capacity）；本地识别运行失败 SHALL 返回 502 `PROVIDER_ERROR`。`[spec-review-amendment Q5/R-04]` `[m4-local-ocr]`
 
 #### Scenario: confidence 可空
 - **WHEN** 实际厂商为百度标准版
@@ -84,7 +88,7 @@
 - **THEN** 返回 503 `PROVIDER_UNAVAILABLE`，message 标注 gateway at capacity
 
 ### Requirement: R-API-06 服务元数据与健康检查
-系统 SHALL 提供 `GET /v1/providers`（厂商与可用账号数，不含凭证）、`GET /v1/me`（当前 Key 的今日用量与限额）、`GET /healthz`（数据库健康）。`/v1/providers` MUST 额外返回 `local` 条目（`code`/`name`/`enabled`，不含账号数），`enabled` 反映本地 OCR 是否启用且安装可用。`[m4-local-ocr]`
+系统 SHALL 提供 `GET /v1/providers`（厂商与可用账号数，不含凭证）、`GET /v1/me`（当前 Key 的今日用量与限额）、`GET /healthz`（数据库健康）。`/v1/providers` MUST 额外返回 `local` 条目（`code`/`name`/`enabled`，不含账号数），`enabled` 反映本地 OCR 是否启用且安装可用（合并语义；不区分两种 false 的原因）。`[spec-review-amendment R-20]` `[m4-local-ocr]`
 
 #### Scenario: providers 不泄露凭证
 - **WHEN** 已配置 2 个百度账号与 1 个腾讯账号
