@@ -2,8 +2,8 @@
 schema_version: 1
 change: m4-local-ocr
 branch: feat/m4-local-ocr
-generated_at: 2026-11-04T21:31:09+08:00
-decision_hash: 83698d4dab99
+generated_at: 2026-11-04T21:40:31+08:00
+decision_hash: a140abd5fb4c
 ---
 
 # 决策纪要 · m4-local-ocr
@@ -37,9 +37,9 @@ decision_hash: 83698d4dab99
 - **C2 依赖可进 `python:3.12-slim`** — 验证方式：`uv lock` 解析出 `onnxruntime 1.31.1 cp312 manylinux_2_28_x86_64`；bookworm glibc 2.36 ≥ 2.28；实测 cv2 5.0.0 + numpy 2.5.4 + ort 1.31.1 组合可跑中文 OCR。**证据锚**：临时 `uv.lock` 的 wheel 列表；临时 venv 版本输出。
 - **C3 冷启动/热调用耗时** — 验证方式：本机实测 import 1.23s + init 0.01s + 首次调用 1.12s（加载模型）+ 二次调用 0.49s（900×220 图）。**证据锚**：`run_ocr.py` 输出 `import_s=1.23 init_s=0.01 cold_call_s=1.12 warm_call_s=0.49`。
 - **C4 调度器没有 local 通路** — 验证方式：`VALID_PROVIDERS` 仅 auto/baidu/tencent；`registry.candidates` 按账号过滤，local 无账号；`ScheduleResult.account_id` 为 `int`。**证据锚**：`backend/app/api/public.py:28`、`backend/app/core/registry.py:153-186`、`backend/app/core/scheduler.py:52-57`、`backend/app/api/public.py:299-302`。
-- **C5 记账口径** — 验证方式：用户日限额按 `sum(UsageEvent.quota_used)` 判定；RPM 由独立令牌桶。**证据锚**：`backend/app/api/deps.py:199-208`、`backend/app/state.py:20-40`、`openspec/specs/quota-accounting/spec.md` R-QUOTA-01。
+- **C5 记账口径** — 验证方式：用户日限额按 `sum(UsageEvent.quota_used)` 判定；RPM 由独立令牌桶。**证据锚**：`backend/app/api/deps.py:199-208`、`backend/app/state.py:20-40`、`openspec/specs/quota-accounting/spec.md` R-QTA-01。
 - **C6 provider 枚举权威源全集（口径一致性）** — 验证方式：全仓 grep `baidu`（不带 `--include`）+ 逐个消费面判「改/不改」。**证据锚**：`grep -rln baidu --exclude-dir=.git --exclude-dir=node_modules ...` 命中文件列表。判定：**改** = `api/public.py`（VALID_PROVIDERS、providers 列表）、`api/admin.py:967`（用量标签）、`providers/base.py:111`（PROVIDER_NAMES 增 local）、`utils/images.py`（local 限额分支）、`frontend/src/types.ts:1`、`lib/providers.ts`、`logs-page.tsx:162-163`、`usage-page` 筛选、`README.md:17`（移除「不做本地 OCR」）；**不改** = `schemas.py:35`（账号创建仅云厂）、`models.py:86` 的 `ck_accounts_provider`、`REQUIRED_CREDENTIALS`、`providers/templates.py`（配额模板）、`api/admin.py:781` overview 硬编码列表。
-- **C7 构建链** — 验证方式：Dockerfile 用 `uv export --frozen --no-dev`，加 extra 必须 `--extra local`；`uv lock` 在本机（`UV_DEFAULT_INDEX`=清华）会把 1795 处源改写成镜像、pypi.org 归零；重解析后既有 53 包版本 0 变化、新增 15 包、URL 路径后缀逐字一致；规范化后 `uv lock --check --offline` 退出 0；`uv export --extra local` 含 rapidocr/onnxruntime。**证据锚**：`backend/Dockerfile` 依赖层命令；临时目录 `m4-uvcheck` 的 diff 与 `uv lock --check --offline` 输出；`openspec/adr/0001-*.md`。
+- **C7 构建链** — 验证方式：Dockerfile 用 `uv export --frozen --no-dev`，加 extra 必须 `--extra local`；`uv lock` 在本机（`UV_DEFAULT_INDEX`=清华）会把 1795 处源改写成镜像、pypi.org 归零；重解析后既有 53 包版本 0 变化、新增 15 包、URL 路径后缀逐字一致；规范化后 `uv lock --check --offline` 退出 0；`uv export --extra local` 含 rapidocr/onnxruntime。**证据锚**：`Dockerfile` 依赖层命令；临时目录 `m4-uvcheck` 的 diff 与 `uv lock --check --offline` 输出；`openspec/adr/0001-*.md`。
 - **C8 设置热更新是单进程语义** — 验证方式：`_apply_settings` 在 commit 后替换 `state.runtime`；启动时 `load_runtime_settings` 合并 env 与 DB。**证据锚**：`backend/app/api/admin.py:1075-1093`、`backend/app/main.py:78-96`、`backend/app/runtime_settings.py:19-46`。
 - **C9 镜像体积** — 验证方式：锁文件 Linux x86_64 wheel 求和 109.4MB 下载（onnxruntime 23.8 + opencv-python-headless 34.8 + numpy 16.7 + rapidocr 27.3 + 其余 6.8）。**证据锚**：临时 `uv.lock` 的 `size` 字段求和。
 
