@@ -291,18 +291,21 @@ export default function SettingsPage() {
                     云厂商全部不可用时由本地 RapidOCR 兜底；关闭后 provider=local 返回 403。
                   </p>
                 </div>
-                <Controller
-                  control={form.control}
-                  name="local_ocr_enabled"
-                  render={({ field }) => (
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                      disabled={statusQuery.data?.installed === false}
-                      aria-label="启用本地 OCR"
-                    />
-                  )}
-                />
+                <div className="flex flex-col items-end gap-1">
+                  <Controller
+                    control={form.control}
+                    name="local_ocr_enabled"
+                    render={({ field }) => (
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        disabled={statusQuery.data?.installed === false}
+                        aria-label="启用本地 OCR"
+                      />
+                    )}
+                  />
+                  <FieldError>{errors.local_ocr_enabled?.message}</FieldError>
+                </div>
               </div>
               <div className="mt-3">
                 {statusQuery.isPending ? (

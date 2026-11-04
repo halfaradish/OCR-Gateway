@@ -322,7 +322,9 @@ async def ocr_image(
             image_hash_value=image_digest,
         )
         raise ApiError(
-            exc.status_code, exc.code, _LOCAL_ERROR_COPY.get(exc.code, exc.message)
+            exc.status_code,
+            exc.code,
+            _LOCAL_ERROR_COPY.get(exc.code, "本地 OCR 运行失败。请稍后重试。"),
         ) from exc
     except InputError as exc:
         latency = int((time.monotonic() - started) * 1000)

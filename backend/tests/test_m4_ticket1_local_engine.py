@@ -139,6 +139,35 @@ async def test_timeout_terminates_pool_and_leaves_starting_state() -> None:
     await engine.shutdown()
 
 
+async def test_recognize_recovers_after_timeout() -> None:
+    never_ready = FakePool(run=FakeResult(ready=False))
+    healthy = FakePool()
+    created: list[FakePool] = []
+
+    def factory(_max_workers: int) -> FakePool:
+        pool = never_ready if not created else healthy
+        created.append(pool)
+        return pool
+
+    engine = LocalEngine(
+        enabled=True,
+        installed=True,
+        timeout_ms=5000,
+        pool_factory=factory,
+    )
+    await engine.start()
+    await _wait_state(engine, "ready")
+
+    with pytest.raises(LocalTimeout):
+        await engine.recognize(b"img", "zh", time.monotonic() + 0.15)
+
+    await _wait_state(engine, "ready")
+    result = await engine.recognize(b"img", "zh", time.monotonic() + 5)
+    assert result.text == "hello"
+    assert created == [never_ready, healthy]
+    await engine.shutdown()
+
+
 async def test_rebuilt_pool_cancels_in_flight_request() -> None:
     pending = FakeResult(ready=False)
     pool = FakePool(run=pending)
@@ -160,6 +189,48 @@ async def test_rebuilt_pool_cancels_in_flight_request() -> None:
 
     with pytest.raises(LocalCancelled):
         await task
+    await engine.shutdown()
+
+
+async def test_disable_during_warmup_stays_stopped() -> None:
+    pool = FakePool(warmup=FakeResult(ready=False))
+    engine = LocalEngine(
+        enabled=True,
+        installed=True,
+        warmup_timeout_ms=5000,
+        pool_factory=_factory(pool),
+    )
+    await engine.start()
+    assert engine.status()["state"] == "starting"
+
+    await engine.set_enabled(False)
+    await asyncio.sleep(0.1)
+
+    assert engine.status()["state"] == "stopped"
+    assert engine.status()["enabled"] is False
+    await engine.shutdown()
+
+
+async def test_waiting_request_fails_fast_when_warmup_errors() -> None:
+    warmup = FakeResult(value=False, ready=False)
+    pool = FakePool(warmup=warmup)
+    engine = LocalEngine(
+        enabled=True,
+        installed=True,
+        warmup_timeout_ms=5000,
+        pool_factory=_factory(pool),
+    )
+    await engine.start()
+    assert engine.status()["state"] == "starting"
+
+    started = time.monotonic()
+    task = asyncio.create_task(engine.recognize(b"img", "zh", time.monotonic() + 5))
+    await asyncio.sleep(0.05)
+    warmup.ready_flag = True
+
+    with pytest.raises(LocalOcrError):
+        await task
+    assert time.monotonic() - started < 1.0
     await engine.shutdown()
 
 

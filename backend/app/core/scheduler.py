@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import time
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -17,6 +18,8 @@ from app.providers.base import (
     ProviderAdapter,
     RetryableError,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class LocalEngineLike(Protocol):
@@ -115,6 +118,14 @@ class Scheduler:
                 remaining_ms = (deadline - time.monotonic()) * 1000.0
                 if remaining_ms < self._min_budget_ms:
                     raise cloud_error
+                logger.info(
+                    "local_ocr.fallback",
+                    extra={
+                        "extra_fields": {
+                            "from_reason": cloud_error.__class__.__name__,
+                        }
+                    },
+                )
                 return await self._recognize_local(
                     image, language, deadline, fallback=True
                 )

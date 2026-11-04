@@ -28,6 +28,7 @@ SPAWN_CONTEXT = multiprocessing.get_context("spawn")
 _PATH_RE = re.compile(r"(?:[A-Za-z]:\\[^\s'\"]+|/[^\s'\"]+\.onnx)")
 _READY_WAIT_SECONDS = 10.0
 _POLL_INTERVAL_SECONDS = 0.02
+_TERMINATE_TIMEOUT_SECONDS = 5.0
 _MODEL_INFO = {
     "engine": "onnxruntime",
     "family": "PP-OCRv6",
@@ -192,12 +193,18 @@ class LocalEngine:
             return
         except Exception as exc:  # noqa: BLE001 - surface through status
             await self._terminate_pool()
+            # [impl-review-fix] A disable during warmup must win; do not overwrite
+            # `stopped` with `error` after the user turned the switch off.
+            if not self._enabled:
+                return
             self._mark_error(exc)
             return
         if generation != self._generation:
             return
         if not ok:
             await self._terminate_pool()
+            if not self._enabled:
+                return
             self._mark_error("warmup produced no text")
             return
         self._state = "ready"
@@ -219,7 +226,9 @@ class LocalEngine:
             message = str(exc) or exc.__class__.__name__
         self._last_error = _sanitize_error(message)
         self._state = "error"
-        self._ready.clear()
+        # Wake requests already waiting on `starting` so they fail fast instead of
+        # burning the full ready-wait budget on an engine that will not become ready.
+        self._ready.set()
         self._next_retry_at = time.monotonic() + self._retry_interval_ms / 1000.0
         logger.warning(
             "local_ocr.failed",
@@ -236,7 +245,14 @@ class LocalEngine:
             pool.terminate()
             pool.join()
 
-        await asyncio.to_thread(_kill)
+        try:
+            await asyncio.wait_for(
+                asyncio.to_thread(_kill), timeout=_TERMINATE_TIMEOUT_SECONDS
+            )
+        except TimeoutError:
+            # [impl-review-fix] Do not let a wedged native worker block the request
+            # path or application shutdown; compose's grace period is 25s.
+            logger.warning("local_ocr.terminate_timeout")
 
     async def shutdown(self) -> None:
         task = self._warmup_task
@@ -309,6 +325,14 @@ class LocalEngine:
             payload = await self._run_in_pool(
                 local_ocr.run_ocr, (image, language), timeout_s, generation
             )
+        except LocalTimeout:
+            # [impl-review-fix] `_run_in_pool` terminated the stuck pool and moved to
+            # `starting`; without a new warmup task every later request would wait for an
+            # event nobody sets.
+            if self._enabled:
+                self._spawn_warmup()
+            self._last_latency_ms = int((time.monotonic() - started) * 1000)
+            raise
         except LocalOcrError:
             self._last_latency_ms = int((time.monotonic() - started) * 1000)
             raise
