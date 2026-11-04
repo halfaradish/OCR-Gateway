@@ -130,6 +130,74 @@
         "design"
       ],
       "fp": "b91d4ba15ef9fe9ba4c3ba93b1933b9a9a5225ca97c0277237df32e182b700c7"
+    },
+    {
+      "n": 3,
+      "at": "2026-11-04T23:03:36+08:00",
+      "event": "拍板后二次修订与回写锚",
+      "docs": {
+        "spec-review-report": {
+          "path": "openspec/changes/m4-local-ocr/spec-review-report.md",
+          "sha256": "e6451dffb19355f5fa7679ba6f7225cc0176eba5bfde6e00c6d9e7847bf4940e"
+        },
+        "proposal": {
+          "path": "openspec/changes/m4-local-ocr/proposal.md",
+          "sha256": "0b009003254296e7f6053c322c1c41250f520480e5f35ca6e14f40daf6a02cd0"
+        },
+        "design": {
+          "path": "openspec/changes/m4-local-ocr/design.md",
+          "sha256": "0b1f888eee00cbe9f1bf34a6a34422e36613dc3bdcee30aa679c58a0e758597a"
+        },
+        "spec:account-pool-scheduling": {
+          "path": "openspec/changes/m4-local-ocr/specs/account-pool-scheduling/spec.md",
+          "sha256": "05b498e54ad4c87e0511d2970f5b672ef43705898d3427f0c5c0cba575691430"
+        },
+        "spec:admin-api": {
+          "path": "openspec/changes/m4-local-ocr/specs/admin-api/spec.md",
+          "sha256": "36b03d46df5753de3692938863c146a0717c29ec84d590a62e0cae40f635e7e3"
+        },
+        "spec:admin-panel": {
+          "path": "openspec/changes/m4-local-ocr/specs/admin-panel/spec.md",
+          "sha256": "f9b2392c0587f573d112b8d99b0ab429b76f080592176e5f06f1032ef98dce51"
+        },
+        "spec:deployment": {
+          "path": "openspec/changes/m4-local-ocr/specs/deployment/spec.md",
+          "sha256": "04f2a0df875c1fccb43cc0e2673d182cd3b0044d3a0512d5ef3eead5b2b1761d"
+        },
+        "spec:local-ocr": {
+          "path": "openspec/changes/m4-local-ocr/specs/local-ocr/spec.md",
+          "sha256": "025b3ba1a1cbe8e8a43655fa49d63357cd24b9773c3c8f6a984e8462694ab3b2"
+        },
+        "spec:ocr-api": {
+          "path": "openspec/changes/m4-local-ocr/specs/ocr-api/spec.md",
+          "sha256": "53f3d9f89526e47741768f7634ee9a2a652358fa7b71e6e5377f2c1ff25559bd"
+        },
+        "spec:quota-accounting": {
+          "path": "openspec/changes/m4-local-ocr/specs/quota-accounting/spec.md",
+          "sha256": "0437c482a1c05737d465fb9ad7f8b685b82e373930a15680319befffacda9bda"
+        },
+        "spec:result-cache": {
+          "path": "openspec/changes/m4-local-ocr/specs/result-cache/spec.md",
+          "sha256": "ff5216dc6f3ae174870c5f80b95258a6a8859fefb9c72674cdee359f128e23fe"
+        },
+        "tasks": {
+          "path": "openspec/changes/m4-local-ocr/tasks.md",
+          "sha256": "38558f6c9cd17e10021d35d0836591fc8a0a8ba29eb36d1b8f6c07acb09af7d4"
+        },
+        "decision-memo": {
+          "path": "openspec/changes/m4-local-ocr/decision-memo.md",
+          "sha256": "f250a5979aba949723d877f6c5caf3739b4ee9b338c256dbb18c4f5c9ff7f2f5"
+        }
+      },
+      "notes": 0,
+      "dispositions": 0,
+      "changed": [
+        "spec-review-report",
+        "design",
+        "spec:admin-api",
+        "tasks"
+      ],
+      "fp": "bfe726f5dcca5643a6d9cbecc9e1667dc2db6742db53d12933c2b631ec39fc72"
     }
   ]
 }
