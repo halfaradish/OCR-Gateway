@@ -213,6 +213,7 @@ async def test_get_settings_defaults_and_readonly(client, admin_headers) -> None
         "cache_max_entries": 1000,
         "request_deadline_ms": 20000,
         "default_timeout_ms": 8000,
+        "local_ocr_enabled": False,
     }
     readonly = body["readonly"]
     assert readonly["api_auth_enabled"] is True

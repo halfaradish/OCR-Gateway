@@ -25,6 +25,7 @@ class RuntimeSettings:
     cache_max_entries: int
     request_deadline_ms: int
     default_timeout_ms: int
+    local_ocr_enabled: bool
 
     @classmethod
     def from_config(cls, config: Settings) -> RuntimeSettings:
@@ -34,6 +35,7 @@ class RuntimeSettings:
             cache_max_entries=config.cache_max_entries,
             request_deadline_ms=config.request_deadline_ms,
             default_timeout_ms=config.default_timeout_ms,
+            local_ocr_enabled=config.local_ocr_enabled,
         )
 
     def as_dict(self) -> dict[str, Any]:
@@ -43,6 +45,7 @@ class RuntimeSettings:
             "cache_max_entries": self.cache_max_entries,
             "request_deadline_ms": self.request_deadline_ms,
             "default_timeout_ms": self.default_timeout_ms,
+            "local_ocr_enabled": self.local_ocr_enabled,
         }
 
 
@@ -62,6 +65,13 @@ FIELD_RULES: dict[str, FieldRule] = {
         minimum=None,
         maximum=None,
         type_message="缓存开关必须是布尔值。",
+        range_message="",
+    ),
+    "local_ocr_enabled": FieldRule(
+        kind=bool,
+        minimum=None,
+        maximum=None,
+        type_message="本地 OCR 开关必须是布尔值。",
         range_message="",
     ),
     "cache_ttl_seconds": FieldRule(

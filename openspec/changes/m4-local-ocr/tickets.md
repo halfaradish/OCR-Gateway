@@ -14,12 +14,12 @@ warmup/超时/重建/退避与计数可被 fake pool 单测覆盖。对应 T1。
 
 **验收标准**
 
-- [ ] `backend/pyproject.toml` 的 `[project.optional-dependencies].local` 可安装；装好 extra 的环境可 `import rapidocr, onnxruntime`；`uv lock --check --offline` 通过，`uv export --frozen --no-dev --no-emit-project --extra local` 含两包；worker 识别路径不发起网络请求（禁止 socket/断网测试或日志断言）。
-- [ ] worker `run_ocr(bytes, language)` 返回 `text`（行以换行连接）与 `lines[{text, confidence}]`（confidence 0–1）；成功但无文本返回空 `text` + `EMPTY_TEXT` 警告；worker 模块不导入 `app.state`/`app.main`/`app.config`，可被 spawn 单独导入。
-- [ ] `LocalEngine` 状态机覆盖 `stopped/starting/ready/error/unavailable`；依赖缺失 → `unavailable` 且不建池；warmup 用含文字小图并断言返回非空，warmup 有超时，失败 → `error` + 脱敏 `last_error` + `next_retry_in_ms`；`set_enabled` 幂等（ready/starting 重复 true 不建第二个池）；enable/disable/rebuild 的 generation 丢弃迟到回调；lifespan 按注入的 `local_ocr_enabled` 恢复建池。
-- [ ] 单次超时通过 `terminate()` 回收整个池（不是只 cancel future），连续 N 次超时后子进程数不超过并发上限；worker 崩溃后下一次请求可重建并成功；因重建被取消的请求得到可映射的 503/504 错误（不冒泡为 500）。
-- [ ] 进程池用 `multiprocessing.get_context("spawn").Pool`；worker initializer 清除 `MASTER_KEY`/`ADMIN_PASSWORD` 等敏感 env；默认并发 1，`LOCAL_OCR_MAX_CONCURRENCY=2` 时两个任务并行执行。
-- [ ] 测试：fake pool 覆盖状态迁移/超时/取消/退避/重启恢复；真实引擎测试标 `slow`、缺 extra 时 skip；`ruff` + `mypy` 通过；报告记录命令、退出码、用例数与 SHA。
+- [x] `backend/pyproject.toml` 的 `[project.optional-dependencies].local` 可安装；装好 extra 的环境可 `import rapidocr, onnxruntime`；`uv lock --check --offline` 通过，`uv export --frozen --no-dev --no-emit-project --extra local` 含两包；worker 识别路径不发起网络请求（禁止 socket/断网测试或日志断言）。
+- [x] worker `run_ocr(bytes, language)` 返回 `text`（行以换行连接）与 `lines[{text, confidence}]`（confidence 0–1）；成功但无文本返回空 `text` + `EMPTY_TEXT` 警告；worker 模块不导入 `app.state`/`app.main`/`app.config`，可被 spawn 单独导入。
+- [x] `LocalEngine` 状态机覆盖 `stopped/starting/ready/error/unavailable`；依赖缺失 → `unavailable` 且不建池；warmup 用含文字小图并断言返回非空，warmup 有超时，失败 → `error` + 脱敏 `last_error` + `next_retry_in_ms`；`set_enabled` 幂等（ready/starting 重复 true 不建第二个池）；enable/disable/rebuild 的 generation 丢弃迟到回调；lifespan 按注入的 `local_ocr_enabled` 恢复建池。
+- [x] 单次超时通过 `terminate()` 回收整个池（不是只 cancel future），连续 N 次超时后子进程数不超过并发上限；worker 崩溃后下一次请求可重建并成功；因重建被取消的请求得到可映射的 503/504 错误（不冒泡为 500）。
+- [x] 进程池用 `multiprocessing.get_context("spawn").Pool`；worker initializer 清除 `MASTER_KEY`/`ADMIN_PASSWORD` 等敏感 env；默认并发 1，`LOCAL_OCR_MAX_CONCURRENCY=2` 时两个任务并行执行。
+- [x] 测试：fake pool 覆盖状态迁移/超时/取消/退避/重启恢复；真实引擎测试标 `slow`、缺 extra 时 skip；`ruff` + `mypy` 通过；报告记录命令、退出码、用例数与 SHA。
 
 ### Task 2: 公共路由、兜底与迁移
 

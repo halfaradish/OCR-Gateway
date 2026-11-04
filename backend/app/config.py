@@ -69,6 +69,11 @@ class Settings(BaseSettings):
     database_url: str = ""
     default_timeout_ms: int = 8000
     request_deadline_ms: int = 20000
+    local_ocr_enabled: bool = False
+    local_ocr_max_concurrency: int = 1
+    local_ocr_timeout_ms: int = 30000
+    local_ocr_reserve_ms: int = 5000
+    local_ocr_min_budget_ms: int = 1000
     cache_enabled: bool = True
     cache_ttl_seconds: int = 3600
     cache_max_entries: int = 1000
@@ -87,6 +92,12 @@ class Settings(BaseSettings):
         self.master_key_bytes  # noqa: B018 - trigger decode validation
         if len(self.admin_password) < 8:
             raise ValueError("ADMIN_PASSWORD 必须至少 8 个字符")
+        if self.local_ocr_max_concurrency < 1:
+            raise ValueError("LOCAL_OCR_MAX_CONCURRENCY 必须 ≥ 1")
+        if self.local_ocr_timeout_ms < 1:
+            raise ValueError("LOCAL_OCR_TIMEOUT_MS 必须 ≥ 1")
+        if self.local_ocr_reserve_ms < 0 or self.local_ocr_min_budget_ms < 0:
+            raise ValueError("LOCAL_OCR_RESERVE_MS / LOCAL_OCR_MIN_BUDGET_MS 必须 ≥ 0")
         if not self.database_url:
             db_path = Path(self.data_dir) / "ocr-gateway.db"
             self.database_url = f"sqlite+aiosqlite:///{db_path.as_posix()}"

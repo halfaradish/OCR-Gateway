@@ -20,6 +20,7 @@ from app.api.deps import ApiError, get_state
 from app.body_limit import BodyLimitMiddleware, BodyTooLarge
 from app.config import Settings, enforce_single_worker
 from app.core.cache import ResultCache
+from app.core.local_engine import LocalEngine
 from app.core.quota import QuotaManager
 from app.core.registry import AccountRegistry
 from app.core.scheduler import Scheduler
@@ -95,16 +96,25 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             http=http_client,
             adapters=adapters,
             scheduler=Scheduler(registry, quota, adapters),
+            local_engine=LocalEngine(
+                enabled=runtime.local_ocr_enabled,
+                max_concurrency=resolved.local_ocr_max_concurrency,
+                timeout_ms=resolved.local_ocr_timeout_ms,
+                reserve_ms=resolved.local_ocr_reserve_ms,
+                min_budget_ms=resolved.local_ocr_min_budget_ms,
+            ),
             semaphore=asyncio.Semaphore(resolved.max_concurrent_requests),
             frontend_built=panel_available,
         )
         app.state.gw = state
+        await state.local_engine.start()
         flush_task = asyncio.create_task(_quota_flush_loop(state))
         try:
             yield
         finally:
             flush_task.cancel()
             await asyncio.gather(flush_task, return_exceptions=True)
+            await state.local_engine.shutdown()
             try:
                 async with session_factory() as session:
                     await quota.flush(session)

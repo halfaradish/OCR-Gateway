@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.config import Settings
 from app.core.cache import ResultCache
+from app.core.local_engine import LocalEngine
 from app.core.quota import QuotaManager
 from app.core.registry import AccountRegistry
 from app.core.scheduler import Scheduler
@@ -101,6 +102,7 @@ class AppState:
     http: httpx.AsyncClient
     adapters: dict[str, ProviderAdapter]
     scheduler: Scheduler
+    local_engine: LocalEngine
     semaphore: asyncio.Semaphore
     settings_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     frontend_built: bool = False
