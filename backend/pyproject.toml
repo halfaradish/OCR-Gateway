@@ -1,6 +1,6 @@
 [project]
 name = "ocr-gateway"
-version = "0.2.0"
+version = "0.2.1"
 description = "Single-instance OCR gateway aggregating Baidu and Tencent OCR free quotas"
 requires-python = ">=3.11"
 dependencies = [

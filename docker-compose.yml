@@ -9,10 +9,10 @@ services:
         UV_DEFAULT_INDEX: "${UV_DEFAULT_INDEX:-}"
         NPM_REGISTRY: "${NPM_REGISTRY:-}"
       tags:
-        # M3 升到 0.2.0；0.1.0 是回滚锚点，MUST NOT 被本版本的构建覆盖。
-        - ocr-gateway:0.2.0
+        # 0.2.1 起 0.2.0 成为回滚锚点；0.1.0 与 0.2.0 的已发布 tag MUST NOT 被本次构建覆盖。
+        - ocr-gateway:0.2.1
         - ocr-gateway:latest
-    image: ocr-gateway:0.2.0
+    image: ocr-gateway:0.2.1
     container_name: ocr-gateway
     env_file:
       - .env

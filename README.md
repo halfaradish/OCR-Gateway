@@ -190,8 +190,9 @@ scripts/deploy.sh               # 自动 git pull --ff-only；服务器无 git �
 scripts/rollback.sh [data/backup/ocr-gateway-<日期>-<时间>.db]
 ```
 
-- **版本锚**：`docker-compose.yml` 的 `image`/`build.tags` 为 `ocr-gateway:0.2.0`；**`0.1.0` tag
-  必须保持不可变**，它是镜像回滚的锚点（`latest` 不作回滚依据）。构建 0.2.0 不会覆盖 0.1.0。
+- **版本锚**：`docker-compose.yml` 的 `image`/`build.tags` 为 `ocr-gateway:0.2.1`；**`0.1.0`
+  与 `0.2.0` tag 必须保持不可变**，它们是镜像回滚的锚点（`latest` 不作回滚依据）。构建 0.2.1
+  不会覆盖 0.1.0/0.2.0。
 - **回滚顺序（M3 起）**：先 `git checkout` 上一提交（compose 指回 `ocr-gateway:0.1.0`），再用
   部署前备份跑 `scripts/rollback.sh` 把数据库恢复到 0001。**只切镜像不恢复数据库会失败**：旧
   entrypoint 的 `alembic upgrade head` 遇到未知 revision `0002` 会退出。`0002` 只新增 `settings`
