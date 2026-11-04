@@ -31,17 +31,18 @@ RUN if [ -n "$UV_DEFAULT_INDEX" ]; then \
     fi \
     && python -m venv /app/.venv
 
-# 依赖层：只依赖清单与锁文件，代码改动不使其失效。
+# 依赖层：只依赖清单与锁文件，代码改动不使其失效；local extra 随镜像内置。
 COPY backend/pyproject.toml backend/uv.lock /app/
 RUN if [ -n "$UV_DEFAULT_INDEX" ]; then \
-        uv export --frozen --no-dev --no-emit-project --format requirements-txt --no-hashes \
+        uv export --frozen --no-dev --no-emit-project --extra local --format requirements-txt --no-hashes \
             > /tmp/requirements.txt \
         && uv pip install --index-url "$UV_DEFAULT_INDEX" -r /tmp/requirements.txt; \
     else \
-        uv export --frozen --no-dev --no-emit-project --format requirements-txt --no-hashes \
+        uv export --frozen --no-dev --no-emit-project --extra local --format requirements-txt --no-hashes \
             > /tmp/requirements.txt \
         && uv pip install -r /tmp/requirements.txt; \
-    fi
+    fi \
+    && /app/.venv/bin/python -c "import rapidocr, onnxruntime"
 
 # 代码层：安装项目自身（--no-deps 避免再次解析依赖）。
 COPY backend/app /app/app
@@ -54,6 +55,7 @@ RUN if [ -n "$UV_DEFAULT_INDEX" ]; then \
     fi
 
 FROM ${PYTHON_IMAGE} AS runtime
+ARG APT_MIRROR=
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     VIRTUAL_ENV=/app/.venv \
@@ -64,7 +66,18 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # 非 root 运行身份：entrypoint 以 root 修复数据卷属主后降权到 app。
-RUN groupadd --system --gid 10001 app \
+# libgomp1 是 onnxruntime 在 slim 基础镜像上的常见依赖；缺失时 import 会失败。
+RUN if [ -n "$APT_MIRROR" ]; then \
+        if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
+            sed -i "s|http://deb.debian.org|${APT_MIRROR}|g" /etc/apt/sources.list.d/debian.sources; \
+        elif [ -f /etc/apt/sources.list ]; then \
+            sed -i "s|http://deb.debian.org|${APT_MIRROR}|g" /etc/apt/sources.list; \
+        fi; \
+    fi \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends libgomp1 \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --system --gid 10001 app \
     && useradd --system --uid 10001 --gid app --home-dir /app --shell /usr/sbin/nologin app \
     && mkdir -p /data \
     && chown app:app /data

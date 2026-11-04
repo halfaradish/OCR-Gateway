@@ -19,7 +19,7 @@
 | 账号模型 | 共享池 + 按人记账 | 成员贡献 key 进公共池，额度 × n；每个网关 API Key 记录各自用量 |
 | 调度 | 优先级分层 + 同层 EWMA 延迟最低 | 行为可预测，主 key 优先，故障自动切备用 |
 | 响应结构 | `text` + `lines[{text, confidence}]` | 不统一 bbox，避免四家坐标系归一化的坑 |
-| 本地兜底 | RapidOCR + onnxruntime（CPU） | 模型十几 MB，中文效果好，按需下载，依赖轻 |
+| 本地兜底 | RapidOCR + onnxruntime（CPU） | 模型随 wheel 内置、不联网下载，中文效果好，依赖轻 |
 | 兜底触发 | 云账号全部不可用时自动 + `provider=local` 显式 | 默认不抢配额；云全挂时仍可用 |
 | 配额 | 内置厂商模板 + 账号级覆盖 | 新账号开箱可用；模板数字标注「以官网为准」 |
 | 缓存 | 内存 LRU + TTL（默认 1h） | 重复图片省额度、降延迟；不落盘，隐私风险低 |
@@ -209,7 +209,7 @@
 
 ### settings
 
-键值表：`api_auth_enabled`、`local_ocr_enabled`、`local_ocr_max_concurrency`、`cache_enabled`、`cache_ttl_seconds`、`cache_max_entries`、`default_timeout_ms`、`request_deadline_ms`、`debug_store_text` 等。
+键值表：`api_auth_enabled`、`local_ocr_enabled`、`cache_enabled`、`cache_ttl_seconds`、`cache_max_entries`、`default_timeout_ms`、`request_deadline_ms`、`debug_store_text` 等。本地 OCR 的并发/超时/预留为环境变量（`LOCAL_OCR_*`），不进 settings 表。
 
 ---
 
@@ -342,8 +342,7 @@ provider=baidu        # 可选；不传为 auto
 | GET | `/logs` | 请求日志（默认不含原文） |
 | GET/PUT | `/settings` | 全局设置 |
 | GET | `/quota-templates` | 厂商配额模板 |
-| GET | `/local-ocr/status` | 模型是否下载、worker 是否就绪 |
-| POST | `/local-ocr/download` | 触发模型下载 |
+| GET | `/local-ocr/status` | worker 状态、模型、最近耗时/错误（不含路径） |
 | POST | `/cache/clear` | 清空缓存 |
 
 管理 API 使用 HttpOnly 签名 cookie + CSRF 双提交头；所有写操作校验 `X-CSRF-Token`。
@@ -449,11 +448,11 @@ raise PROVIDER_UNAVAILABLE
 ## 9. 本地 OCR
 
 - 引擎：RapidOCR（onnxruntime CPU backend）
-- 安装：`uv sync --extra local`；Docker 镜像内置 onnxruntime，模型不打包进镜像
-- 模型：首次启用或点击「下载模型」时下载到 `data/models/rapidocr/`；优先 ModelScope，失败回退 HuggingFace；显示下载进度和校验
-- 运行：独立 `ProcessPoolExecutor(max_workers=local_ocr_max_concurrency)`，默认 1；避免 ONNX 阻塞事件循环
-- 超时：本地任务默认 30s；若总 deadline 剩余不足，直接返回 `TIMEOUT`
-- 输出：RapidOCR 的 `[box, text, score]` 归一化为 `lines[{text, confidence}]`，bbox 丢弃
+- 安装：`uv sync --extra local`；发布镜像用 `uv export --extra local` 安装，模型随 wheel 进入镜像
+- 模型：PP-OCRv6 small det/rec 与 PP-OCRv4 cls 随 rapidocr wheel 分发；不联网下载、无 `/local-ocr/download` 端点、不落 `data/models/`
+- 运行：`multiprocessing.get_context("spawn").Pool`（可 terminate/kill），默认并发 1；避免 ONNX 阻塞事件循环
+- 超时：本地单次上限 30s，且不超过剩余请求预算；超时终止整池并重建
+- 输出：RapidOCR 的 `txts`/`scores` 归一化为 `lines[{text, confidence}]`，bbox 丢弃
 - 触发：
   - `local_ocr_enabled=true` 且 `provider=auto`：云账号全部不可用时自动兜底
   - `provider=local`：显式调用（需已启用）
@@ -499,7 +498,7 @@ raise PROVIDER_UNAVAILABLE
 4. **成员与 Key**：创建成员、生成/吊销 API Key、设置日限额与 RPM；Key 明文只显示一次
 5. **用量**：按用户/厂商/账号/时间筛选；折线图 + 表格；CSV 导出
 6. **日志**：请求 ID、用户、厂商、账号、耗时、错误码；默认不显示原文
-7. **设置**：API 鉴权开关（带警告）、本地 OCR 开关/模型下载、缓存 TTL/容量、超时、配额模板
+7. **设置**：API 鉴权开关（带警告）、本地 OCR 开关/状态卡片、缓存 TTL/容量、超时、配额模板
 
 UI 用 shadcn/ui 的 Table/Dialog/Form/Tabs/Card，图表用 recharts。所有请求走 `@tanstack/react-query`，错误统一 toast。
 
@@ -586,7 +585,7 @@ services:
 ```
 
 - 多阶段构建：Node 构建前端 → Python 运行时复制 `dist`
-- 镜像内置 onnxruntime；RapidOCR 模型运行时下载到 volume
+- 镜像内置 onnxruntime 与 RapidOCR 模型（随 wheel）；无运行期模型下载
 - 健康检查：`GET /healthz`
 - 反向代理：Caddy/Nginx 负责 HTTPS；面板和 API 同域
 
@@ -597,7 +596,7 @@ uv sync --extra local
 uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-Windows 同样可用；本地 OCR 需要至少 2 核 4G，首次模型下载需要外网。
+Windows 同样可用；本地 OCR 需要至少 2 核 4G，首次加载模型约 1–3s，不需要外网。
 
 ---
 
@@ -630,7 +629,7 @@ Windows 同样可用；本地 OCR 需要至少 2 核 4G，首次模型下载需�
 | M1 | 百度适配器 + 调度器 + 配额 + 公共 API + 单元测试 | 单厂商端到端可用，失败能切备用 |
 | M2 | 腾讯/阿里/华为适配器 + 签名黄金用例 | 四家都能测活并识别 |
 | M3 | 账号/成员/Key/用量/日志/设置面板 | 管理员可完整管理 |
-| M4 | 本地 OCR worker + 模型下载 + 兜底 | 云全挂时自动本地识别 |
+| M4 | 本地 OCR worker + 兜底（模型随包内置） | 云全挂时自动本地识别 |
 | M5 | 缓存、批量、URL、Docker、性能测试、README | 一键起服务，压测达标 |
 
 ---

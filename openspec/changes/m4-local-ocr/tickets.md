@@ -79,12 +79,12 @@ warmup/超时/重建/退避与计数可被 fake pool 单测覆盖。对应 T1。
 
 **验收标准**
 
-- [ ] Dockerfile 依赖层 `uv export --extra local`；版本源全部升 `0.3.0`（`backend/pyproject.toml`、`backend/app/__init__.py`、`frontend/package.json`、`backend/uv.lock` project version、README 版本锚）；compose tag 为 `0.3.0`/`latest`，`0.2.1` 不动；基础镜像缺 `libgomp1` 等系统库时构建期安装；镜像内 `import rapidocr, onnxruntime` 通过、`/healthz` ok、`readonly.version == 0.3.0`。
-- [ ] [e2e] 镜像冒烟：无外网启动 → 开启开关 → `status` 到 `ready` → 识别一张图返回 200/`provider="local"`；关闭开关 → 显式 local 403；停用全部云账号 → `provider=auto` 返回 200/`provider="local"`；记录请求/响应、状态快照与子进程数。
-- [ ] [e2e] 回滚演练：`alembic downgrade -1`（或 `7c1f0d2a9b31`，`--entrypoint` 覆盖）→ local 行变 auto → `0.2.1` 启动成功；记录实际命令与输出。
-- [ ] p95：固定 N≥30 基准脚本，最长边 2000px 截图，p95 ≤3s；ready ≤10s（目标 ≤5s）；记录运行环境与原始输出。
-- [ ] 文档：README 本地 OCR 说明、`LOCAL_OCR_*` 权威表、许可证、体积、版本锚/回滚、`provider=local`、显式 local 仅受 RPM/并发约束；`.env.example` 默认值；`docs/tech-selection.md` 所有下载相关表述移除；开发快速上手注明 `uv sync --project backend --extra local` 并补 TTHW 估算；`grep` 无 `0.2.1`/「不做本地 OCR」/`local.*400`/`/local-ocr/download` 残留。
-- [ ] 测试：装 extra 后 `pytest -m slow`；`ruff` + `mypy`；`pnpm --dir frontend lint/typecheck/build`；镜像冒烟；报告记录命令、退出码、用例数与 SHA。
+- [x] Dockerfile 依赖层 `uv export --extra local`；版本源全部升 `0.3.0`（`backend/pyproject.toml`、`backend/app/__init__.py`、`frontend/package.json`、`backend/uv.lock` project version、README 版本锚）；compose tag 为 `0.3.0`/`latest`，`0.2.1` 不动；基础镜像缺 `libgomp1` 等系统库时构建期安装；镜像内 `import rapidocr, onnxruntime` 通过、`/healthz` ok、`readonly.version == 0.3.0`。
+- [x] [e2e] 镜像冒烟：无外网启动 → 开启开关 → `status` 到 `ready` → 识别一张图返回 200/`provider="local"`；关闭开关 → 显式 local 403；停用全部云账号 → `provider=auto` 返回 200/`provider="local"`；记录请求/响应、状态快照与子进程数。
+- [x] [e2e] 回滚演练：`alembic downgrade -1`（或 `7c1f0d2a9b31`，`--entrypoint` 覆盖）→ local 行变 auto → `0.2.1` 启动成功；记录实际命令与输出。
+- [x] p95：固定 N≥30 基准脚本，最长边 2000px 截图，p95 ≤3s；ready ≤10s（目标 ≤5s）；记录运行环境与原始输出。
+- [x] 文档：README 本地 OCR 说明、`LOCAL_OCR_*` 权威表、许可证、体积、版本锚/回滚、`provider=local`、显式 local 仅受 RPM/并发约束；`.env.example` 默认值；`docs/tech-selection.md` 所有下载相关表述移除；开发快速上手注明 `uv sync --project backend --extra local` 并补 TTHW 估算；`grep` 无 `0.2.1`/「不做本地 OCR」/`local.*400`/`/local-ocr/download` 残留。
+- [x] 测试：装 extra 后 `pytest -m slow`；`ruff` + `mypy`；`pnpm --dir frontend lint/typecheck/build`；镜像冒烟；报告记录命令、退出码、用例数与 SHA。
 
 ### Task 6: 实现验证
 

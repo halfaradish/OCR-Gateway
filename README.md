@@ -14,7 +14,9 @@ EWMA 延迟选号、失败自动切换，并按厂商账号与网关 API Key 记
 - 缓存：进程内 TTLCache，键为 `sha256(image) + language + provider`，空文本与 >256KB 结果不缓存。
 - 管理面板：SPA 由 FastAPI 同源托管，cookie + CSRF 双轨登录（Bearer 仍然可用），七个路由
   （登录/总览/账号/成员与 Key/用量/日志/设置），运行时设置热更新，CSV 导出。
-- 不做：多实例/多 worker、任务队列、批量接口、PDF、本地 OCR、Prometheus `/metrics`、SSR、
+- 本地 OCR：RapidOCR（onnxruntime CPU）随发布镜像内置，模型随 wheel 分发、不联网下载；默认关闭，
+  设置页开启后由 `provider=auto` 在云厂商全部不可用时兜底，显式 `provider=local` 需先开启。
+- 不做：多实例/多 worker、任务队列、批量接口、PDF、Prometheus `/metrics`、SSR、
   深色主题、实时推送（WebSocket/SSE）。
 
 ## 快速开始（Docker Compose，约 2 分钟\*）
@@ -42,6 +44,9 @@ curl -i http://127.0.0.1:8000/healthz
 上面及下文的访问地址、反代目标需一并替换，例如 `HOST_PORT=18000` 对应
 <http://127.0.0.1:18000/>。
 
+本地 OCR 无需额外部署步骤：发布镜像已内置 `local` extra 与模型，管理员在设置页开启后约 1–3 秒
+预热到 `ready`（本机实测约 2.4s，**估算**）；随后 `provider=auto` 在云厂商全部不可用时自动兜底。
+
 容器主进程以非 root 运行，业务数据落在宿主 `./data`（SQLite），进程日志走 stdout 由容器日志驱动
 轮转（`max-size` / `max-file`）。
 
@@ -63,6 +68,9 @@ curl -i http://127.0.0.1:8000/healthz
 ```bash
 # 1. 后端依赖（首次约 1–3 分钟）
 uv sync --project backend
+
+# 1b. 需要本地 OCR 时再装 optional extra（发布镜像已内置，本机开发可选）
+uv sync --project backend --extra local
 
 # 2. 配置环境变量（把 .env.example 复制为 .env 并填写真实值）
 cp .env.example .env
@@ -90,7 +98,32 @@ pnpm --dir frontend dev      # http://127.0.0.1:5173 ，/api /v1 /healthz 代理
 pnpm --dir frontend lint
 pnpm --dir frontend typecheck
 pnpm --dir frontend build
+# 本地 OCR 面板 e2e（需服务端已安装 local extra 并运行中）
+pnpm --dir frontend e2e:local
 ```
+
+## 本地 OCR
+
+- **依赖与模型**：`rapidocr` + `onnxruntime` 作为 optional extra `local` 声明在
+  `backend/pyproject.toml`，发布镜像用 `uv export --extra local` 安装；PP-OCRv6 small 模型随
+  wheel 分发，识别路径不发起网络请求。模型许可证为 Apache-2.0（PaddleOCR），再分发时保留本说明。
+- **开关**：设置页「本地 OCR」开关（`local_ocr_enabled`，默认关闭，热更新）；关闭时显式
+  `provider=local` 返回 403。依赖缺失时状态为 `unavailable`，开关禁用。
+- **路由**：`provider=auto` 在云厂商无候选/全部可重试失败后兜底本地；云阶段为本地预留
+  5s（预算不足 6s 时自动收缩，见 design 的 `reserve_eff` 不变量）；显式 `provider=local`
+  直接走本地，不回退云厂商。
+- **配额**：本地成功 `quota.used=0`、`account_id=NULL`、`provider='local'`，不计入用户日限额；
+  仅受 Key RPM 与全局并发约束（M4 接受的边角，后续若需本地限额另开 change）。
+- **观测**：`GET /api/admin/local-ocr/status` 返回 worker 状态、模型、最近耗时/错误、有效超时与
+  预留、请求/兜底计数；`/v1/providers` 与用量/日志标签包含「本地 RapidOCR」。
+- **镜像冒烟**：`backend/.venv/Scripts/python.exe scripts/smoke_local_ocr.py --port 18080`
+  会起一个临时容器，验证 `ready`、显式 local、auto 兜底与关闭后的 403。
+- **镜像体积**：0.3.0 镜像约 559MB，较 0.2.0（约 226MB）增加约 333MB（本机实测；`/app/.venv`
+  432MB，主要来自 onnxruntime/opencv/numpy + 模型约 32MB）；worker 常驻约 200–300MB（估算）。
+  默认关闭时不占 CPU/内存。
+- **回滚**：先关闭本地开关，再停 0.3.0 容器；用 0.3.0 镜像执行
+  `alembic -c /app/alembic.ini downgrade -1`（local 行映射为 `auto`，需 `--entrypoint` 覆盖）
+  后启动 0.2.1；或直接用部署前备份恢复数据库。
 
 ## 环境变量
 
@@ -104,8 +137,14 @@ pnpm --dir frontend build
 | `FRONTEND_DIST` | 否 | `<repo>/frontend/dist` | 面板构建产物目录；容器内由镜像设为 `/app/static`。`DIST`=构建产物，`DIR`=数据目录 |
 | `UV_DEFAULT_INDEX` | 否 | 空 | **构建期** Python 索引（如 `https://pypi.tuna.tsinghua.edu.cn/simple`）；离线环境必填 |
 | `NPM_REGISTRY` | 否 | 空 | **构建期** npm 索引（如 `https://registry.npmmirror.com`）；与 `UV_DEFAULT_INDEX` 同构 |
+| `APT_MIRROR` | 否 | 空 | **构建期** Debian 镜像（runtime 安装 `libgomp1`）；离线环境如 `https://mirrors.tuna.tsinghua.edu.cn` |
 | `DEFAULT_TIMEOUT_MS` | 否 | `8000` | 新建账号的默认超时；**M3 起对账号创建生效**（此前硬编码 8000），已有账号不受影响 |
 | `REQUEST_DEADLINE_MS` | 否 | `20000` | 单请求总预算（含信号量等待）；可在设置页热更新 |
+| `LOCAL_OCR_ENABLED` | 否 | `false` | 本地 OCR 开关的启动默认值；持久化后由设置页的值覆盖 |
+| `LOCAL_OCR_MAX_CONCURRENCY` | 否 | `1` | 本地 worker 并发上限；变更需重启容器（建池时生效） |
+| `LOCAL_OCR_TIMEOUT_MS` | 否 | `30000` | 本地单次识别上限；实际值 = `min(该值, 剩余预算)` |
+| `LOCAL_OCR_RESERVE_MS` | 否 | `5000` | `auto` 云阶段为本地预留的预算；总预算不足时按 `reserve_eff` 收缩 |
+| `LOCAL_OCR_MIN_BUDGET_MS` | 否 | `1000` | 剩余预算低于此值不再尝试本地 |
 | `CACHE_ENABLED` | 否 | `true` | 缓存开关的启动默认值；可在设置页热更新 |
 | `CACHE_TTL_SECONDS` | 否 | `3600` | 同上 |
 | `CACHE_MAX_ENTRIES` | 否 | `1000` | 同上 |
@@ -118,8 +157,8 @@ pnpm --dir frontend build
 | `TRUST_PROXY_HEADERS` | 否 | `false` | 反代后启用：登录限速按 `X-Forwarded-For`/`X-Real-IP` 识别客户端 IP；**M3 起还用于判定 `X-Forwarded-Proto: https` 并给 cookie 加 `Secure`** |
 | `LOG_LEVEL` | 否 | `INFO` | |
 
-设置页里保存的运行时设置（缓存开关/TTL/容量、请求总预算、账号默认超时）优先于上面同名的环境
-变量；数据库里的值非法时回退环境变量并记 warning。
+设置页里保存的运行时设置（缓存开关/TTL/容量、请求总预算、账号默认超时、本地 OCR 开关）优先于上面
+同名的环境变量；数据库里的值非法时回退环境变量并记 warning。
 
 真实凭证（百度 `app_id`/`api_key`/`secret_key`、腾讯 `secret_id`/`secret_key`）只能通过本地
 `.env`、环境变量或部署平台的密钥管理注入；MUST NOT 写进仓库、测试夹具或日志。本机私有凭证说明
@@ -190,13 +229,14 @@ scripts/deploy.sh               # 自动 git pull --ff-only；服务器无 git �
 scripts/rollback.sh [data/backup/ocr-gateway-<日期>-<时间>.db]
 ```
 
-- **版本锚**：`docker-compose.yml` 的 `image`/`build.tags` 为 `ocr-gateway:0.2.1`；**`0.1.0`
-  与 `0.2.0` tag 必须保持不可变**，它们是镜像回滚的锚点（`latest` 不作回滚依据）。构建 0.2.1
-  不会覆盖 0.1.0/0.2.0。
-- **回滚顺序（M3 起）**：先 `git checkout` 上一提交（compose 指回 `ocr-gateway:0.1.0`），再用
-  部署前备份跑 `scripts/rollback.sh` 把数据库恢复到 0001。**只切镜像不恢复数据库会失败**：旧
-  entrypoint 的 `alembic upgrade head` 遇到未知 revision `0002` 会退出。`0002` 只新增 `settings`
-  表，删除它不丢既有业务数据。
+- **版本锚**：`docker-compose.yml` 的 `image`/`build.tags` 为 `ocr-gateway:0.3.0`；**`0.1.0`、
+  `0.2.0` 与 `0.2.1` tag 必须保持不可变**，它们是镜像回滚的锚点（`latest` 不作回滚依据）。构建
+  0.3.0 不会覆盖 0.1.0/0.2.0/0.2.1。
+- **回滚顺序（0.3.0 起）**：先关闭本地 OCR 开关（避免新 local 事件）→ 停 0.3.0 容器 → 用 0.3.0
+  镜像执行 `alembic -c /app/alembic.ini downgrade -1`（或 revision `7c1f0d2a9b31`；local 行映射为
+  `auto`；需 `--entrypoint` 覆盖，否则 entrypoint 启动即 `upgrade head`）→ 启动 `0.2.1`。也可用
+  部署前备份跑 `scripts/rollback.sh` 恢复 0002 数据库。**不可先启旧镜像再降级**：0.2.1 的 Alembic
+  脚本目录不认识 `0003`。
 - 镜像不发布 registry，仅存在于服务器本地；如需对外发布，届时引入 registry 并按 digest 固定镜像。
 
 ## 备份与恢复
@@ -257,6 +297,7 @@ uv run --project backend pytest backend/tests -m contract
 - 配额模板（`GET /api/admin/quota-templates`）只是参考值，**以官网为准**，不会自动套用到账号。
 - 账号测活（`POST /api/admin/accounts/{id}/test`）不写用量、不扣配额、不改状态。
 - 账号 `reset-state` 会清空该账号的运行时状态**与配额计数**（面板的确认框写明了这一点）。
-- 公共 API 的 `provider` 只接受 `auto`/`baidu`/`tencent`；`local` 等取值返回 400。
+- 公共 API 的 `provider` 接受 `auto`/`baidu`/`tencent`/`local`；显式 `local` 在未开启本地 OCR
+  或依赖缺失时返回 403，其它未知值返回 400。
 - 请求错误统一为 `{"request_id","error":{"code","message"}}`；设置校验失败额外带
   `error.fields[]`；`/healthz` 不受鉴权保护。
