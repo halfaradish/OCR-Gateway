@@ -4,16 +4,20 @@ export function EmptyState({
   title,
   description,
   action,
+  compact = false,
 }: {
   title: string;
   description?: string;
   action?: ReactNode;
+  compact?: boolean;
 }) {
   return (
-    <div className="flex flex-col items-start gap-2 py-10">
-      <p className="text-body text-ink">{title}</p>
-      {description ? <p className="text-meta text-muted">{description}</p> : null}
-      {action ? <div className="mt-2">{action}</div> : null}
+    <div className={compact ? "py-6" : "py-10"} role="status">
+      <p className="text-body font-medium text-ink">{title}</p>
+      {description ? (
+        <p className="mt-1 max-w-[60ch] text-meta text-muted">{description}</p>
+      ) : null}
+      {action ? <div className="mt-3">{action}</div> : null}
     </div>
   );
 }
@@ -28,14 +32,16 @@ export function ErrorState({
   onRetry?: () => void;
 }) {
   return (
-    <div className="flex flex-col items-start gap-2 py-10">
-      <p className="text-body text-ink">{title}</p>
-      {description ? <p className="text-meta text-muted">{description}</p> : null}
+    <div className="py-10" role="alert">
+      <p className="text-body font-medium text-ink">{title}</p>
+      {description ? (
+        <p className="mt-1 max-w-[60ch] text-meta text-muted">{description}</p>
+      ) : null}
       {onRetry ? (
         <button
           type="button"
           onClick={onRetry}
-          className="mt-2 rounded-sm border border-line bg-surface px-3 py-1.5 text-meta text-ink hover:bg-mist"
+          className="mt-3 rounded-sm border border-line-strong/70 bg-surface px-3 py-1.5 text-meta text-ink hover:bg-mist/60"
         >
           重试
         </button>

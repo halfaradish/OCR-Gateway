@@ -11,11 +11,13 @@ import {
 } from "recharts";
 import { useSearchParams } from "react-router-dom";
 
+import { FilterBar, FilterField } from "@/components/filter-bar";
 import { PageHeader } from "@/components/page-header";
+import { Panel, Section } from "@/components/section";
+import { Segmented } from "@/components/segmented";
 import { EmptyState, ErrorState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -134,7 +136,9 @@ export default function UsagePage() {
     <div>
       <PageHeader
         title="用量"
-        description="筛选条件保存在地址栏，刷新或分享链接都会保持当前视图。"
+        meta={
+          summaryQuery.data ? <span>{summaryQuery.data.rows.length} 行汇总</span> : undefined
+        }
         actions={
           <Button onClick={exportCsv} disabled={(summaryQuery.data?.rows.length ?? 0) === 0}>
             <Download aria-hidden="true" />
@@ -143,184 +147,173 @@ export default function UsagePage() {
         }
       />
 
-      <div className="mb-6 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-        <div>
-          <Label htmlFor="usage-from">开始日期</Label>
-          <Input
-            id="usage-from"
-            type="date"
-            className="mt-1.5"
-            value={from}
-            onChange={(event) => update({ from: event.target.value })}
-          />
-        </div>
-        <div>
-          <Label htmlFor="usage-to">结束日期</Label>
-          <Input
-            id="usage-to"
-            type="date"
-            className="mt-1.5"
-            value={to}
-            onChange={(event) => update({ to: event.target.value })}
-          />
-        </div>
-        <div>
-          <Label htmlFor="usage-user">成员</Label>
-          <Select
-            id="usage-user"
-            className="mt-1.5 w-full"
-            value={userId}
-            disabled={usersQuery.isError}
-            onChange={(event) => update({ user: event.target.value })}
-          >
-            <option value="">全部成员</option>
-            {(usersQuery.data ?? []).map((user) => (
-              <option key={user.id} value={String(user.id)}>
-                {user.name}
-              </option>
-            ))}
-          </Select>
-          {usersQuery.isError ? (
-            <p className="mt-1 text-micro text-danger">成员列表加载失败</p>
-          ) : null}
-        </div>
-        <div>
-          <Label htmlFor="usage-provider">厂商</Label>
-          <Select
-            id="usage-provider"
-            className="mt-1.5 w-full"
-            value={provider}
-            onChange={(event) => update({ provider: event.target.value })}
-          >
-            <option value="">全部厂商</option>
-            <option value="baidu">百度智能云</option>
-            <option value="tencent">腾讯云</option>
-            <option value="auto">自动路由</option>
-          </Select>
-        </div>
-        <div>
-          <Label htmlFor="usage-account">账号</Label>
-          <Select
-            id="usage-account"
-            className="mt-1.5 w-full"
-            value={accountId}
-            disabled={accountsQuery.isError}
-            onChange={(event) => update({ account: event.target.value })}
-          >
-            <option value="">全部账号</option>
-            {(accountsQuery.data ?? []).map((account) => (
-              <option key={account.id} value={String(account.id)}>
-                {account.name}
-              </option>
-            ))}
-          </Select>
-          {accountsQuery.isError ? (
-            <p className="mt-1 text-micro text-danger">账号列表加载失败</p>
-          ) : null}
-        </div>
+      <div className="mb-8 border-y border-line py-3">
+        <FilterBar>
+            <FilterField htmlFor="usage-from" label="开始日期">
+              <Input
+                id="usage-from"
+                type="date"
+                inputSize="sm"
+                value={from}
+                onChange={(event) => update({ from: event.target.value })}
+              />
+            </FilterField>
+            <FilterField htmlFor="usage-to" label="结束日期">
+              <Input
+                id="usage-to"
+                type="date"
+                inputSize="sm"
+                value={to}
+                onChange={(event) => update({ to: event.target.value })}
+              />
+            </FilterField>
+            <FilterField htmlFor="usage-user" label="成员">
+              <Select
+                id="usage-user"
+                selectSize="sm"
+                value={userId}
+                disabled={usersQuery.isError}
+                onChange={(event) => update({ user: event.target.value })}
+              >
+                <option value="">全部成员</option>
+                {(usersQuery.data ?? []).map((user) => (
+                  <option key={user.id} value={String(user.id)}>
+                    {user.name}
+                  </option>
+                ))}
+              </Select>
+              {usersQuery.isError ? (
+                <p className="mt-1 text-micro text-danger">成员列表加载失败</p>
+              ) : null}
+            </FilterField>
+            <FilterField htmlFor="usage-provider" label="厂商">
+              <Select
+                id="usage-provider"
+                selectSize="sm"
+                value={provider}
+                onChange={(event) => update({ provider: event.target.value })}
+              >
+                <option value="">全部厂商</option>
+                <option value="baidu">百度智能云</option>
+                <option value="tencent">腾讯云</option>
+                <option value="auto">自动路由</option>
+              </Select>
+            </FilterField>
+            <FilterField htmlFor="usage-account" label="账号">
+              <Select
+                id="usage-account"
+                selectSize="sm"
+                value={accountId}
+                disabled={accountsQuery.isError}
+                onChange={(event) => update({ account: event.target.value })}
+              >
+                <option value="">全部账号</option>
+                {(accountsQuery.data ?? []).map((account) => (
+                  <option key={account.id} value={String(account.id)}>
+                    {account.name}
+                  </option>
+                ))}
+              </Select>
+              {accountsQuery.isError ? (
+                <p className="mt-1 text-micro text-danger">账号列表加载失败</p>
+              ) : null}
+            </FilterField>
+          </FilterBar>
       </div>
 
       {error ? (
-        <div className="mb-4 rounded-sm border border-danger/40 bg-surface px-3 py-2 text-meta text-danger">
+        <div className="mb-4 rounded-sm border border-danger/30 bg-surface px-3 py-2 text-meta text-danger">
           时间范围无效或查询失败，已保留上一次结果。
         </div>
       ) : null}
 
-      <section aria-labelledby="usage-chart-heading">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <h2 id="usage-chart-heading" className="text-h2 font-medium text-ink">
-            趋势
-          </h2>
-          <div className="flex gap-1" role="group" aria-label="指标">
-            {METRICS.map((item) => (
-              <Button
-                key={item.value}
-                size="sm"
-                variant={metric === item.value ? "primary" : "ghost"}
-                onClick={() => update({ metric: item.value })}
-              >
-                {item.label}
-              </Button>
-            ))}
+      <Section
+        id="usage-chart-heading"
+        title="趋势"
+        level="primary"
+        action={
+          <Segmented
+            label="指标"
+            value={activeMetric.value}
+            options={METRICS.map((item) => ({ value: item.value, label: item.label }))}
+            onChange={(value) => update({ metric: value })}
+          />
+        }
+      >
+        <Panel>
+          <div className="relative h-[260px] px-4 py-5">
+            {seriesQuery.isPending ? (
+              <Skeleton className="h-full w-full" />
+            ) : (
+              <>
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart
+                    data={chartData}
+                    margin={{ top: 8, right: 8, bottom: 0, left: -12 }}
+                  >
+                    <CartesianGrid stroke={chartColors.line} strokeDasharray="2 4" vertical={false} />
+                    <XAxis
+                      dataKey="date"
+                      tickFormatter={(value: string) => formatDate(value).slice(5)}
+                      tick={{ fill: chartColors.muted, fontSize: 12 }}
+                      axisLine={{ stroke: chartColors.line }}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      allowDecimals={activeMetric.value !== "requests"}
+                      tick={{ fill: chartColors.muted, fontSize: 12 }}
+                      axisLine={false}
+                      tickLine={false}
+                      width={48}
+                    />
+                    <Tooltip
+                      labelFormatter={(value) => formatDate(String(value))}
+                      formatter={(value) => [
+                        `${formatNumber(Number(value ?? 0))}${activeMetric.unit === "%" ? "%" : ` ${activeMetric.unit}`}`,
+                        activeMetric.label,
+                      ]}
+                      contentStyle={{
+                        border: `1px solid ${chartColors.line}`,
+                        borderRadius: 4,
+                        fontSize: 13,
+                      }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="value"
+                      stroke={chartColors.navy}
+                      strokeWidth={1.5}
+                      dot={false}
+                      isAnimationActive={false}
+                      connectNulls={false}
+                      activeDot={{ r: 3, fill: chartColors.blue }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+                {hasData ? null : (
+                  <p className="pointer-events-none absolute inset-0 flex items-center justify-center text-meta text-muted">
+                    所选时间内没有请求。
+                  </p>
+                )}
+              </>
+            )}
           </div>
-        </div>
-        <div className="relative h-[240px]">
-          {seriesQuery.isPending ? (
-            <Skeleton className="h-full w-full" />
-          ) : (
-            <>
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart
-                  data={chartData}
-                  margin={{ top: 8, right: 8, bottom: 0, left: -12 }}
-                >
-                  <CartesianGrid stroke={chartColors.line} strokeDasharray="2 4" vertical={false} />
-                  <XAxis
-                    dataKey="date"
-                    tickFormatter={(value: string) => formatDate(value).slice(5)}
-                    tick={{ fill: chartColors.muted, fontSize: 12 }}
-                    axisLine={{ stroke: chartColors.line }}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    allowDecimals
-                    tick={{ fill: chartColors.muted, fontSize: 12 }}
-                    axisLine={false}
-                    tickLine={false}
-                    width={48}
-                  />
-                  <Tooltip
-                    labelFormatter={(value) => formatDate(String(value))}
-                    formatter={(value) => [
-                      `${formatNumber(Number(value ?? 0))}${activeMetric.unit === "%" ? "%" : ` ${activeMetric.unit}`}`,
-                      activeMetric.label,
-                    ]}
-                    contentStyle={{
-                      border: `1px solid ${chartColors.line}`,
-                      borderRadius: 4,
-                      fontSize: 13,
-                    }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="value"
-                    stroke={chartColors.navy}
-                    strokeWidth={1.5}
-                    dot={false}
-                    isAnimationActive={false}
-                    connectNulls={false}
-                    activeDot={{ r: 3, fill: chartColors.blue }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-              {hasData ? null : (
-                <p className="pointer-events-none absolute inset-0 flex items-center justify-center text-meta text-muted">
-                  所选时间内没有请求。
-                </p>
-              )}
-            </>
-          )}
-        </div>
-      </section>
+        </Panel>
+      </Section>
 
-      <section className="mt-10" aria-labelledby="usage-table-heading">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <h2 id="usage-table-heading" className="text-h2 font-medium text-ink">
-            汇总
-          </h2>
-          <div className="flex gap-1" role="group" aria-label="分组">
-            {GROUPS.map((item) => (
-              <Button
-                key={item.value}
-                size="sm"
-                variant={group === item.value ? "primary" : "ghost"}
-                onClick={() => update({ group: item.value })}
-              >
-                {item.label}
-              </Button>
-            ))}
-          </div>
-        </div>
+      <Section
+        id="usage-table-heading"
+        title="汇总"
+        meta={`${summaryQuery.data?.rows.length ?? 0} 行`}
+        action={
+          <Segmented
+            label="分组"
+            value={group}
+            options={GROUPS}
+            onChange={(value) => update({ group: value })}
+          />
+        }
+      >
         {summaryQuery.isPending ? (
           <div className="space-y-2" aria-busy="true">
             <Skeleton className="h-9 w-full" />
@@ -368,7 +361,7 @@ export default function UsagePage() {
             </TableBody>
           </Table>
         )}
-      </section>
+      </Section>
 
       {seriesQuery.isError && !seriesQuery.data ? (
         <ErrorState

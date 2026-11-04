@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 import { PageHeader } from "@/components/page-header";
+import { Panel, Section } from "@/components/section";
 import { ErrorState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -158,7 +159,7 @@ export default function SettingsPage() {
   const readonly = settingsQuery.data.readonly;
 
   return (
-    <div>
+    <div className="max-w-[900px]">
       <PageHeader
         title="设置"
         description="保存后立即生效；缓存参数变更会清空现有缓存。"
@@ -171,18 +172,16 @@ export default function SettingsPage() {
 
       <form
         onSubmit={form.handleSubmit((values) => save.mutate(values))}
-        className="max-w-[720px] space-y-10"
         noValidate
       >
-        <section aria-labelledby="editable-heading">
-          <h2 id="editable-heading" className="mb-3 text-h2 font-medium text-ink">
-            可编辑
-          </h2>
-          <div className="space-y-4 border-t border-line pt-4">
-            <div className="flex items-center justify-between gap-4">
+        <Section id="editable-heading" title="可编辑" level="primary">
+          <Panel>
+            <div className="flex items-center justify-between gap-6 border-b border-line px-5 py-4">
               <div>
                 <p className="text-body text-ink">结果缓存</p>
-                <p className="text-meta text-muted">关闭后不再写入新条目，已缓存结果仍可命中。</p>
+                <p className="mt-0.5 text-micro text-muted">
+                  关闭后不再写入新条目，已缓存结果仍可命中。
+                </p>
               </div>
               <Controller
                 control={form.control}
@@ -196,7 +195,7 @@ export default function SettingsPage() {
                 )}
               />
             </div>
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-5 px-5 py-4 md:grid-cols-2">
               <div>
                 <Label htmlFor="cache_ttl_seconds">缓存 TTL（秒）</Label>
                 <Input
@@ -234,8 +233,12 @@ export default function SettingsPage() {
                 <FieldError>{form.formState.errors.default_timeout_ms?.message}</FieldError>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Button type="submit" variant="primary" disabled={save.isPending || !form.formState.isDirty}>
+            <div className="flex items-center gap-2 border-t border-line px-5 py-3">
+              <Button
+                type="submit"
+                variant="primary"
+                disabled={save.isPending || !form.formState.isDirty}
+              >
                 {save.isPending ? "保存中…" : "保存设置"}
               </Button>
               <Button
@@ -245,64 +248,61 @@ export default function SettingsPage() {
                 撤销修改
               </Button>
             </div>
-          </div>
-        </section>
-
-        <section aria-labelledby="readonly-heading">
-          <h2 id="readonly-heading" className="mb-3 text-h2 font-medium text-ink">
-            只读
-          </h2>
-          <dl className="grid gap-x-8 gap-y-3 border-t border-line pt-4 text-meta md:grid-cols-2">
-            {[
-              ["API 鉴权", readonly.api_auth_enabled ? "已启用" : "已关闭"],
-              ["版本", readonly.version],
-              ["上传上限", `${formatNumber(Math.round(readonly.max_upload_bytes / 1024 / 1024))} MB`],
-              ["最大像素", `${formatNumber(readonly.max_image_pixels)} px`],
-              ["并发上限", formatNumber(readonly.max_concurrent_requests)],
-              ["会话时长", `${formatNumber(readonly.session_ttl_seconds)} 秒`],
-              ["面板产物", readonly.frontend_built ? "已就绪" : "未构建"],
-            ].map(([label, value]) => (
-              <div key={label} className="flex gap-3">
-                <dt className="w-24 shrink-0 text-muted">{label}</dt>
-                <dd className="text-ink">{value}</dd>
-              </div>
-            ))}
-          </dl>
-        </section>
+          </Panel>
+        </Section>
       </form>
 
-      <section className="mt-10" aria-labelledby="templates-heading">
-        <h2 id="templates-heading" className="mb-3 text-h2 font-medium text-ink">
-          配额模板
-        </h2>
-        {templatesQuery.isPending ? (
-          <Skeleton className="h-24 w-full" />
-        ) : templatesQuery.isError ? (
-          <ErrorState
-            description="无法加载配额模板。"
-            onRetry={() => void templatesQuery.refetch()}
-          />
-        ) : (
-          <div className="border-t border-line pt-4">
-            <p className="mb-4 text-meta text-warn">{templatesQuery.data.disclaimer}</p>
-            <div className="grid gap-6 md:grid-cols-2">
-              {templatesQuery.data.providers.map((template) => (
-                <div key={template.code}>
-                  <p className="text-body text-ink">{template.name}</p>
-                  <p className="mt-1 text-meta text-muted">
-                    日 {template.reference_quota.daily ?? "不限"} · 月{" "}
-                    {template.reference_quota.monthly === null
-                      ? "不限"
-                      : formatNumber(template.reference_quota.monthly)}{" "}
-                    · 总量 {template.reference_quota.total ?? "不限"}
-                  </p>
-                  <p className="mt-1 text-micro text-muted">{template.notes}</p>
-                </div>
-              ))}
+      <Section id="readonly-heading" title="只读">
+        <dl className="grid gap-x-12 md:grid-cols-2">
+          {[
+            ["API 鉴权", readonly.api_auth_enabled ? "已启用" : "已关闭"],
+            ["版本", readonly.version],
+            ["上传上限", `${formatNumber(Math.round(readonly.max_upload_bytes / 1024 / 1024))} MB`],
+            ["最大像素", `${formatNumber(readonly.max_image_pixels)} px`],
+            ["并发上限", formatNumber(readonly.max_concurrent_requests)],
+            ["会话时长", `${formatNumber(readonly.session_ttl_seconds)} 秒`],
+            ["面板产物", readonly.frontend_built ? "已就绪" : "未构建"],
+          ].map(([label, value]) => (
+            <div
+              key={label}
+              className="flex items-baseline gap-4 border-t border-line py-2.5"
+            >
+              <dt className="w-20 shrink-0 text-micro text-muted">{label}</dt>
+              <dd className="text-meta tabular-nums text-ink">{value}</dd>
             </div>
-          </div>
-        )}
-      </section>
+          ))}
+        </dl>
+      </Section>
+
+        <Section id="templates-heading" title="配额模板">
+          {templatesQuery.isPending ? (
+            <Skeleton className="h-24 w-full" />
+          ) : templatesQuery.isError ? (
+            <ErrorState
+              description="无法加载配额模板。"
+              onRetry={() => void templatesQuery.refetch()}
+            />
+          ) : (
+            <>
+              <p className="mb-4 text-micro text-warn">{templatesQuery.data.disclaimer}</p>
+              <div className="grid gap-x-12 md:grid-cols-2">
+                {templatesQuery.data.providers.map((template) => (
+                  <div key={template.code} className="border-t border-line py-3">
+                    <p className="text-body text-ink">{template.name}</p>
+                    <p className="mt-1 text-meta tabular-nums text-muted">
+                      日 {template.reference_quota.daily ?? "不限"}，月{" "}
+                      {template.reference_quota.monthly === null
+                        ? "不限"
+                        : formatNumber(template.reference_quota.monthly)}
+                      ，总量 {template.reference_quota.total ?? "不限"}
+                    </p>
+                    <p className="mt-1 text-micro text-muted">{template.notes}</p>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </Section>
 
       <LeaveConfirmDialog blocker={blocker} />
     </div>

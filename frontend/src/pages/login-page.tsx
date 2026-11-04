@@ -12,6 +12,12 @@ const KNOWN_ERRORS: Record<string, string> = {
   RATE_LIMITED: "尝试次数过多，请 1 分钟后再试。",
 };
 
+const CAPABILITIES = [
+  ["路由", "按优先级与 EWMA 延迟自动选号，失败切换厂商"],
+  ["配额", "账号日/月/总量与 Key 日限额、RPM 统一记账"],
+  ["台账", "请求日志只存元数据，不落 OCR 原文"],
+];
+
 /**
  * Single-field form kept free of react-hook-form/zod on purpose: this is the panel's first
  * paint, and the form libraries would add ~40 kB gzip to that route (budget: 150 kB).
@@ -56,38 +62,65 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-4">
-      <div className="w-[min(360px,100%)]">
-        <div className="mb-8">
-          <p className="text-h2 font-medium text-navy">OCR Gateway</p>
-          <p className="text-meta text-muted">管理面板 · 请登录</p>
+    <main className="flex min-h-screen flex-col bg-paper lg:flex-row">
+      <aside className="hidden w-[44%] max-w-[520px] flex-col bg-navy px-10 py-12 lg:flex">
+        <div>
+          <p className="text-[19px] font-medium tracking-tight text-white">OCR Gateway</p>
+          <p className="mt-1 text-micro text-white/55">管理面板</p>
         </div>
-        <form onSubmit={(event) => void onSubmit(event)} noValidate className="space-y-4">
-          <div>
-            <Label htmlFor="password">密码</Label>
-            <Input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              className="mt-1.5"
-              value={password}
-              aria-invalid={fieldError ? true : undefined}
-              onChange={(event) => {
-                setPassword(event.target.value);
-                if (fieldError) setFieldError(null);
-              }}
-            />
-            <FieldError>{fieldError}</FieldError>
-          </div>
-          {submitError ? (
-            <p role="alert" className="text-meta text-danger">
-              {submitError}
-            </p>
-          ) : null}
-          <Button type="submit" variant="primary" className="w-full" disabled={pending}>
-            {pending ? "登录中…" : "登录"}
-          </Button>
-        </form>
+        <div className="my-auto py-16">
+          <p className="max-w-[22ch] text-[30px] font-medium leading-[1.35] text-white">
+            把两家 OCR
+            <br />
+            当成一条通路来管理。
+          </p>
+          <dl className="mt-10 max-w-[380px] space-y-4">
+            {CAPABILITIES.map(([label, value]) => (
+              <div key={label} className="flex gap-4 border-t border-white/10 pt-3">
+                <dt className="w-10 shrink-0 text-micro text-white/55">{label}</dt>
+                <dd className="text-meta text-white/75">{value}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      </aside>
+
+      <div className="bg-navy px-5 py-5 lg:hidden">
+        <p className="text-[17px] font-medium tracking-tight text-white">OCR Gateway</p>
+        <p className="mt-0.5 text-micro text-white/55">管理面板</p>
+      </div>
+
+      <div className="flex flex-1 items-center justify-center px-5 py-12">
+        <div className="w-full max-w-[340px]">
+          <h1 className="text-h1 font-medium tracking-tight text-ink">登录</h1>
+          <p className="mt-1 text-meta text-muted">使用管理员密码进入控制面板。</p>
+          <form onSubmit={(event) => void onSubmit(event)} noValidate className="mt-8 space-y-4">
+            <div>
+              <Label htmlFor="password">密码</Label>
+              <Input
+                id="password"
+                type="password"
+                autoComplete="current-password"
+                className="mt-1.5"
+                value={password}
+                aria-invalid={fieldError ? true : undefined}
+                onChange={(event) => {
+                  setPassword(event.target.value);
+                  if (fieldError) setFieldError(null);
+                }}
+              />
+              <FieldError>{fieldError}</FieldError>
+            </div>
+            {submitError ? (
+              <p role="alert" className="text-meta text-danger">
+                {submitError}
+              </p>
+            ) : null}
+            <Button type="submit" variant="primary" className="w-full" disabled={pending}>
+              {pending ? "登录中…" : "登录"}
+            </Button>
+          </form>
+        </div>
       </div>
     </main>
   );

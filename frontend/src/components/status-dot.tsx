@@ -25,7 +25,7 @@ export function stateLabel(state: string): string {
 /** Status is never conveyed by color alone: a 6px dot plus the state name. */
 export function StatusDot({ state, label }: { state: string; label?: string }) {
   return (
-    <span className="inline-flex items-center gap-2 whitespace-nowrap text-body">
+    <span className="inline-flex items-center gap-2 whitespace-nowrap text-meta">
       <span
         className={cn("size-1.5 rounded-full", STATE_TONES[state] ?? STATE_TONES.unknown)}
         aria-hidden="true"

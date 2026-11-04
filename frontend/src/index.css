@@ -2,15 +2,19 @@
 @import "@fontsource-variable/ibm-plex-sans/index.css";
 
 @theme {
-  /* D-A6 palette: instrument panel, not a card wall. */
-  --color-paper: #f7f9fb;
+  /* Instrument paper: fog blue, one navy fascia, one white screen per page.
+     Amends D-A6's "blue only for actions" rule (2026-11-04): blue now carries structure
+     (rail, watch band, active states); data itself stays ink/navy. */
+  --color-paper: #edf2f7;
   --color-surface: #ffffff;
-  --color-ink: #0d1b2a;
-  --color-muted: #5b6b7b;
-  --color-line: #dce4ec;
-  --color-mist: #eaf1f7;
-  --color-navy: #14385c;
-  --color-blue: #2e6fa7;
+  --color-ink: #0c1b2a;
+  --color-muted: #55677a;
+  --color-line: #d3dfea;
+  --color-line-strong: #b9c9d9;
+  --color-mist: #e1ebf5;
+  --color-navy: #10334f;
+  --color-navy-deep: #0a2438;
+  --color-blue: #2a6a9c;
   --color-success: #1f6f55;
   --color-warn: #8a6118;
   --color-danger: #a33b3b;
@@ -19,12 +23,17 @@
     "Noto Sans CJK SC", sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
-  --text-h1: 28px;
-  --text-h1--line-height: 1.25;
-  --text-h2: 20px;
-  --text-h2--line-height: 1.3;
+  --text-display: 44px;
+  --text-display--line-height: 1.05;
+  --text-display--letter-spacing: -0.015em;
+  --text-lead: 26px;
+  --text-lead--line-height: 1.15;
+  --text-h1: 30px;
+  --text-h1--line-height: 1.2;
+  --text-h2: 17px;
+  --text-h2--line-height: 1.35;
   --text-body: 15px;
-  --text-body--line-height: 1.5;
+  --text-body--line-height: 1.55;
   --text-meta: 13px;
   --text-meta--line-height: 1.5;
   --text-micro: 12px;
@@ -69,6 +78,11 @@
     font-family: var(--font-sans);
     font-size: var(--text-body);
     -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2 {
+    text-wrap: balance;
   }
 
   :focus-visible {

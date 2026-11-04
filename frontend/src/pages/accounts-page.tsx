@@ -8,8 +8,10 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { FilterBar, FilterField } from "@/components/filter-bar";
 import { PageHeader } from "@/components/page-header";
 import { QuotaRuler } from "@/components/quota-ruler";
+import { Panel, PanelToolbar } from "@/components/section";
 import { EmptyState, ErrorState } from "@/components/states";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/components/ui/button";
@@ -33,6 +35,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ApiError, apiFetch } from "@/lib/api";
+import { providerLabel } from "@/lib/providers";
 import { formatLatency } from "@/lib/time";
 import { LeaveConfirmDialog, useUnsavedChanges } from "@/lib/unsaved-changes";
 import { errorMessage } from "@/lib/utils";
@@ -368,7 +371,17 @@ export default function AccountsPage() {
     <div>
       <PageHeader
         title="账号"
-        description="厂商账号池：优先级、并发与配额由网关调度使用；配额为准实时数据。"
+        meta={
+          accountsQuery.data ? (
+            <>
+              <span>{accountsQuery.data.length} 个账号</span>
+              <span>
+                {accountsQuery.data.filter((account) => account.state === "active").length} 个可用
+              </span>
+            </>
+          ) : undefined
+        }
+        description="优先级、并发与配额由网关调度使用，配额为准实时数据。"
         actions={
           <Button variant="primary" onClick={openCreate}>
             <Plus aria-hidden="true" />
@@ -377,148 +390,161 @@ export default function AccountsPage() {
         }
       />
 
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <Label htmlFor="provider-filter" className="text-muted">
-          厂商
-        </Label>
-        <Select
-          id="provider-filter"
-          value={providerFilter}
-          onChange={(event) => updateFilter("provider", event.target.value)}
-        >
-          <option value="">全部厂商</option>
-          {PROVIDERS.map((item) => (
-            <option key={item.value} value={item.value}>
-              {item.label}
-            </option>
-          ))}
-        </Select>
-        <Label htmlFor="state-filter" className="ml-2 text-muted">
-          状态
-        </Label>
-        <Select
-          id="state-filter"
-          value={stateFilter}
-          onChange={(event) => updateFilter("state", event.target.value)}
-        >
-          {STATE_FILTERS.map((item) => (
-            <option key={item.value} value={item.value}>
-              {item.label}
-            </option>
-          ))}
-        </Select>
-      </div>
+      <Panel>
+        <PanelToolbar>
+          <FilterBar>
+            <FilterField htmlFor="provider-filter" label="厂商">
+              <Select
+                id="provider-filter"
+                selectSize="sm"
+                value={providerFilter}
+                onChange={(event) => updateFilter("provider", event.target.value)}
+              >
+                <option value="">全部厂商</option>
+                {PROVIDERS.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </Select>
+            </FilterField>
+            <FilterField htmlFor="state-filter" label="状态">
+              <Select
+                id="state-filter"
+                selectSize="sm"
+                value={stateFilter}
+                onChange={(event) => updateFilter("state", event.target.value)}
+              >
+                {STATE_FILTERS.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </Select>
+            </FilterField>
+          </FilterBar>
+          <p className="text-micro tabular-nums text-muted">
+            显示 {filtered.length} / {accountsQuery.data?.length ?? 0} 个
+          </p>
+        </PanelToolbar>
 
-      {accountsQuery.isPending ? (
-        <div className="space-y-3" aria-busy="true">
-          <Skeleton className="h-11 w-full" />
-          <Skeleton className="h-11 w-full" />
-          <Skeleton className="h-11 w-full" />
-        </div>
-      ) : accountsQuery.isError ? (
-        <ErrorState
-          description={accountsQuery.error instanceof Error ? accountsQuery.error.message : undefined}
-          onRetry={() => void accountsQuery.refetch()}
-        />
-      ) : filtered.length === 0 ? (
-        <EmptyState
-          title={accountsQuery.data?.length ? "当前筛选下没有账号。" : "还没有账号"}
-          description={
-            accountsQuery.data?.length
-              ? "调整筛选条件试试。"
-              : "添加一个百度或腾讯账号后即可开始识别。"
-          }
-          action={
-            accountsQuery.data?.length ? undefined : (
-              <Button variant="primary" onClick={openCreate}>
-                新建账号
-              </Button>
-            )
-          }
-        />
-      ) : (
-        <Table className="md:min-w-[1100px]">
-          <TableHead>
-            <TableRow>
-              <TableHeaderCell className="hidden md:table-cell">厂商</TableHeaderCell>
-              <TableHeaderCell>名称</TableHeaderCell>
-              <TableHeaderCell className="hidden md:table-cell">贡献者</TableHeaderCell>
-              <TableHeaderCell className="hidden text-right md:table-cell">优先级</TableHeaderCell>
-              <TableHeaderCell className="hidden lg:table-cell">配额</TableHeaderCell>
-              <TableHeaderCell>状态</TableHeaderCell>
-              <TableHeaderCell className="hidden text-right md:table-cell">EWMA</TableHeaderCell>
-              <TableHeaderCell className="hidden xl:table-cell">最近错误</TableHeaderCell>
-              <TableHeaderCell className="text-right">操作</TableHeaderCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {filtered.map((account) => {
-              const usage = account.quota_usage;
-              const unconfigured =
-                usage.daily.limit === null &&
-                usage.monthly.limit === null &&
-                usage.total.limit === null;
-              return (
-                <TableRow key={account.id}>
-                  <TableCell className="hidden whitespace-nowrap md:table-cell">
-                    {PROVIDERS.find((item) => item.value === account.provider)?.label ??
-                      account.provider}
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap">
-                    <span className="block">{account.name}</span>
-                    <span className="block text-micro text-muted md:hidden">
-                      {PROVIDERS.find((item) => item.value === account.provider)?.label ??
-                        account.provider}
-                    </span>
-                  </TableCell>
-                  <TableCell className="hidden whitespace-nowrap text-muted md:table-cell">
-                    {account.owner_id === null ? "—" : (account.owner_name ?? "已删除")}
-                  </TableCell>
-                  <TableCell className="hidden text-right tabular-nums md:table-cell">
-                    {account.priority}
-                  </TableCell>
-                  <TableCell className="hidden lg:table-cell">
-                    {unconfigured ? (
-                      <span className="text-meta text-warn">未配置额度，可能超用</span>
-                    ) : (
-                      <QuotaRuler label="月" used={usage.monthly.used} limit={usage.monthly.limit} />
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <StatusDot state={account.state} />
-                  </TableCell>
-                  <TableCell className="hidden text-right tabular-nums md:table-cell">
-                    {formatLatency(Math.round(account.ewma_latency_ms))}
-                  </TableCell>
-                  <TableCell className="hidden max-w-[180px] text-meta text-muted xl:table-cell">
-                    {account.last_error_code ? (
-                      <span title={account.last_error_message ?? ""}>
-                        {account.last_error_code}
+        {accountsQuery.isPending ? (
+          <div className="space-y-2 p-5" aria-busy="true">
+            <Skeleton className="h-11 w-full" />
+            <Skeleton className="h-11 w-full" />
+            <Skeleton className="h-11 w-full" />
+          </div>
+        ) : accountsQuery.isError ? (
+          <div className="px-5">
+            <ErrorState
+              description={accountsQuery.error instanceof Error ? accountsQuery.error.message : undefined}
+              onRetry={() => void accountsQuery.refetch()}
+            />
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="px-5">
+            <EmptyState
+              title={accountsQuery.data?.length ? "当前筛选下没有账号。" : "还没有账号"}
+              description={
+                accountsQuery.data?.length
+                  ? "调整筛选条件试试。"
+                  : "添加一个百度或腾讯账号后即可开始识别。"
+              }
+              action={
+                accountsQuery.data?.length ? undefined : (
+                  <Button variant="primary" onClick={openCreate}>
+                    新建账号
+                  </Button>
+                )
+              }
+            />
+          </div>
+        ) : (
+          <Table inset className="md:min-w-[1100px]">
+            <TableHead>
+              <TableRow>
+                <TableHeaderCell className="hidden md:table-cell">厂商</TableHeaderCell>
+                <TableHeaderCell>名称</TableHeaderCell>
+                <TableHeaderCell className="hidden md:table-cell">贡献者</TableHeaderCell>
+                <TableHeaderCell className="hidden text-right md:table-cell">优先级</TableHeaderCell>
+                <TableHeaderCell className="hidden lg:table-cell">配额</TableHeaderCell>
+                <TableHeaderCell>状态</TableHeaderCell>
+                <TableHeaderCell className="hidden text-right md:table-cell">EWMA</TableHeaderCell>
+                <TableHeaderCell className="hidden xl:table-cell">最近错误</TableHeaderCell>
+                <TableHeaderCell className="text-right">操作</TableHeaderCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {filtered.map((account) => {
+                const usage = account.quota_usage;
+                const unconfigured =
+                  usage.daily.limit === null &&
+                  usage.monthly.limit === null &&
+                  usage.total.limit === null;
+                return (
+                  <TableRow key={account.id}>
+                    <TableCell className="hidden whitespace-nowrap text-muted md:table-cell">
+                      {providerLabel(account.provider)}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      <span className="block">{account.name}</span>
+                      <span className="block text-micro text-muted md:hidden">
+                        {providerLabel(account.provider)}
                       </span>
-                    ) : (
-                      "—"
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {/* Narrow screens keep name/state/actions visible; the actions collapse. */}
-                    <details className="md:hidden">
-                      <summary className="cursor-pointer select-none text-meta text-blue">
-                        操作
-                      </summary>
-                      <div className="mt-2 flex flex-col items-start gap-1">
+                    </TableCell>
+                    <TableCell className="hidden whitespace-nowrap text-muted md:table-cell">
+                      {account.owner_id === null ? "—" : (account.owner_name ?? "已删除")}
+                    </TableCell>
+                    <TableCell className="hidden text-right tabular-nums md:table-cell">
+                      {account.priority}
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell">
+                      {unconfigured ? (
+                        <span className="text-meta text-warn">未配置额度，可能超用</span>
+                      ) : (
+                        <QuotaRuler
+                          label="月"
+                          used={usage.monthly.used}
+                          limit={usage.monthly.limit}
+                        />
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <StatusDot state={account.state} />
+                    </TableCell>
+                    <TableCell className="hidden text-right tabular-nums md:table-cell">
+                      {formatLatency(Math.round(account.ewma_latency_ms))}
+                    </TableCell>
+                    <TableCell className="hidden max-w-[180px] text-meta text-muted xl:table-cell">
+                      {account.last_error_code ? (
+                        <span title={account.last_error_message ?? ""}>
+                          {account.last_error_code}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {/* Narrow screens keep name/state/actions visible; the actions collapse. */}
+                      <details className="md:hidden">
+                        <summary className="cursor-pointer select-none text-meta text-blue">
+                          操作
+                        </summary>
+                        <div className="mt-2 flex flex-col items-start gap-1">
+                          {renderActions(account)}
+                        </div>
+                      </details>
+                      <div className="hidden flex-wrap justify-end gap-1 md:flex">
                         {renderActions(account)}
                       </div>
-                    </details>
-                    <div className="hidden flex-wrap justify-end gap-1 md:flex">
-                      {renderActions(account)}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        )}
+      </Panel>
 
       <Dialog
         open={dialogOpen}

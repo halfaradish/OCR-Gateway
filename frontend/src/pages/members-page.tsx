@@ -9,6 +9,7 @@ import { z } from "zod";
 
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { PageHeader } from "@/components/page-header";
+import { Panel, Section } from "@/components/section";
 import { EmptyState, ErrorState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import {
@@ -212,7 +213,15 @@ export default function MembersPage() {
     <div>
       <PageHeader
         title="成员与 Key"
-        description="成员是配额归属对象；每个成员可以拥有多个 API Key。"
+        meta={
+          membersQuery.data ? (
+            <>
+              <span>{members.length} 个成员</span>
+              <span>{keysQuery.data?.length ?? 0} 个 Key</span>
+            </>
+          ) : undefined
+        }
+        description="成员是配额归属对象，每个成员可拥有多个 API Key。"
         actions={
           <Button variant="primary" onClick={() => setMemberDialog(true)}>
             <Plus aria-hidden="true" />
@@ -245,69 +254,74 @@ export default function MembersPage() {
           }
         />
       ) : (
-        <div className="space-y-10">
-          <Table className="md:min-w-[720px]">
-            <TableHead>
-              <TableRow>
-                <TableHeaderCell>名称</TableHeaderCell>
-                <TableHeaderCell>启用</TableHeaderCell>
-                <TableHeaderCell className="text-right">Key 数</TableHeaderCell>
-                <TableHeaderCell className="text-right">操作</TableHeaderCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {members.map((member) => (
-                <TableRow
-                  key={member.id}
-                  className={selected?.id === member.id ? "bg-mist/60" : undefined}
-                >
-                  <TableCell>
-                    <button
-                      type="button"
-                      className="text-left text-body text-ink hover:text-blue"
-                      onClick={() => selectMember(member)}
-                    >
-                      {member.name}
-                    </button>
-                  </TableCell>
-                  <TableCell>
-                    <Switch
-                      checked={member.enabled}
-                      aria-label={`启用 ${member.name}`}
-                      disabled={toggleMember.isPending}
-                      onCheckedChange={() => toggleMember.mutate(member)}
-                    />
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {formatNumber((keysByMember.get(member.id) ?? []).length)}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex justify-end gap-1">
-                      <Button size="sm" variant="ghost" onClick={() => selectMember(member)}>
-                        查看 Key
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="text-danger"
-                        disabled={deleteMember.isPending}
-                        onClick={() => setConfirm({ kind: "member", member })}
-                      >
-                        <Trash2 aria-hidden="true" />
-                        删除
-                      </Button>
-                    </div>
-                  </TableCell>
+        <div className="space-y-12">
+          <Section id="members-heading" title="成员" meta={`${members.length} 个`}>
+            <Table className="max-w-[600px]">
+              <TableHead>
+                <TableRow>
+                  <TableHeaderCell>名称</TableHeaderCell>
+                  <TableHeaderCell className="w-[64px]">启用</TableHeaderCell>
+                  <TableHeaderCell className="w-[72px] text-right">Key 数</TableHeaderCell>
+                  <TableHeaderCell className="w-[72px] text-right">操作</TableHeaderCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHead>
+              <TableBody>
+                {members.map((member) => (
+                  <TableRow
+                    key={member.id}
+                    className={selected?.id === member.id ? "bg-mist/60" : undefined}
+                  >
+                    <TableCell>
+                      <button
+                        type="button"
+                        className={
+                          selected?.id === member.id
+                            ? "text-left text-body font-medium text-ink"
+                            : "text-left text-body text-ink hover:text-blue"
+                        }
+                        aria-pressed={selected?.id === member.id}
+                        onClick={() => selectMember(member)}
+                      >
+                        {member.name}
+                      </button>
+                    </TableCell>
+                    <TableCell>
+                      <Switch
+                        checked={member.enabled}
+                        aria-label={`启用 ${member.name}`}
+                        disabled={toggleMember.isPending}
+                        onCheckedChange={() => toggleMember.mutate(member)}
+                      />
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatNumber((keysByMember.get(member.id) ?? []).length)}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex justify-end">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-danger"
+                          disabled={deleteMember.isPending}
+                          onClick={() => setConfirm({ kind: "member", member })}
+                        >
+                          <Trash2 aria-hidden="true" />
+                          删除
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Section>
 
-          <section aria-labelledby="keys-heading">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <h2 id="keys-heading" className="text-h2 font-medium text-ink">
-                {selected ? `${selected.name} 的 Key` : "Key"}
-              </h2>
+          <Section
+            id="keys-heading"
+            level="primary"
+            title={selected ? `${selected.name} 的 Key` : "Key"}
+            meta={`${memberKeys.length} 个`}
+            action={
               <Button
                 variant="primary"
                 disabled={!selected}
@@ -319,63 +333,75 @@ export default function MembersPage() {
                 <Plus aria-hidden="true" />
                 创建 Key
               </Button>
-            </div>
-            {memberKeys.length === 0 ? (
-              <EmptyState title="该成员还没有 Key。" description="创建后可立即用于调用公共 API。" />
-            ) : (
-              <Table className="md:min-w-[860px]">
-                <TableHead>
-                  <TableRow>
-                    <TableHeaderCell>前缀</TableHeaderCell>
-                    <TableHeaderCell>名称</TableHeaderCell>
-                    <TableHeaderCell className="hidden text-right md:table-cell">日限额</TableHeaderCell>
-                    <TableHeaderCell className="hidden text-right md:table-cell">RPM</TableHeaderCell>
-                    <TableHeaderCell className="hidden lg:table-cell">最近使用</TableHeaderCell>
-                    <TableHeaderCell>启用</TableHeaderCell>
-                    <TableHeaderCell className="text-right">操作</TableHeaderCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {memberKeys.map((key) => (
-                    <TableRow key={key.id}>
-                      <TableCell className="font-mono text-meta">{key.key_prefix}…</TableCell>
-                      <TableCell>{key.name}</TableCell>
-                      <TableCell className="hidden text-right tabular-nums md:table-cell">
-                        {key.daily_limit === null ? "不限" : formatNumber(key.daily_limit)}
-                      </TableCell>
-                      <TableCell className="hidden text-right tabular-nums md:table-cell">
-                        {key.rpm_limit === null ? "不限" : formatNumber(key.rpm_limit)}
-                      </TableCell>
-                      <TableCell className="hidden whitespace-nowrap text-muted lg:table-cell">
-                        {formatDateTime(key.last_used_at)}
-                      </TableCell>
-                      <TableCell>
-                        <Switch
-                          checked={key.enabled}
-                          aria-label={`启用 ${key.name}`}
-                          disabled={toggleKey.isPending}
-                          onCheckedChange={() => toggleKey.mutate(key)}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex justify-end">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-danger"
-                            disabled={revokeKey.isPending}
-                            onClick={() => setRevokeTarget(key)}
-                          >
-                            吊销
-                          </Button>
-                        </div>
-                      </TableCell>
+            }
+          >
+            <Panel>
+              {memberKeys.length === 0 ? (
+                <div className="px-5">
+                  <EmptyState
+                    title="该成员还没有 Key。"
+                    description="创建后可立即用于调用公共 API。"
+                  />
+                </div>
+              ) : (
+                <Table inset className="md:min-w-[860px]">
+                  <TableHead>
+                    <TableRow>
+                      <TableHeaderCell>前缀</TableHeaderCell>
+                      <TableHeaderCell>名称</TableHeaderCell>
+                      <TableHeaderCell className="hidden text-right md:table-cell">
+                        日限额
+                      </TableHeaderCell>
+                      <TableHeaderCell className="hidden text-right md:table-cell">
+                        RPM
+                      </TableHeaderCell>
+                      <TableHeaderCell className="hidden lg:table-cell">最近使用</TableHeaderCell>
+                      <TableHeaderCell>启用</TableHeaderCell>
+                      <TableHeaderCell className="text-right">操作</TableHeaderCell>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </section>
+                  </TableHead>
+                  <TableBody>
+                    {memberKeys.map((key) => (
+                      <TableRow key={key.id}>
+                        <TableCell className="font-mono text-micro">{key.key_prefix}…</TableCell>
+                        <TableCell>{key.name}</TableCell>
+                        <TableCell className="hidden text-right tabular-nums md:table-cell">
+                          {key.daily_limit === null ? "不限" : formatNumber(key.daily_limit)}
+                        </TableCell>
+                        <TableCell className="hidden text-right tabular-nums md:table-cell">
+                          {key.rpm_limit === null ? "不限" : formatNumber(key.rpm_limit)}
+                        </TableCell>
+                        <TableCell className="hidden whitespace-nowrap text-micro text-muted lg:table-cell">
+                          {formatDateTime(key.last_used_at)}
+                        </TableCell>
+                        <TableCell>
+                          <Switch
+                            checked={key.enabled}
+                            aria-label={`启用 ${key.name}`}
+                            disabled={toggleKey.isPending}
+                            onCheckedChange={() => toggleKey.mutate(key)}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex justify-end">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-danger"
+                              disabled={revokeKey.isPending}
+                              onClick={() => setRevokeTarget(key)}
+                            >
+                              吊销
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </Panel>
+          </Section>
         </div>
       )}
 

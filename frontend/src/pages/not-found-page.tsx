@@ -2,14 +2,18 @@ import { Link } from "react-router-dom";
 
 export default function NotFoundPage() {
   return (
-    <div className="flex min-h-screen items-center justify-center px-4">
-      <div>
-        <p className="text-h2 font-medium text-navy">页面不存在</p>
-        <p className="mt-1 text-meta text-muted">请检查地址，或返回总览。</p>
-        <Link to="/" className="mt-4 inline-block text-meta text-blue hover:underline">
+    <main className="flex min-h-screen items-center justify-center px-5">
+      <div className="w-full max-w-[420px] border-t-2 border-navy pt-6">
+        <p className="text-micro tabular-nums text-muted">404</p>
+        <h1 className="mt-2 text-h1 font-medium tracking-tight text-ink">页面不存在</h1>
+        <p className="mt-2 text-meta text-muted">请检查地址，或返回总览。</p>
+        <Link
+          to="/"
+          className="mt-6 inline-flex h-9 items-center rounded-sm bg-navy px-4 text-body font-medium text-white hover:bg-navy-deep"
+        >
           返回总览
         </Link>
       </div>
-    </div>
+    </main>
   );
 }

@@ -11,10 +11,12 @@ import {
 import { Link } from "react-router-dom";
 
 import { QuotaRuler } from "@/components/quota-ruler";
+import { Section, Panel } from "@/components/section";
 import { EmptyState, ErrorState } from "@/components/states";
 import { StatusDot } from "@/components/status-dot";
-import { MetricStrip } from "@/components/metric-strip";
+import { WatchBand } from "@/components/watch-band";
 import { PageHeader } from "@/components/page-header";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -26,20 +28,31 @@ import {
 } from "@/components/ui/table";
 import { apiFetch } from "@/lib/api";
 import { chartColors } from "@/lib/palette";
-import { formatDate, formatDateTime, formatLatency, formatNumber, formatPercent } from "@/lib/time";
+import { providerLabel } from "@/lib/providers";
+import {
+  formatDate,
+  formatDateTime,
+  formatLatency,
+  formatNumber,
+  formatPercent,
+  todayLocalIso,
+} from "@/lib/time";
 import type { AccountQuotaRow, Overview } from "@/types";
+import { cn } from "@/lib/utils";
 
 function OverviewSkeleton() {
   return (
-    <div className="space-y-8" aria-busy="true">
-      <Skeleton className="h-9 w-40" />
-      <div className="grid grid-cols-2 gap-6 md:grid-cols-4">
-        {[0, 1, 2, 3].map((item) => (
-          <Skeleton key={item} className="h-16" />
-        ))}
+    <div className="space-y-10" aria-busy="true">
+      <div className="space-y-3">
+        <Skeleton className="h-9 w-40" />
+        <Skeleton className="h-4 w-64" />
       </div>
-      <Skeleton className="h-28 w-full" />
-      <Skeleton className="h-[220px] w-full" />
+      <Skeleton className="h-[168px] w-full" />
+      <div className="space-y-4">
+        <Skeleton className="h-5 w-28" />
+        <Skeleton className="h-32 w-full" />
+      </div>
+      <Skeleton className="h-[200px] w-full" />
       <Skeleton className="h-40 w-full" />
     </div>
   );
@@ -47,7 +60,14 @@ function OverviewSkeleton() {
 
 function AccountsQuota({ accounts }: { accounts: AccountQuotaRow[] }) {
   if (accounts.length === 0) {
-    return <EmptyState title="还没有账号" description="先在账号页添加一个百度或腾讯账号。" />;
+    return (
+      <div className="px-5">
+        <EmptyState
+          title="还没有账号"
+          description="先在账号页添加一个百度或腾讯账号。"
+        />
+      </div>
+    );
   }
   return (
     <ul className="divide-y divide-line">
@@ -58,27 +78,31 @@ function AccountsQuota({ accounts }: { accounts: AccountQuotaRow[] }) {
           usage.monthly.limit === null &&
           usage.total.limit === null;
         return (
-          <li key={account.id} className="py-4">
-            <div className="flex flex-wrap items-center justify-between gap-x-8 gap-y-2">
-              <div className="min-w-[180px]">
+          <li key={account.id} className="px-5 py-4">
+            <div className="flex flex-wrap items-center gap-x-8 gap-y-2">
+              <div className="w-[180px] shrink-0">
                 <p className="text-body text-ink">{account.name}</p>
-                <p className="text-micro text-muted">{account.provider}</p>
+                <p className="mt-0.5 text-micro text-muted">{providerLabel(account.provider)}</p>
               </div>
               <StatusDot state={account.state} />
-              {unconfigured ? (
-                <p className="text-meta text-warn">未配置额度，可能超用</p>
-              ) : (
-                <QuotaRuler
-                  label="月配额"
-                  used={usage.monthly.used}
-                  limit={usage.monthly.limit}
-                />
-              )}
+              <div className="ml-auto w-full flex-1 md:w-auto md:max-w-[420px]">
+                {unconfigured ? (
+                  <p className="text-meta text-warn">未配置额度，可能超用</p>
+                ) : (
+                  <QuotaRuler
+                    label="月配额"
+                    used={usage.monthly.used}
+                    limit={usage.monthly.limit}
+                  />
+                )}
+              </div>
             </div>
             {unconfigured ? null : (
-              <details className="mt-2 text-meta text-muted">
-                <summary className="cursor-pointer select-none">日配额与总量</summary>
-                <div className="mt-2 flex flex-wrap gap-x-10 gap-y-2">
+              <details className="mt-3 text-micro text-muted md:ml-[212px]">
+                <summary className="cursor-pointer select-none hover:text-ink">
+                  日配额与总量
+                </summary>
+                <div className="mt-3 flex flex-wrap gap-x-12 gap-y-3">
                   <QuotaRuler label="日配额" used={usage.daily.used} limit={usage.daily.limit} />
                   <QuotaRuler label="总量" used={usage.total.used} limit={usage.total.limit} />
                 </div>
@@ -111,66 +135,148 @@ export default function OverviewPage() {
   const data = query.data;
   const today = data.today;
   const hasRequests = data.series.some((row) => row.requests > 0);
+  const weekTotal = data.series.reduce((sum, row) => sum + row.requests, 0);
+
+  // Yesterday is the series row before today's local date; absent when today is not in the window.
+  const todayKey = todayLocalIso();
+  const todayIndex = data.series.findIndex((row) => row.date === todayKey);
+  const yesterday = todayIndex > 0 ? data.series[todayIndex - 1] : undefined;
+  const dayDelta =
+    today.requests > 0 && yesterday && yesterday.requests > 0
+      ? Math.round(((today.requests - yesterday.requests) / yesterday.requests) * 100)
+      : null;
 
   return (
     <div>
       <PageHeader
         title="总览"
-        description={`今日窗口按 Asia/Shanghai 对齐 · 生成于 ${formatDateTime(data.generated_at)}`}
+        meta={
+          <>
+            <span>今日窗口按 Asia/Shanghai 对齐</span>
+            <span>生成于 {formatDateTime(data.generated_at)}</span>
+          </>
+        }
         actions={
-          <button
-            type="button"
-            onClick={() => void query.refetch()}
-            className="rounded-sm border border-line bg-surface px-3 py-1.5 text-meta text-ink hover:bg-mist"
-          >
+          <Button size="sm" onClick={() => void query.refetch()}>
             刷新
-          </button>
+          </Button>
         }
       />
 
-      <MetricStrip
+      <WatchBand
+        lead={{
+          label: "今日请求",
+          value: formatNumber(today.requests),
+          hint: (
+            <>
+              配额消耗 {formatNumber(today.quota_used)}
+              {dayDelta === null ? null : (
+                <span className={cn("ml-2", dayDelta >= 0 ? "text-success" : "text-danger")}>
+                  较昨日 {dayDelta >= 0 ? "+" : ""}
+                  {dayDelta}%
+                </span>
+              )}
+            </>
+          ),
+        }}
         items={[
-          { label: "今日请求", value: formatNumber(today.requests), hint: `配额消耗 ${formatNumber(today.quota_used)}` },
-          { label: "成功率", value: formatPercent(today.success_rate), hint: `失败 ${formatNumber(today.failure)}` },
-          { label: "缓存命中", value: formatPercent(today.cache_hit_rate), hint: `命中 ${formatNumber(today.cached)}` },
+          {
+            label: "成功率",
+            value: formatPercent(today.success_rate),
+            hint: `失败 ${formatNumber(today.failure)} 次`,
+          },
+          {
+            label: "缓存命中",
+            value: formatPercent(today.cache_hit_rate),
+            hint: `命中 ${formatNumber(today.cached)} 次`,
+          },
           {
             label: "平均延迟",
             value: formatLatency(today.avg_latency_ms),
-            hint: today.auto_failures > 0 ? `自动路由失败 ${today.auto_failures} 次` : "含失败请求的真实耗时",
-            tone: today.auto_failures > 0 ? "danger" : "default",
+            hint:
+              today.auto_failures > 0 ? (
+                <span className="text-danger">自动路由失败 {today.auto_failures} 次</span>
+              ) : undefined,
           },
         ]}
       />
 
-      <section className="mt-10" aria-labelledby="providers-heading">
-        <h2 id="providers-heading" className="mb-3 text-h2 font-medium text-ink">
-          厂商
-        </h2>
-        <div className="grid gap-x-10 gap-y-4 md:grid-cols-2">
-          {data.providers.map((provider) => (
-            <div key={provider.code} className="border-t border-line pt-3">
-              <div className="flex items-baseline justify-between">
-                <p className="text-body text-ink">{provider.name}</p>
-                <p className="text-micro text-muted">
-                  账号 {provider.accounts} · 可用 {provider.available_accounts}
-                </p>
-              </div>
-              <p className="mt-1 text-meta text-muted tabular-nums">
-                今日请求 {formatNumber(provider.today_requests)} · 失败{" "}
-                <span className={provider.today_failures > 0 ? "text-danger" : undefined}>
-                  {formatNumber(provider.today_failures)}
-                </span>
-              </p>
-            </div>
-          ))}
-        </div>
-      </section>
+      <Section
+        id="quota-heading"
+        title="账号配额"
+        level="primary"
+        meta={`${data.accounts.length} 个账号`}
+        action={
+          <Link to="/accounts" className="text-meta text-blue hover:underline">
+            管理账号
+          </Link>
+        }
+      >
+        <Panel>
+          <AccountsQuota accounts={data.accounts} />
+        </Panel>
+      </Section>
 
-      <section className="mt-10" aria-labelledby="series-heading">
-        <h2 id="series-heading" className="mb-3 text-h2 font-medium text-ink">
-          近 7 日请求
-        </h2>
-        <div className="relative h-[220px]">
+      <Section
+        id="errors-heading"
+        title="最近错误"
+        meta={data.recent_errors.length > 0 ? `${data.recent_errors.length} 条` : undefined}
+        action={
+          <Link to="/logs" className="text-meta text-blue hover:underline">
+            查看全部日志
+          </Link>
+        }
+      >
+        {data.recent_errors.length === 0 ? (
+          <div className="flex items-center gap-2 border-t border-line py-4 text-meta text-muted">
+            <span className="size-1.5 rounded-full bg-success" aria-hidden="true" />
+            最近没有失败请求
+          </div>
+        ) : (
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableHeaderCell>时间</TableHeaderCell>
+                <TableHeaderCell className="hidden md:table-cell">厂商</TableHeaderCell>
+                <TableHeaderCell className="hidden md:table-cell">账号</TableHeaderCell>
+                <TableHeaderCell>错误码</TableHeaderCell>
+                <TableHeaderCell className="hidden text-right md:table-cell">耗时</TableHeaderCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {data.recent_errors.map((error) => (
+                <TableRow key={error.id}>
+                  <TableCell className="whitespace-nowrap tabular-nums">
+                    {formatDateTime(error.created_at)}
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell">
+                    {providerLabel(error.provider)}
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell">
+                    {error.account_name ?? "已删除"}
+                  </TableCell>
+                  <TableCell
+                    className="max-w-[160px] truncate font-mono text-micro"
+                    title={error.error_code ?? undefined}
+                  >
+                    {error.error_code ?? "—"}
+                  </TableCell>
+                  <TableCell className="hidden text-right tabular-nums md:table-cell">
+                    {formatLatency(error.latency_ms)}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </Section>
+
+      <Section
+        id="series-heading"
+        title="近 7 日请求"
+        meta={`合计 ${formatNumber(weekTotal)} 次`}
+      >
+        <div className="relative h-[200px]">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={data.series} margin={{ top: 8, right: 8, bottom: 0, left: -20 }}>
               <CartesianGrid stroke={chartColors.line} strokeDasharray="2 4" vertical={false} />
@@ -214,64 +320,46 @@ export default function OverviewPage() {
             </p>
           )}
         </div>
-      </section>
+      </Section>
 
-      <section className="mt-10" aria-labelledby="quota-heading">
-        <div className="mb-3 flex items-baseline justify-between">
-          <h2 id="quota-heading" className="text-h2 font-medium text-ink">
-            账号配额
-          </h2>
-          <Link to="/accounts" className="text-meta text-blue hover:underline">
-            管理账号
-          </Link>
-        </div>
-        <AccountsQuota accounts={data.accounts} />
-      </section>
-
-      <section className="mt-10" aria-labelledby="errors-heading">
-        <div className="mb-3 flex items-baseline justify-between">
-          <h2 id="errors-heading" className="text-h2 font-medium text-ink">
-            最近错误
-          </h2>
-          <Link to="/logs" className="text-meta text-blue hover:underline">
-            查看全部日志
-          </Link>
-        </div>
-        {data.recent_errors.length === 0 ? (
-          <EmptyState title="最近没有失败请求。" />
-        ) : (
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableHeaderCell>时间</TableHeaderCell>
-                <TableHeaderCell>厂商</TableHeaderCell>
-                <TableHeaderCell>账号</TableHeaderCell>
-                <TableHeaderCell>错误码</TableHeaderCell>
-                <TableHeaderCell className="text-right">耗时</TableHeaderCell>
+      <Section id="providers-heading" title="厂商">
+        <Table className="max-w-[600px]">
+          <TableHead>
+            <TableRow>
+              <TableHeaderCell>厂商</TableHeaderCell>
+              <TableHeaderCell>账号</TableHeaderCell>
+              <TableHeaderCell className="text-right">今日请求</TableHeaderCell>
+              <TableHeaderCell className="text-right">失败</TableHeaderCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {data.providers.map((provider) => (
+              <TableRow key={provider.code} className="hover:bg-transparent">
+                <TableCell>{provider.name}</TableCell>
+                <TableCell className="text-meta text-muted">
+                  {provider.accounts} / {provider.available_accounts} 可用
+                </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {formatNumber(provider.today_requests)}
+                </TableCell>
+                <TableCell
+                  className={cn(
+                    "text-right tabular-nums",
+                    provider.today_failures > 0 ? "text-danger" : "text-muted",
+                  )}
+                >
+                  {formatNumber(provider.today_failures)}
+                </TableCell>
               </TableRow>
-            </TableHead>
-            <TableBody>
-              {data.recent_errors.map((error) => (
-                <TableRow key={error.id}>
-                  <TableCell className="whitespace-nowrap tabular-nums">
-                    {formatDateTime(error.created_at)}
-                  </TableCell>
-                  <TableCell>{error.provider}</TableCell>
-                  <TableCell>{error.account_name ?? "已删除"}</TableCell>
-                  <TableCell className="font-mono text-meta">{error.error_code ?? "—"}</TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {formatLatency(error.latency_ms)}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </section>
+            ))}
+          </TableBody>
+        </Table>
+      </Section>
 
-      <footer className="mt-10 border-t border-line pt-4 text-micro text-muted">
-        缓存 {data.cache.enabled ? "开启" : "关闭"} · {formatNumber(data.cache.entries)} 条 · TTL{" "}
-        {data.cache.ttl_seconds}s · 上限 {formatNumber(data.cache.max_entries)} 条
+      <footer className="mt-12 border-t border-line pt-4 text-micro text-muted">
+        {data.cache.enabled
+          ? `缓存已开启，${formatNumber(data.cache.entries)} / ${formatNumber(data.cache.max_entries)} 条，TTL ${data.cache.ttl_seconds} 秒`
+          : `缓存已关闭，TTL ${data.cache.ttl_seconds} 秒，上限 ${formatNumber(data.cache.max_entries)} 条`}
       </footer>
     </div>
   );
