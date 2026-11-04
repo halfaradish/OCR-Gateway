@@ -49,10 +49,10 @@ warmup/超时/重建/退避与计数可被 fake pool 单测覆盖。对应 T1。
 
 **验收标准**
 
-- [ ] `PROVIDER_NAMES` 增 `local` =「本地 RapidOCR」；`group_by=provider` 汇总返回 local 行与 label；日志行 label 正确；用量与日志的厂商筛选均接受 `provider=local`。
-- [ ] 总览厂商行包含 `local`（`accounts=0`、`available_accounts=0`），今日请求总数与各厂商行请求数之和一致（`auto` 失败仍单独计数）；无 local 事件时不出现空行。
-- [ ] 前端类型拆分：账号域 `ProviderCode` 仍只有 `baidu`/`tencent`；日志/用量/事件标签用含 `auto`/`local` 的展示联合；`ProviderRow.code` 使用该展示联合；账号创建与凭证映射不受影响。
-- [ ] 测试：API 断言 group_by/overview/日志 label 与对账；`pnpm --dir frontend typecheck` + `lint` 通过；报告记录命令、退出码、用例数与 SHA。
+- [x] `PROVIDER_NAMES` 增 `local` =「本地 RapidOCR」；`group_by=provider` 汇总返回 local 行与 label；日志行 label 正确；用量与日志的厂商筛选均接受 `provider=local`。
+- [x] 总览厂商行包含 `local`（`accounts=0`、`available_accounts=0`），今日请求总数与各厂商行请求数之和一致（`auto` 失败仍单独计数）；无 local 事件时不出现空行。
+- [x] 前端类型拆分：账号域 `ProviderCode` 仍只有 `baidu`/`tencent`；日志/用量/事件标签用含 `auto`/`local` 的展示联合；`ProviderRow.code` 使用该展示联合；账号创建与凭证映射不受影响。
+- [x] 测试：API 断言 group_by/overview/日志 label 与对账；`pnpm --dir frontend typecheck` + `lint` 通过；报告记录命令、退出码、用例数与 SHA。
 
 ### Task 4: 管理端开关、状态与面板
 

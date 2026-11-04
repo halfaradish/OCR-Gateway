@@ -162,6 +162,7 @@ export default function LogsPage() {
                 <option value="baidu">百度智能云</option>
                 <option value="tencent">腾讯云</option>
                 <option value="auto">自动路由</option>
+                <option value="local">本地 RapidOCR</option>
               </Select>
             </FilterField>
             <FilterField htmlFor="logs-error" label="错误码">

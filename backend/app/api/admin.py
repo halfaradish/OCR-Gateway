@@ -793,6 +793,18 @@ async def overview(
                 "today_failures": stats["failures"],
             }
         )
+    local_stats = provider_rows.get("local")
+    if local_stats is not None:
+        providers.append(
+            {
+                "code": "local",
+                "name": PROVIDER_NAMES["local"],
+                "accounts": 0,
+                "available_accounts": 0,
+                "today_requests": local_stats["requests"],
+                "today_failures": local_stats["failures"],
+            }
+        )
 
     account_rows = [
         {

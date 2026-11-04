@@ -1,4 +1,5 @@
 export type ProviderCode = "baidu" | "tencent";
+export type EventProviderCode = ProviderCode | "auto" | "local";
 export type AccountState = "active" | "cooling" | "invalid" | "quota_exhausted" | "disabled";
 
 export interface QuotaSlice {
@@ -25,7 +26,7 @@ export interface LoginResponse {
 }
 
 export interface ProviderRow {
-  code: ProviderCode;
+  code: EventProviderCode;
   name: string;
   accounts: number;
   available_accounts: number;
