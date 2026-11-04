@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.datastructures import UploadFile
 
 from app.api.deps import ApiError, KeyContext, get_session, get_state, require_api_key
+from app.core.local_engine import LocalOcrError
 from app.core.scheduler import SchedulerError
 from app.db import utcnow
 from app.models import UsageEvent
@@ -25,7 +26,13 @@ from app.utils.ssrf import fetch_image
 router = APIRouter(prefix="/v1")
 
 VALID_LANGUAGES = {"zh", "en", "auto"}
-VALID_PROVIDERS = {"auto", "baidu", "tencent"}
+VALID_PROVIDERS = {"auto", "baidu", "tencent", "local"}
+_LOCAL_ERROR_COPY = {
+    "FORBIDDEN": "本地 OCR 未启用。请在设置页开启「本地 OCR」开关后重试。",
+    "PROVIDER_ERROR": "本地 OCR 运行失败。服务已记录该错误；请稍后重试，或显式指定云厂商。",
+    "TIMEOUT": "本地 OCR 超时。请缩小图片或稍后重试。",
+    "PROVIDER_UNAVAILABLE": "本地 OCR 正在重建。请稍后重试。",
+}
 
 
 @dataclass
@@ -44,6 +51,25 @@ def _validate_options(language: str, provider: str) -> None:
         raise ApiError(400, "BAD_REQUEST", "unsupported language")
     if provider not in VALID_PROVIDERS:
         raise ApiError(400, "BAD_REQUEST", "unsupported provider")
+
+
+def _ensure_provider_enabled(provider: str, state: AppState) -> None:
+    """Explicit local is gated before the cache lookup (R-API-01/R-CAC-01)."""
+    if provider != "local":
+        return
+    status = state.local_engine.status()
+    if not status["installed"]:
+        raise ApiError(
+            403,
+            "FORBIDDEN",
+            "本地 OCR 依赖未安装。当前镜像未包含 local extra，请使用内置该依赖的 0.3.0 镜像。",
+        )
+    if not status["enabled"]:
+        raise ApiError(
+            403,
+            "FORBIDDEN",
+            "本地 OCR 未启用。请在设置页开启「本地 OCR」开关后重试。",
+        )
 
 
 def _decode_base64(value: str, max_bytes: int) -> bytes:
@@ -204,6 +230,7 @@ async def ocr_image(
         parsed = await _parse_request(request, state)
     except InputError as exc:
         raise ApiError(400, "BAD_REQUEST", str(exc)) from exc
+    _ensure_provider_enabled(parsed.provider, state)
     try:
         normalized = normalize_image(
             parsed.data,
@@ -278,6 +305,25 @@ async def ocr_image(
             image_hash_value=image_digest,
         )
         raise ApiError(exc.status_code, exc.code, exc.message) from exc
+    except LocalOcrError as exc:
+        latency = int((time.monotonic() - started) * 1000)
+        await _record_event(
+            session,
+            state,
+            request_id=request_id,
+            context=context,
+            provider="local",
+            success=False,
+            error_code=exc.code,
+            latency_ms=latency,
+            quota_used=0,
+            cached=False,
+            account_id=None,
+            image_hash_value=image_digest,
+        )
+        raise ApiError(
+            exc.status_code, exc.code, _LOCAL_ERROR_COPY.get(exc.code, exc.message)
+        ) from exc
     except InputError as exc:
         latency = int((time.monotonic() - started) * 1000)
         await _record_event(
@@ -296,10 +342,12 @@ async def ocr_image(
         )
         raise ApiError(400, "BAD_REQUEST", str(exc)) from exc
 
-    account = state.registry.get(result.account_id)
-    if account is not None:
-        state.quota.increment(account)
-        state.registry.apply_quota_limit(account, state.quota)
+    quota_used = 0 if result.provider == "local" else 1
+    if result.account_id is not None:
+        account = state.registry.get(result.account_id)
+        if account is not None:
+            state.quota.increment(account)
+            state.registry.apply_quota_limit(account, state.quota)
 
     response_lines: list[dict[str, Any]] = [
         {"text": line.text, "confidence": line.confidence} for line in result.lines
@@ -320,7 +368,7 @@ async def ocr_image(
         success=True,
         error_code=None,
         latency_ms=latency,
-        quota_used=1,
+        quota_used=quota_used,
         cached=False,
         account_id=result.account_id,
         image_hash_value=image_digest,
@@ -332,7 +380,7 @@ async def ocr_image(
         response_lines,
         latency,
         False,
-        1,
+        quota_used,
     )
 
 
@@ -351,6 +399,14 @@ async def list_providers(
                 "enabled": any(account.enabled for account in accounts),
             }
         )
+    local_status = state.local_engine.status()
+    providers.append(
+        {
+            "code": "local",
+            "name": PROVIDER_NAMES["local"],
+            "enabled": bool(local_status["installed"] and local_status["enabled"]),
+        }
+    )
     return {"providers": providers}
 
 

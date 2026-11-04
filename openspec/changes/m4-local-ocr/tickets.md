@@ -31,13 +31,13 @@ warmup/超时/重建/退避与计数可被 fake pool 单测覆盖。对应 T1。
 
 **验收标准**
 
-- [ ] Alembic `0003` upgrade → downgrade → upgrade 往返成功（含一条 local 行）；`app/models.py` 的 `ck_usage_provider` 同步为四值；`Base.metadata.create_all` 建库后插入 `provider='local'` 成功；downgrade 先把 local 行更新为 auto 再恢复旧约束。
-- [ ] `VALID_PROVIDERS` 含 `local`；显式 local 未启用/依赖缺失 → 403 `FORBIDDEN`，且该判定先于缓存读取（禁用后不返回旧缓存 200）；local 运行失败 502 `PROVIDER_ERROR`、超时 504 `TIMEOUT`；未知 provider 400。
-- [ ] auto 兜底：`reserve_eff = min(reserve, max(0, total − min_budget))`；1000/3000/5000/20000ms 边界下云阶段不会因预留落在过去；仅 `NoCandidate`/`UpstreamFailed`/`DeadlineExceeded` 触发；`InputError` 不兜底；显式 `baidu`/`tencent` 不兜底；预算不足返回云阶段原错误；整个请求不超过总 deadline。
-- [ ] local 图片规范化：Pillow 校验 + EXIF 旋转 + 重编码 JPEG；上限作用于重编码后的 JPEG 字节（≤ `MAX_UPLOAD_BYTES`），最长边 10000，不做 base64 膨胀检查；9MB PNG 通过、10000px 边界通过、超限 400。
-- [ ] local 成功响应 `provider="local"`、`quota.used=0`；`usage_event` 写 `provider='local'`、`account_id=NULL`、`quota_used=0`，Key 当日请求条数 +1、账号计数不变；缓存命中 local 事件 quota=0；响应与事件 quota 由实际 provider 派生，不硬编码 1。
-- [ ] `/v1/providers` 含 `local` 条目（`enabled = installed && enabled`），不含账号数、路径或模型信息；public 的 403/502/504 文案按 design copy 表区分「开关关闭」与「依赖缺失」两种 cause。
-- [ ] 测试：API 覆盖 200/400/403/502/504、providers、缓存门禁、预算边界（fake clock）；迁移往返；`ruff` + `mypy`；报告记录命令、退出码、用例数与 SHA。
+- [x] Alembic `0003` upgrade → downgrade → upgrade 往返成功（含一条 local 行）；`app/models.py` 的 `ck_usage_provider` 同步为四值；`Base.metadata.create_all` 建库后插入 `provider='local'` 成功；downgrade 先把 local 行更新为 auto 再恢复旧约束。
+- [x] `VALID_PROVIDERS` 含 `local`；显式 local 未启用/依赖缺失 → 403 `FORBIDDEN`，且该判定先于缓存读取（禁用后不返回旧缓存 200）；local 运行失败 502 `PROVIDER_ERROR`、超时 504 `TIMEOUT`；未知 provider 400。
+- [x] auto 兜底：`reserve_eff = min(reserve, max(0, total − min_budget))`；1000/3000/5000/20000ms 边界下云阶段不会因预留落在过去；仅 `NoCandidate`/`UpstreamFailed`/`DeadlineExceeded` 触发；`InputError` 不兜底；显式 `baidu`/`tencent` 不兜底；预算不足返回云阶段原错误；整个请求不超过总 deadline。
+- [x] local 图片规范化：Pillow 校验 + EXIF 旋转 + 重编码 JPEG；上限作用于重编码后的 JPEG 字节（≤ `MAX_UPLOAD_BYTES`），最长边 10000，不做 base64 膨胀检查；9MB PNG 通过、10000px 边界通过、超限 400。
+- [x] local 成功响应 `provider="local"`、`quota.used=0`；`usage_event` 写 `provider='local'`、`account_id=NULL`、`quota_used=0`，Key 当日请求条数 +1、账号计数不变；缓存命中 local 事件 quota=0；响应与事件 quota 由实际 provider 派生，不硬编码 1。
+- [x] `/v1/providers` 含 `local` 条目（`enabled = installed && enabled`），不含账号数、路径或模型信息；public 的 403/502/504 文案按 design copy 表区分「开关关闭」与「依赖缺失」两种 cause。
+- [x] 测试：API 覆盖 200/400/403/502/504、providers、缓存门禁、预算边界（fake clock）；迁移往返；`ruff` + `mypy`；报告记录命令、退出码、用例数与 SHA。
 
 ### Task 3: 记账标签与总览对账
 

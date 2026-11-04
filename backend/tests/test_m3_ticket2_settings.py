@@ -58,7 +58,7 @@ def test_settings_migration_roundtrip(tmp_path: Path) -> None:
     assert columns["value"][3] == 1  # NOT NULL
     assert columns["updated_at"][3] == 1
 
-    command.downgrade(config, "-1")
+    command.downgrade(config, "01b12c86bd76")
     with sqlite3.connect(db_path) as connection:
         tables = {
             row[0]

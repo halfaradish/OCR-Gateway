@@ -3,7 +3,9 @@ from __future__ import annotations
 import time
 from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import Protocol
 
+from app.core.local_engine import LocalResult, LocalUnavailable
 from app.core.quota import QuotaManager
 from app.core.registry import AccountRegistry
 from app.db import utcnow
@@ -15,6 +17,14 @@ from app.providers.base import (
     ProviderAdapter,
     RetryableError,
 )
+
+
+class LocalEngineLike(Protocol):
+    def is_available(self) -> bool: ...
+
+    async def recognize(
+        self, image: bytes, language: str, deadline: float, *, fallback: bool = False
+    ) -> LocalResult: ...
 
 
 class SchedulerError(Exception):
@@ -50,7 +60,7 @@ class UpstreamFailed(SchedulerError):
 
 @dataclass
 class ScheduleResult:
-    account_id: int
+    account_id: int | None
     provider: str
     text: str
     lines: list[Line]
@@ -63,18 +73,57 @@ class Scheduler:
         registry: AccountRegistry,
         quota: QuotaManager,
         adapters: Mapping[str, ProviderAdapter],
+        *,
+        local_engine: LocalEngineLike | None = None,
+        reserve_ms: int = 5000,
+        min_budget_ms: int = 1000,
     ) -> None:
         self._registry = registry
         self._quota = quota
         self._adapters = adapters
+        self._local = local_engine
+        self._reserve_ms = max(0, int(reserve_ms))
+        self._min_budget_ms = max(0, int(min_budget_ms))
 
     async def recognize(
         self, provider: str, image: bytes, language: str, deadline: float
     ) -> ScheduleResult:
         """`deadline` is an absolute `time.monotonic()` budget computed by the caller (R-SCH-03).
 
-        The runtime setting therefore covers the whole request, including semaphore waiting.
+        ``auto`` may hand the cloud phase a reduced deadline so local OCR keeps a reserve;
+        the local phase itself always uses the original total deadline.
         """
+        if provider == "local":
+            return await self._recognize_local(
+                image, language, deadline, fallback=False
+            )
+
+        local_available = self._local is not None and self._local.is_available()
+        if provider == "auto" and local_available:
+            total_ms = max(0.0, (deadline - time.monotonic()) * 1000.0)
+            reserve_eff = min(
+                self._reserve_ms, max(0.0, total_ms - self._min_budget_ms)
+            )
+            cloud_deadline = deadline - reserve_eff / 1000.0
+            try:
+                return await self._recognize_cloud(
+                    provider, image, language, cloud_deadline
+                )
+            except InputError:
+                raise
+            except (NoCandidate, UpstreamFailed, DeadlineExceeded) as cloud_error:
+                remaining_ms = (deadline - time.monotonic()) * 1000.0
+                if remaining_ms < self._min_budget_ms:
+                    raise cloud_error
+                return await self._recognize_local(
+                    image, language, deadline, fallback=True
+                )
+
+        return await self._recognize_cloud(provider, image, language, deadline)
+
+    async def _recognize_cloud(
+        self, provider: str, image: bytes, language: str, deadline: float
+    ) -> ScheduleResult:
         candidates = self._registry.candidates(provider, self._quota, utcnow())
         if not candidates:
             raise NoCandidate("no available account")
@@ -101,8 +150,6 @@ class Scheduler:
                 adapter = self._adapters[account.provider]
                 result = await adapter.recognize(account, image, language, timeout)
             except RetryableError as exc:
-                vendor_latency = int((time.monotonic() - started) * 1000)
-                del vendor_latency
                 self._registry.mark_failure(
                     account,
                     exc.kind,
@@ -134,6 +181,31 @@ class Scheduler:
             raise UpstreamFailed(last_error.message, last_provider, last_account_id)
         raise NoCandidate(
             "all candidate accounts failed", last_provider, last_account_id
+        )
+
+    async def _recognize_local(
+        self, image: bytes, language: str, deadline: float, *, fallback: bool
+    ) -> ScheduleResult:
+        if self._local is None:
+            raise LocalUnavailable("local OCR is not configured")
+        result: LocalResult = await self._local.recognize(
+            image, language, deadline, fallback=fallback
+        )
+        lines: list[Line] = []
+        for item in result.lines:
+            confidence = item.get("confidence")
+            lines.append(
+                Line(
+                    text=str(item.get("text", "")),
+                    confidence=None if confidence is None else float(confidence),
+                )
+            )
+        return ScheduleResult(
+            account_id=None,
+            provider="local",
+            text=result.text,
+            lines=lines,
+            vendor_latency_ms=result.latency_ms,
         )
 
 

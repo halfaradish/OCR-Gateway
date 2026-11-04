@@ -134,7 +134,8 @@ class UsageEvent(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "provider IN ('baidu', 'tencent', 'auto')", name="ck_usage_provider"
+            "provider IN ('baidu', 'tencent', 'auto', 'local')",
+            name="ck_usage_provider",
         ),
         CheckConstraint("latency_ms >= 0", name="ck_usage_latency"),
         CheckConstraint("quota_used >= 0", name="ck_usage_quota"),

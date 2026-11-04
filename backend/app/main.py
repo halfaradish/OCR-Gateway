@@ -81,6 +81,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "baidu": BaiduAdapter(http_client),
             "tencent": TencentAdapter(http_client),
         }
+        local_engine = LocalEngine(
+            enabled=runtime.local_ocr_enabled,
+            max_concurrency=resolved.local_ocr_max_concurrency,
+            timeout_ms=resolved.local_ocr_timeout_ms,
+            reserve_ms=resolved.local_ocr_reserve_ms,
+            min_budget_ms=resolved.local_ocr_min_budget_ms,
+        )
         state = AppState(
             settings=resolved,
             runtime=runtime,
@@ -95,14 +102,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             ),
             http=http_client,
             adapters=adapters,
-            scheduler=Scheduler(registry, quota, adapters),
-            local_engine=LocalEngine(
-                enabled=runtime.local_ocr_enabled,
-                max_concurrency=resolved.local_ocr_max_concurrency,
-                timeout_ms=resolved.local_ocr_timeout_ms,
+            scheduler=Scheduler(
+                registry,
+                quota,
+                adapters,
+                local_engine=local_engine,
                 reserve_ms=resolved.local_ocr_reserve_ms,
                 min_budget_ms=resolved.local_ocr_min_budget_ms,
             ),
+            local_engine=local_engine,
             semaphore=asyncio.Semaphore(resolved.max_concurrent_requests),
             frontend_built=panel_available,
         )

@@ -123,10 +123,16 @@ async def test_both_inputs_rejected(client, admin_headers) -> None:
 async def test_invalid_provider_and_language_rejected(client, admin_headers) -> None:
     key_headers, _, _ = await setup_access(client, admin_headers)
     encoded = base64.b64encode(make_image_bytes()).decode("ascii")
-    provider = await client.post(
+    local = await client.post(
         "/v1/ocr/image",
         headers=key_headers,
         json={"image_base64": encoded, "provider": "local"},
+    )
+    assert local.status_code == 403
+    provider = await client.post(
+        "/v1/ocr/image",
+        headers=key_headers,
+        json={"image_base64": encoded, "provider": "aliyun"},
     )
     assert provider.status_code == 400
     language = await client.post(

@@ -108,4 +108,4 @@ LANGUAGE_MAP: dict[str, dict[str, str]] = {
     "tencent": {"zh": "zh", "en": "en", "auto": "auto"},
 }
 
-PROVIDER_NAMES = {"baidu": "百度智能云", "tencent": "腾讯云"}
+PROVIDER_NAMES = {"baidu": "百度智能云", "tencent": "腾讯云", "local": "本地 RapidOCR"}

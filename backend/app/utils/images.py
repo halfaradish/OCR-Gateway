@@ -35,20 +35,24 @@ def _encode_jpeg(image: Image.Image) -> bytes:
 
 
 def _encoded_size(encoded: bytes, provider: str) -> int:
+    if provider == "local":
+        return len(encoded)
     b64 = base64.b64encode(encoded).decode("ascii")
     if provider == "tencent":
         return len(b64)
     return len(urllib.parse.urlencode({"image": b64}).encode("utf-8"))
 
 
-def _limit_bytes(provider: str) -> int:
+def _limit_bytes(provider: str, max_upload_bytes: int) -> int:
+    if provider == "local":
+        return max_upload_bytes
     if provider == "tencent":
         return TENCENT_MAX_BASE64_BYTES
     return BAIDU_MAX_ENCODED_BYTES
 
 
 def _limit_side(provider: str) -> int:
-    if provider == "tencent":
+    if provider in ("tencent", "local"):
         return MAX_SIDE_ANY
     return BAIDU_MAX_SIDE
 
@@ -85,16 +89,16 @@ def normalize_image(data: bytes, provider: str, max_bytes: int, max_pixels: int)
                 image = image.convert("RGB")
             if image.width < MIN_SIDE_PIXELS or image.height < MIN_SIDE_PIXELS:
                 raise ImageError("image is too small for the provider")
-            return _fit_limits(image, provider)
+            return _fit_limits(image, provider, max_bytes)
     except ImageError:
         raise
     except (UnidentifiedImageError, OSError, ValueError) as exc:
         raise ImageError("file is not a decodable image") from exc
 
 
-def _fit_limits(image: Image.Image, provider: str) -> bytes:
+def _fit_limits(image: Image.Image, provider: str, max_upload_bytes: int) -> bytes:
     max_side = _limit_side(provider)
-    max_encoded = _limit_bytes(provider)
+    max_encoded = _limit_bytes(provider, max_upload_bytes)
     scale = min(1.0, max_side / max(image.width, image.height))
     for _ in range(12):
         width = max(1, int(image.width * scale))
