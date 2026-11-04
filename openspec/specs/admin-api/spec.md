@@ -102,8 +102,7 @@
 - **THEN** 不写 `usage_events`、不扣账号/Key 配额、不改变账号状态 `[spec-review-amendment D24]`
 
 ### Requirement: R-ADM-06 用量与日志查询
-
-管理员 SHALL 能按时间与维度查询用量汇总、按本地日查询时间序列、分页查询请求日志；汇总、序列与日志 MUST 共用时间窗口并拒绝超过 90 天的跨度；汇总与序列 MUST 支持成员/厂商/账号过滤，汇总行 MUST 带显示名称并按 key 升序（`null` 最后），日志 MUST 带成员与账号名称、支持时间与错误码过滤并返回匹配总数；`provider='auto'` MUST 有显示名「自动路由」；日志 MUST NOT 返回 OCR 原文与凭证。`[spec-review-amendment R-06/R-11/R-12/R-52]`
+管理员 SHALL 能按时间与维度查询用量汇总、按本地日查询时间序列、分页查询请求日志；汇总、序列与日志 MUST 共用时间窗口并拒绝超过 90 天的跨度；汇总与序列 MUST 支持成员/厂商/账号过滤，汇总行 MUST 带显示名称并按 key 升序（`null` 最后），日志 MUST 带成员与账号名称、支持时间与错误码过滤并返回匹配总数；`provider='auto'` MUST 有显示名「自动路由」，`provider='local'` MUST 有显示名「本地 RapidOCR」；日志 MUST NOT 返回 OCR 原文与凭证。`[spec-review-amendment R-06/R-11/R-12/R-52/R-14]` `[m4-local-ocr]`
 
 #### Scenario: 按厂商汇总
 - **WHEN** 调用 `/usage/summary?group_by=provider`
@@ -124,6 +123,10 @@
 #### Scenario: 自动路由失败
 - **WHEN** `provider=auto` 的请求因无候选失败
 - **THEN** 汇总中 `auto` 行 label 为「自动路由」，总览 `today.auto_failures` 加一
+
+#### Scenario: 本地厂商标签
+- **WHEN** 汇总或日志中出现 `provider='local'`
+- **THEN** label 为「本地 RapidOCR」；用量与日志的厂商筛选均可传 `provider=local`
 
 #### Scenario: 汇总跨度上限
 - **WHEN** 汇总请求的时间跨度超过 90 天
@@ -181,8 +184,7 @@
 - **THEN** 账号配额保持 `NULL`，不取模板数值
 
 ### Requirement: R-ADM-08 运行时设置读写
-
-管理员 SHALL 能读取与部分更新运行时设置：缓存开关、缓存 TTL、缓存容量、请求总预算、账号默认超时；更新 MUST 校验类型与范围，显式 `null` MUST 返回 400，校验错误 MUST 含字段名；提交成功后 MUST 对后续请求生效；缓存参数变化 MUST 清空现有缓存并在响应中标记；只读项 MUST 包含鉴权状态、版本、上传限制、并发上限、会话时长与面板产物状态。`[spec-review-amendment R-05/R-15]`
+管理员 SHALL 能读取与部分更新运行时设置：缓存开关、缓存 TTL、缓存容量、请求总预算、账号默认超时、本地 OCR 开关；更新 MUST 校验类型与范围，显式 `null` MUST 返回 400，校验错误 MUST 含字段名；提交成功后 MUST 对后续请求生效；缓存参数变化 MUST 清空现有缓存并在响应中标记；**本地 OCR 开关变化 MUST 同样清空缓存并在响应中标记 `cache_cleared`**；重启后 MUST 按持久化值恢复本地 worker（`enabled=true` 且依赖已安装时从 `starting` 开始建池）；只读项 MUST 包含鉴权状态、版本、上传限制、并发上限、会话时长与面板产物状态。`[spec-review-amendment R-05/R-15/R-02]` `[m4-local-ocr]`
 
 #### Scenario: 读取设置
 - **WHEN** 调用 `GET /api/admin/settings`
@@ -220,9 +222,20 @@
 - **WHEN** 修改账号默认超时后创建未显式指定超时的账号
 - **THEN** 新账号使用新的默认超时
 
-### Requirement: R-ADM-09 总览聚合
+#### Scenario: 本地开关生效
+- **WHEN** 提交 `{"local_ocr_enabled": true}` 并保存
+- **THEN** 响应成功且 `cache_cleared=true`，后续 `provider=local` 可用，状态接口从 `starting` 变为 `ready`
 
-管理员 SHALL 能获取总览数据：今日请求、成功、失败、缓存命中、配额用量、成功率、缓存命中率、平均延迟，近 7 个本地日的序列，各厂商账号数与可用账号数，账号配额用量，最近 10 条错误与缓存状态；今日 MUST 按 `Asia/Shanghai` 自然日计算；无请求时比率 MUST 为空值而不是 0；`available_accounts` MUST 表示瞬时可调度数；`provider='auto'` 的失败 MUST 单独计数。`[spec-review-amendment R-09/R-21/R-52]`
+#### Scenario: 本地开关类型错误
+- **WHEN** 提交 `{"local_ocr_enabled": "yes"}`
+- **THEN** 返回 400 `BAD_REQUEST`，`error.fields[].field="local_ocr_enabled"`，开关不变
+
+#### Scenario: 重启后恢复本地 worker
+- **WHEN** 设置为 `local_ocr_enabled=true` 且依赖已安装，进程重启后读取设置
+- **THEN** `readonly` 仍显示原值，本地 worker 自动从 `starting` 进入 `ready`，无需再次保存
+
+### Requirement: R-ADM-09 总览聚合
+管理员 SHALL 能获取总览数据：今日请求、成功、失败、缓存命中、配额用量、成功率、缓存命中率、平均延迟，近 7 个本地日的序列，各厂商账号数与可用账号数，账号配额用量，最近 10 条错误与缓存状态；今日 MUST 按 `Asia/Shanghai` 自然日计算；无请求时比率 MUST 为空值而不是 0；`available_accounts` MUST 表示瞬时可调度数；`provider='auto'` 的失败 MUST 单独计数；`provider='local'` MUST 在厂商行中返回一行（`accounts=0`、`available_accounts=0`），使今日总数与厂商行之和可对账。`[spec-review-amendment R-09/R-21/R-52/R-13]` `[m4-local-ocr]`
 
 #### Scenario: 有数据的总览
 - **WHEN** 今日存在成功与失败请求
@@ -247,6 +260,10 @@
 #### Scenario: 自动路由失败计数
 - **WHEN** 今日存在 `provider=auto` 的失败事件
 - **THEN** `today.auto_failures` 计入这些事件，厂商行不重复计入
+
+#### Scenario: 本地厂商行
+- **WHEN** 今日存在 `provider='local'` 的事件
+- **THEN** 厂商行包含 `local`（`accounts=0`、`available_accounts=0`），今日请求总数与各厂商行请求数之和一致
 
 #### Scenario: 最近错误
 - **WHEN** 存在超过 10 条失败记录
@@ -275,3 +292,22 @@
 #### Scenario: 删除账号清理配额
 - **WHEN** 删除一个有已用配额的账号，再等待两个 flush 周期并创建新账号
 - **THEN** 不出现外键错误，新账号的已用值为 0
+
+### Requirement: R-ADM-11 本地 OCR 状态查询
+管理员 SHALL 能查询本地 OCR 状态：启用状态、依赖是否安装、运行状态（`stopped`/`starting`/`ready`/`error`/`unavailable`）、并发、超时与有效超时、预留预算与有效预留、下次重试等待、模型信息、最近耗时、最近错误、累计请求与兜底次数。接口 MUST 需要管理员会话，MUST NOT 返回模型文件绝对路径、凭证或识别原文；`last_error` MUST 为脱敏短消息（去路径/堆栈/截断）。`[spec-review-amendment R-28/R-31]` `[m4-local-ocr]`
+
+#### Scenario: 状态可查
+- **WHEN** 管理员请求 `GET /api/admin/local-ocr/status`
+- **THEN** 返回上述字段；`state` 与当前 worker 生命周期一致
+
+#### Scenario: 依赖缺失
+- **WHEN** 运行环境未安装 rapidocr 或 onnxruntime
+- **THEN** 返回 `installed=false`、`state="unavailable"`，不抛 500；`/v1/providers` 的 local `enabled` 为 false
+
+#### Scenario: 预热失败
+- **WHEN** warmup 因模型加载失败进入 `error`
+- **THEN** 返回 `state="error"`、脱敏的 `last_error` 与 `next_retry_in_ms`，不含模型文件绝对路径
+
+#### Scenario: 未授权
+- **WHEN** 未携带管理员会话请求状态接口
+- **THEN** 返回 401 `UNAUTHORIZED`
