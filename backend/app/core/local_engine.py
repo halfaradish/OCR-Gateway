@@ -113,7 +113,7 @@ class LocalEngine:
         self._retry_interval_ms = max(0, int(retry_interval_ms))
         self._pool_factory = pool_factory or _default_pool_factory
 
-        self._state = "stopped"
+        self._state = "stopped" if self._installed else "unavailable"
         self._pool: Any | None = None
         self._generation = 0
         self._ready = asyncio.Event()

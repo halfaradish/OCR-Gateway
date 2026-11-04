@@ -8,6 +8,7 @@ import { z } from "zod";
 import { PageHeader } from "@/components/page-header";
 import { Panel, Section } from "@/components/section";
 import { ErrorState } from "@/components/states";
+import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FieldError, Label } from "@/components/ui/label";
@@ -17,6 +18,7 @@ import { ApiError, apiFetch } from "@/lib/api";
 import { formatNumber } from "@/lib/time";
 import { LeaveConfirmDialog, useUnsavedChanges } from "@/lib/unsaved-changes";
 import type {
+  LocalOcrStatus,
   QuotaTemplatesResponse,
   SettingsResponse,
   SettingsUpdateResponse,
@@ -46,6 +48,7 @@ const settingsSchema = z.object({
       (value) => Number(value) >= 1000 && Number(value) <= 60000,
       "账号默认超时需在 1000 到 60000 毫秒之间。",
     ),
+  local_ocr_enabled: z.boolean(),
 });
 
 type SettingsValues = z.infer<typeof settingsSchema>;
@@ -62,6 +65,12 @@ export default function SettingsPage() {
     queryFn: () => apiFetch<QuotaTemplatesResponse>("/api/admin/quota-templates"),
     staleTime: 5 * 60_000,
   });
+  const statusQuery = useQuery({
+    queryKey: ["local-ocr-status"],
+    queryFn: () => apiFetch<LocalOcrStatus>("/api/admin/local-ocr/status"),
+    refetchInterval: (query) =>
+      query.state.data?.state === "starting" ? 1000 : false,
+  });
 
   const form = useForm<SettingsValues>({
     resolver: zodResolver(settingsSchema),
@@ -71,6 +80,7 @@ export default function SettingsPage() {
       cache_max_entries: "1000",
       request_deadline_ms: "20000",
       default_timeout_ms: "8000",
+      local_ocr_enabled: false,
     },
   });
 
@@ -84,6 +94,7 @@ export default function SettingsPage() {
       cache_max_entries: String(editable.cache_max_entries),
       request_deadline_ms: String(editable.request_deadline_ms),
       default_timeout_ms: String(editable.default_timeout_ms),
+      local_ocr_enabled: editable.local_ocr_enabled,
     });
   }, [editable, form]);
 
@@ -91,17 +102,29 @@ export default function SettingsPage() {
 
   const save = useMutation({
     scope: { id: "settings" },
-    mutationFn: (values: SettingsValues) =>
-      apiFetch<SettingsUpdateResponse>("/api/admin/settings", {
+    mutationFn: (values: SettingsValues) => {
+      const dirty = form.formState.dirtyFields as Partial<
+        Record<keyof SettingsValues, boolean>
+      >;
+      const payload: Record<string, unknown> = {};
+      for (const key of Object.keys(settingsSchema.shape) as Array<
+        keyof SettingsValues
+      >) {
+        if (!dirty[key]) continue;
+        if (
+          key === "local_ocr_enabled" &&
+          statusQuery.data?.installed === false
+        ) {
+          continue;
+        }
+        payload[key] =
+          key === "local_ocr_enabled" ? values[key] : Number(values[key]);
+      }
+      return apiFetch<SettingsUpdateResponse>("/api/admin/settings", {
         method: "PUT",
-        body: {
-          cache_enabled: values.cache_enabled,
-          cache_ttl_seconds: Number(values.cache_ttl_seconds),
-          cache_max_entries: Number(values.cache_max_entries),
-          request_deadline_ms: Number(values.request_deadline_ms),
-          default_timeout_ms: Number(values.default_timeout_ms),
-        },
-      }),
+        body: payload,
+      });
+    },
     onSuccess: (result) => {
       form.reset({
         cache_enabled: result.settings.cache_enabled,
@@ -109,12 +132,14 @@ export default function SettingsPage() {
         cache_max_entries: String(result.settings.cache_max_entries),
         request_deadline_ms: String(result.settings.request_deadline_ms),
         default_timeout_ms: String(result.settings.default_timeout_ms),
+        local_ocr_enabled: result.settings.local_ocr_enabled,
       });
       void queryClient.invalidateQueries({ queryKey: ["settings"] });
+      void queryClient.invalidateQueries({ queryKey: ["local-ocr-status"] });
       void queryClient.invalidateQueries({ queryKey: ["overview"] });
       toast.success("设置已保存");
       if (result.cache_cleared) {
-        toast.info("缓存参数已变更，缓存已清空");
+        toast.info("缓存参数或本地 OCR 开关已变更，缓存已清空");
       }
     },
     onError: (error) => {
@@ -256,6 +281,90 @@ export default function SettingsPage() {
                 <FieldError id="default_timeout_ms-error">
                   {errors.default_timeout_ms?.message}
                 </FieldError>
+              </div>
+            </div>
+            <div className="border-t border-line px-5 py-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="text-body text-ink">本地 OCR</p>
+                  <p className="mt-0.5 text-micro text-muted">
+                    云厂商全部不可用时由本地 RapidOCR 兜底；关闭后 provider=local 返回 403。
+                  </p>
+                </div>
+                <Controller
+                  control={form.control}
+                  name="local_ocr_enabled"
+                  render={({ field }) => (
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                      disabled={statusQuery.data?.installed === false}
+                      aria-label="启用本地 OCR"
+                    />
+                  )}
+                />
+              </div>
+              <div className="mt-3">
+                {statusQuery.isPending ? (
+                  <Skeleton className="h-16 w-full" />
+                ) : statusQuery.isError ? (
+                  <div className="flex flex-wrap items-center gap-3 text-meta text-muted">
+                    <span>本地状态暂不可用。</span>
+                    <Button
+                      onClick={() => void statusQuery.refetch()}
+                      disabled={statusQuery.isFetching}
+                    >
+                      {statusQuery.isFetching ? "重试中…" : "重试"}
+                    </Button>
+                  </div>
+                ) : statusQuery.data ? (
+                  statusQuery.data.installed === false ? (
+                    <p className="text-meta text-warn">
+                      当前镜像未安装 local extra，请使用内置该依赖的 0.3.0 镜像；此开关已禁用。
+                    </p>
+                  ) : (
+                    <dl className="grid gap-x-8 gap-y-2 text-meta md:grid-cols-2">
+                      <div className="flex items-baseline gap-3">
+                        <dt className="w-20 shrink-0 text-micro text-muted">状态</dt>
+                        <dd>
+                          <StatusDot state={statusQuery.data.state} />
+                        </dd>
+                      </div>
+                      <div className="flex items-baseline gap-3">
+                        <dt className="w-20 shrink-0 text-micro text-muted">模型</dt>
+                        <dd>
+                          {statusQuery.data.model.family}{" "}
+                          {statusQuery.data.model.variant}（
+                          {statusQuery.data.model.engine}）
+                        </dd>
+                      </div>
+                      <div className="flex items-baseline gap-3">
+                        <dt className="w-20 shrink-0 text-micro text-muted">最近耗时</dt>
+                        <dd className="tabular-nums">
+                          {statusQuery.data.last_latency_ms === null
+                            ? "—"
+                            : `${formatNumber(statusQuery.data.last_latency_ms)} ms`}
+                        </dd>
+                      </div>
+                      <div className="flex items-baseline gap-3">
+                        <dt className="w-20 shrink-0 text-micro text-muted">请求 / 兜底</dt>
+                        <dd className="tabular-nums">
+                          {formatNumber(statusQuery.data.requests_total)} /{" "}
+                          {formatNumber(statusQuery.data.fallback_total)}
+                        </dd>
+                      </div>
+                      <div className="flex items-baseline gap-3 md:col-span-2">
+                        <dt className="w-20 shrink-0 text-micro text-muted">最近错误</dt>
+                        <dd
+                          className="min-w-0 truncate text-muted"
+                          title={statusQuery.data.last_error ?? undefined}
+                        >
+                          {statusQuery.data.last_error ?? "无"}
+                        </dd>
+                      </div>
+                    </dl>
+                  )
+                ) : null}
               </div>
             </div>
             <div className="flex items-center gap-2 border-t border-line px-5 py-3">

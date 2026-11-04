@@ -250,6 +250,30 @@ try {
   check("double click sends one request", putCount === 1, `PUT count=${putCount}`);
   await shot(page, "14-settings");
 
+  // 本地 OCR：开启后状态从 starting 轮询到 ready。
+  await waitForBody(page, "本地 OCR");
+  const localSwitch = await page.$('button[aria-label="启用本地 OCR"]');
+  check("local OCR switch is present", Boolean(localSwitch));
+  if (localSwitch) {
+    const localDisabled = await page.$eval(
+      'button[aria-label="启用本地 OCR"]',
+      (element) => element.disabled,
+    );
+    if (localDisabled) {
+      check("local OCR switch disabled when extra is missing", true);
+    } else {
+      await localSwitch.click();
+      await clickButtonWithText(page, "保存设置");
+      await waitForBody(page, "设置已保存", 10_000);
+      await page.waitForFunction(
+        () => document.body.innerText.includes("就绪"),
+        { timeout: 60_000 },
+      );
+      check("local OCR reaches ready after enable", true);
+      await shot(page, "15-settings-local");
+    }
+  }
+
   await page.reload({ waitUntil: "domcontentloaded" });
   await waitForBody(page, "可编辑");
   const persisted = await page.$eval("#cache_ttl_seconds", (element) => element.value);

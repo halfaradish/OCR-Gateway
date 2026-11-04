@@ -64,10 +64,10 @@ warmup/超时/重建/退避与计数可被 fake pool 单测覆盖。对应 T1。
 
 **验收标准**
 
-- [ ] settings 增 `local_ocr_enabled`（bool，默认 false，支持部分更新；显式 null 400；类型错误 400 且 `error.fields[].field="local_ocr_enabled"`）；提交成功后幂等调用 `set_enabled`；开关变化清空缓存并返回 `cache_cleared=true`；重启后按持久化值恢复 worker。
-- [ ] `GET /api/admin/local-ocr/status` 需管理员会话（401）；返回 enabled/installed/state/concurrency/timeout+effective/reserve+effective/model/last_latency/last_error/next_retry/requests_total/fallback_total；依赖缺失 `installed=false,state=unavailable`；预热失败 `error` + 脱敏 `last_error`；不含绝对路径、凭证或识别原文。
-- [ ] [e2e] 设置页本地 OCR 卡片：独立 useQuery + 同高骨架 + 加载/空/错误三态；`starting` 轮询 ≤1s 到 `ready`/`error`；开关是表单唯一草稿源，status 只读；保存只提交 dirty 字段，disabled 字段从 payload 剔除；窄屏单列、`last_error` 截断可展开；依赖缺失时禁用开关并说明。
-- [ ] 测试：设置读写/非法值/持久化/重复保存不重建池；状态接口 200/401/unavailable/error；`pnpm typecheck` + `lint`；e2e 断言 starting→ready 与状态慢时设置区仍可编辑；报告记录命令、退出码、用例数与 SHA。
+- [x] settings 增 `local_ocr_enabled`（bool，默认 false，支持部分更新；显式 null 400；类型错误 400 且 `error.fields[].field="local_ocr_enabled"`）；提交成功后幂等调用 `set_enabled`；开关变化清空缓存并返回 `cache_cleared=true`；重启后按持久化值恢复 worker。
+- [x] `GET /api/admin/local-ocr/status` 需管理员会话（401）；返回 enabled/installed/state/concurrency/timeout+effective/reserve+effective/model/last_latency/last_error/next_retry/requests_total/fallback_total；依赖缺失 `installed=false,state=unavailable`；预热失败 `error` + 脱敏 `last_error`；不含绝对路径、凭证或识别原文。
+- [x] [e2e] 设置页本地 OCR 卡片：独立 useQuery + 同高骨架 + 加载/空/错误三态；`starting` 轮询 ≤1s 到 `ready`/`error`；开关是表单唯一草稿源，status 只读；保存只提交 dirty 字段，disabled 字段从 payload 剔除；窄屏单列、`last_error` 截断可展开；依赖缺失时禁用开关并说明。
+- [x] 测试：设置读写/非法值/持久化/重复保存不重建池；状态接口 200/401/unavailable/error；`pnpm typecheck` + `lint`；e2e 断言 starting→ready 与状态慢时设置区仍可编辑；报告记录命令、退出码、用例数与 SHA。
 
 ### Task 5: 镜像、文档与集成验收
 

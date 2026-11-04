@@ -1103,10 +1103,15 @@ async def _apply_settings(
             await upsert_settings(session, updates)
             await session.commit()
         merged = RuntimeSettings(**{**state.runtime.as_dict(), **updates})
+        local_changed = merged.local_ocr_enabled != state.runtime.local_ocr_enabled
         cache_cleared = state.cache.reconfigure(
             merged.cache_enabled, merged.cache_max_entries, merged.cache_ttl_seconds
         )
+        if local_changed:
+            state.cache.clear()
+            cache_cleared = True
         state.runtime = merged
+        await state.local_engine.set_enabled(merged.local_ocr_enabled)
         return merged, cache_cleared
 
 
@@ -1115,6 +1120,15 @@ async def get_settings(
     _: str = Depends(require_admin), state: AppState = Depends(get_state)
 ) -> dict[str, Any]:
     return {"editable": state.runtime.as_dict(), "readonly": _readonly_settings(state)}
+
+
+@router.get("/local-ocr/status")
+async def local_ocr_status(
+    _: str = Depends(require_admin), state: AppState = Depends(get_state)
+) -> dict[str, Any]:
+    return state.local_engine.status(
+        total_budget_ms=state.runtime.request_deadline_ms
+    )
 
 
 @router.put("/settings")

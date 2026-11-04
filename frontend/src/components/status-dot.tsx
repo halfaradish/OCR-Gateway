@@ -6,6 +6,11 @@ const STATE_LABELS: Record<string, string> = {
   invalid: "凭证失效",
   quota_exhausted: "配额耗尽",
   disabled: "已禁用",
+  stopped: "已停止",
+  starting: "预热中",
+  ready: "就绪",
+  error: "错误",
+  unavailable: "依赖缺失",
   unknown: "未知",
 };
 
@@ -15,6 +20,11 @@ const STATE_TONES: Record<string, string> = {
   invalid: "bg-danger",
   quota_exhausted: "bg-danger",
   disabled: "bg-muted",
+  stopped: "bg-muted",
+  starting: "bg-warn",
+  ready: "bg-success",
+  error: "bg-danger",
+  unavailable: "bg-muted",
   unknown: "bg-muted",
 };
 

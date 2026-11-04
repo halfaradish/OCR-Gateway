@@ -189,6 +189,36 @@ export interface SettingsEditable {
   cache_max_entries: number;
   request_deadline_ms: number;
   default_timeout_ms: number;
+  local_ocr_enabled: boolean;
+}
+
+export type LocalOcrState =
+  | "stopped"
+  | "starting"
+  | "ready"
+  | "error"
+  | "unavailable";
+
+export interface LocalOcrStatus {
+  enabled: boolean;
+  installed: boolean;
+  state: LocalOcrState;
+  concurrency: number;
+  timeout_ms: number;
+  effective_timeout_ms: number;
+  reserve_ms: number;
+  effective_reserve_ms: number;
+  model: {
+    engine: string;
+    family: string;
+    variant: string;
+    bundled: boolean;
+  };
+  last_latency_ms: number | null;
+  last_error: string | null;
+  next_retry_in_ms: number | null;
+  requests_total: number;
+  fallback_total: number;
 }
 
 export interface SettingsReadonly {
