@@ -151,10 +151,11 @@ export default function AccountsPage() {
     defaultValues: DEFAULTS,
   });
   const provider = form.watch("provider");
-  const credentialsError = errorMessage(form.formState.errors.credentials);
+  const errors = form.formState.errors;
+  const credentialsError = errorMessage(errors.credentials);
   // Route changes while the dialog holds unsaved edits ask for confirmation first.
   const blocker = useUnsavedChanges(dialogOpen && form.formState.isDirty);
-  const rootError = errorMessage(form.formState.errors.root);
+  const rootError = errorMessage(errors.root);
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["accounts"] });
@@ -586,8 +587,14 @@ export default function AccountsPage() {
               </div>
               <div>
                 <Label htmlFor="name">名称</Label>
-                <Input id="name" className="mt-1.5" {...form.register("name")} />
-                <FieldError>{form.formState.errors.name?.message}</FieldError>
+                <Input
+                  id="name"
+                  className="mt-1.5"
+                  {...form.register("name")}
+                  aria-invalid={errors.name ? true : undefined}
+                  aria-describedby={errors.name ? "name-error" : undefined}
+                />
+                <FieldError id="name-error">{errors.name?.message}</FieldError>
               </div>
               <div>
                 <Label htmlFor="owner">贡献者</Label>
@@ -602,13 +609,25 @@ export default function AccountsPage() {
               </div>
               <div>
                 <Label htmlFor="priority">优先级（数字越小越优先）</Label>
-                <Input id="priority" className="mt-1.5" {...form.register("priority")} />
-                <FieldError>{form.formState.errors.priority?.message}</FieldError>
+                <Input
+                  id="priority"
+                  className="mt-1.5"
+                  {...form.register("priority")}
+                  aria-invalid={errors.priority ? true : undefined}
+                  aria-describedby={errors.priority ? "priority-error" : undefined}
+                />
+                <FieldError id="priority-error">{errors.priority?.message}</FieldError>
               </div>
               <div>
                 <Label htmlFor="weight">权重</Label>
-                <Input id="weight" className="mt-1.5" {...form.register("weight")} />
-                <FieldError>{form.formState.errors.weight?.message}</FieldError>
+                <Input
+                  id="weight"
+                  className="mt-1.5"
+                  {...form.register("weight")}
+                  aria-invalid={errors.weight ? true : undefined}
+                  aria-describedby={errors.weight ? "weight-error" : undefined}
+                />
+                <FieldError id="weight-error">{errors.weight?.message}</FieldError>
               </div>
               <div>
                 <Label htmlFor="max_concurrency">并发上限</Label>
@@ -616,30 +635,56 @@ export default function AccountsPage() {
                   id="max_concurrency"
                   className="mt-1.5"
                   {...form.register("max_concurrency")}
+                  aria-invalid={errors.max_concurrency ? true : undefined}
+                  aria-describedby={errors.max_concurrency ? "max_concurrency-error" : undefined}
                 />
-                <FieldError>{form.formState.errors.max_concurrency?.message}</FieldError>
+                <FieldError id="max_concurrency-error">{errors.max_concurrency?.message}</FieldError>
               </div>
               <div>
                 <Label htmlFor="qps_limit">QPS 上限（留空为不限）</Label>
-                <Input id="qps_limit" className="mt-1.5" {...form.register("qps_limit")} />
-                <FieldError>{form.formState.errors.qps_limit?.message}</FieldError>
+                <Input
+                  id="qps_limit"
+                  className="mt-1.5"
+                  {...form.register("qps_limit")}
+                  aria-invalid={errors.qps_limit ? true : undefined}
+                  aria-describedby={errors.qps_limit ? "qps_limit-error" : undefined}
+                />
+                <FieldError id="qps_limit-error">{errors.qps_limit?.message}</FieldError>
               </div>
               <div>
                 <Label htmlFor="reset_day">月度重置日</Label>
-                <Input id="reset_day" className="mt-1.5" {...form.register("reset_day")} />
-                <FieldError>{form.formState.errors.reset_day?.message}</FieldError>
+                <Input
+                  id="reset_day"
+                  className="mt-1.5"
+                  {...form.register("reset_day")}
+                  aria-invalid={errors.reset_day ? true : undefined}
+                  aria-describedby={errors.reset_day ? "reset_day-error" : undefined}
+                />
+                <FieldError id="reset_day-error">{errors.reset_day?.message}</FieldError>
               </div>
               <div>
                 <Label htmlFor="timeout_ms">
                   {editing ? "超时（毫秒，留空保持原值）" : "超时（毫秒，留空用运行时默认）"}
                 </Label>
-                <Input id="timeout_ms" className="mt-1.5" {...form.register("timeout_ms")} />
-                <FieldError>{form.formState.errors.timeout_ms?.message}</FieldError>
+                <Input
+                  id="timeout_ms"
+                  className="mt-1.5"
+                  {...form.register("timeout_ms")}
+                  aria-invalid={errors.timeout_ms ? true : undefined}
+                  aria-describedby={errors.timeout_ms ? "timeout_ms-error" : undefined}
+                />
+                <FieldError id="timeout_ms-error">{errors.timeout_ms?.message}</FieldError>
               </div>
               <div>
                 <Label htmlFor="quota_daily">日配额（留空不限）</Label>
-                <Input id="quota_daily" className="mt-1.5" {...form.register("quota_daily")} />
-                <FieldError>{form.formState.errors.quota_daily?.message}</FieldError>
+                <Input
+                  id="quota_daily"
+                  className="mt-1.5"
+                  {...form.register("quota_daily")}
+                  aria-invalid={errors.quota_daily ? true : undefined}
+                  aria-describedby={errors.quota_daily ? "quota_daily-error" : undefined}
+                />
+                <FieldError id="quota_daily-error">{errors.quota_daily?.message}</FieldError>
               </div>
               <div>
                 <Label htmlFor="quota_monthly">月配额（留空不限）</Label>
@@ -647,13 +692,21 @@ export default function AccountsPage() {
                   id="quota_monthly"
                   className="mt-1.5"
                   {...form.register("quota_monthly")}
+                  aria-invalid={errors.quota_monthly ? true : undefined}
+                  aria-describedby={errors.quota_monthly ? "quota_monthly-error" : undefined}
                 />
-                <FieldError>{form.formState.errors.quota_monthly?.message}</FieldError>
+                <FieldError id="quota_monthly-error">{errors.quota_monthly?.message}</FieldError>
               </div>
               <div>
                 <Label htmlFor="quota_total">总量配额（留空不限）</Label>
-                <Input id="quota_total" className="mt-1.5" {...form.register("quota_total")} />
-                <FieldError>{form.formState.errors.quota_total?.message}</FieldError>
+                <Input
+                  id="quota_total"
+                  className="mt-1.5"
+                  {...form.register("quota_total")}
+                  aria-invalid={errors.quota_total ? true : undefined}
+                  aria-describedby={errors.quota_total ? "quota_total-error" : undefined}
+                />
+                <FieldError id="quota_total-error">{errors.quota_total?.message}</FieldError>
               </div>
             </div>
 
@@ -670,13 +723,15 @@ export default function AccountsPage() {
                       className="mt-1.5"
                       autoComplete="off"
                       {...form.register(`credentials.${field.key}`)}
+                      aria-invalid={credentialsError ? true : undefined}
+                      aria-describedby={
+                        credentialsError ? "account-credentials-error" : undefined
+                      }
                     />
                   </div>
                 ))}
               </div>
-              {credentialsError ? (
-                <p className="mt-1 text-micro text-danger">{credentialsError}</p>
-              ) : null}
+              <FieldError id="account-credentials-error">{credentialsError}</FieldError>
               {rootError ? <p className="mt-1 text-micro text-danger">{rootError}</p> : null}
             </fieldset>
 

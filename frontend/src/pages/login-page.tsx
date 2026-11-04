@@ -104,12 +104,13 @@ export default function LoginPage() {
                 className="mt-1.5"
                 value={password}
                 aria-invalid={fieldError ? true : undefined}
+                aria-describedby={fieldError ? "password-error" : undefined}
                 onChange={(event) => {
                   setPassword(event.target.value);
                   if (fieldError) setFieldError(null);
                 }}
               />
-              <FieldError>{fieldError}</FieldError>
+              <FieldError id="password-error">{fieldError}</FieldError>
             </div>
             {submitError ? (
               <p role="alert" className="text-meta text-danger">

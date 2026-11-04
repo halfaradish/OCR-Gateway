@@ -85,6 +85,8 @@ export default function MembersPage() {
     defaultValues: DEFAULT_KEY,
   });
   const unlimited = keyForm.watch("unlimited");
+  const memberErrors = memberForm.formState.errors;
+  const keyErrors = keyForm.formState.errors;
 
   const members = membersQuery.data ?? [];
   const selectedId = Number(params.get("member") ?? "");
@@ -418,8 +420,14 @@ export default function MembersPage() {
           >
             <div>
               <Label htmlFor="member-name">名称</Label>
-              <Input id="member-name" className="mt-1.5" {...memberForm.register("name")} />
-              <FieldError>{memberForm.formState.errors.name?.message}</FieldError>
+              <Input
+                id="member-name"
+                className="mt-1.5"
+                {...memberForm.register("name")}
+                aria-invalid={memberErrors.name ? true : undefined}
+                aria-describedby={memberErrors.name ? "member-name-error" : undefined}
+              />
+              <FieldError id="member-name-error">{memberErrors.name?.message}</FieldError>
             </div>
             <DialogFooter>
               <Button onClick={() => setMemberDialog(false)} disabled={createMember.isPending}>
@@ -448,8 +456,14 @@ export default function MembersPage() {
           >
             <div>
               <Label htmlFor="key-name">名称</Label>
-              <Input id="key-name" className="mt-1.5" {...keyForm.register("name")} />
-              <FieldError>{keyForm.formState.errors.name?.message}</FieldError>
+              <Input
+                id="key-name"
+                className="mt-1.5"
+                {...keyForm.register("name")}
+                aria-invalid={keyErrors.name ? true : undefined}
+                aria-describedby={keyErrors.name ? "key-name-error" : undefined}
+              />
+              <FieldError id="key-name-error">{keyErrors.name?.message}</FieldError>
             </div>
             <div className="flex items-center gap-2">
               <Controller
@@ -473,8 +487,10 @@ export default function MembersPage() {
                   className="mt-1.5"
                   disabled={unlimited}
                   {...keyForm.register("daily_limit")}
+                  aria-invalid={keyErrors.daily_limit ? true : undefined}
+                  aria-describedby={keyErrors.daily_limit ? "key-daily-error" : undefined}
                 />
-                <FieldError>{keyForm.formState.errors.daily_limit?.message}</FieldError>
+                <FieldError id="key-daily-error">{keyErrors.daily_limit?.message}</FieldError>
               </div>
               <div>
                 <Label htmlFor="key-rpm">RPM</Label>
@@ -483,8 +499,10 @@ export default function MembersPage() {
                   className="mt-1.5"
                   disabled={unlimited}
                   {...keyForm.register("rpm_limit")}
+                  aria-invalid={keyErrors.rpm_limit ? true : undefined}
+                  aria-describedby={keyErrors.rpm_limit ? "key-rpm-error" : undefined}
                 />
-                <FieldError>{keyForm.formState.errors.rpm_limit?.message}</FieldError>
+                <FieldError id="key-rpm-error">{keyErrors.rpm_limit?.message}</FieldError>
               </div>
             </div>
             <DialogFooter>

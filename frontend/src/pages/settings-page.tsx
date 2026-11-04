@@ -75,6 +75,7 @@ export default function SettingsPage() {
   });
 
   const editable = settingsQuery.data?.editable;
+  const errors = form.formState.errors;
   useEffect(() => {
     if (!editable) return;
     form.reset({
@@ -202,8 +203,14 @@ export default function SettingsPage() {
                   id="cache_ttl_seconds"
                   className="mt-1.5"
                   {...form.register("cache_ttl_seconds")}
+                  aria-invalid={errors.cache_ttl_seconds ? true : undefined}
+                  aria-describedby={
+                    errors.cache_ttl_seconds ? "cache_ttl_seconds-error" : undefined
+                  }
                 />
-                <FieldError>{form.formState.errors.cache_ttl_seconds?.message}</FieldError>
+                <FieldError id="cache_ttl_seconds-error">
+                  {errors.cache_ttl_seconds?.message}
+                </FieldError>
               </div>
               <div>
                 <Label htmlFor="cache_max_entries">缓存容量（条）</Label>
@@ -211,8 +218,14 @@ export default function SettingsPage() {
                   id="cache_max_entries"
                   className="mt-1.5"
                   {...form.register("cache_max_entries")}
+                  aria-invalid={errors.cache_max_entries ? true : undefined}
+                  aria-describedby={
+                    errors.cache_max_entries ? "cache_max_entries-error" : undefined
+                  }
                 />
-                <FieldError>{form.formState.errors.cache_max_entries?.message}</FieldError>
+                <FieldError id="cache_max_entries-error">
+                  {errors.cache_max_entries?.message}
+                </FieldError>
               </div>
               <div>
                 <Label htmlFor="request_deadline_ms">请求总预算（毫秒）</Label>
@@ -220,8 +233,14 @@ export default function SettingsPage() {
                   id="request_deadline_ms"
                   className="mt-1.5"
                   {...form.register("request_deadline_ms")}
+                  aria-invalid={errors.request_deadline_ms ? true : undefined}
+                  aria-describedby={
+                    errors.request_deadline_ms ? "request_deadline_ms-error" : undefined
+                  }
                 />
-                <FieldError>{form.formState.errors.request_deadline_ms?.message}</FieldError>
+                <FieldError id="request_deadline_ms-error">
+                  {errors.request_deadline_ms?.message}
+                </FieldError>
               </div>
               <div>
                 <Label htmlFor="default_timeout_ms">账号默认超时（毫秒）</Label>
@@ -229,8 +248,14 @@ export default function SettingsPage() {
                   id="default_timeout_ms"
                   className="mt-1.5"
                   {...form.register("default_timeout_ms")}
+                  aria-invalid={errors.default_timeout_ms ? true : undefined}
+                  aria-describedby={
+                    errors.default_timeout_ms ? "default_timeout_ms-error" : undefined
+                  }
                 />
-                <FieldError>{form.formState.errors.default_timeout_ms?.message}</FieldError>
+                <FieldError id="default_timeout_ms-error">
+                  {errors.default_timeout_ms?.message}
+                </FieldError>
               </div>
             </div>
             <div className="flex items-center gap-2 border-t border-line px-5 py-3">

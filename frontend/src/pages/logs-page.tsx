@@ -1,5 +1,5 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { FilterBar, FilterField } from "@/components/filter-bar";
@@ -32,6 +32,7 @@ import { daysAgoLocalIso, formatDateTime, formatLatency, formatNumber, todayLoca
 import type { LogRow, LogsResponse } from "@/types";
 
 const PAGE_SIZE = 50;
+const FILTER_DEBOUNCE_MS = 300;
 
 export default function LogsPage() {
   const [params, setParams] = useSearchParams();
@@ -42,15 +43,39 @@ export default function LogsPage() {
   const errorCode = params.get("error") ?? "";
   const offset = Math.max(0, Number(params.get("offset") ?? "0") || 0);
   const [detail, setDetail] = useState<LogRow | null>(null);
+  const [errorDraft, setErrorDraft] = useState(errorCode);
 
-  const update = (patch: Record<string, string | number>) => {
-    const next = new URLSearchParams(params);
-    for (const [key, value] of Object.entries(patch)) {
-      if (value === "" || value === undefined) next.delete(key);
-      else next.set(key, String(value));
-    }
-    setParams(next, { replace: true });
-  };
+  const update = useCallback(
+    (patch: Record<string, string | number>) => {
+      setParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          for (const [key, value] of Object.entries(patch)) {
+            if (value === "" || value === undefined) next.delete(key);
+            else next.set(key, String(value));
+          }
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setParams],
+  );
+
+  // URL-driven changes (clear filters, back/forward) win over the local draft.
+  useEffect(() => {
+    setErrorDraft(errorCode);
+  }, [errorCode]);
+
+  // Text filters commit after a pause: one request per pause instead of one per keystroke.
+  useEffect(() => {
+    if (errorDraft === errorCode) return;
+    const timer = window.setTimeout(
+      () => update({ error: errorDraft, offset: "" }),
+      FILTER_DEBOUNCE_MS,
+    );
+    return () => window.clearTimeout(timer);
+  }, [errorDraft, errorCode, update]);
 
   const query = new URLSearchParams({
     from,
@@ -74,6 +99,7 @@ export default function LogsPage() {
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const clearFilters = () => {
+    setErrorDraft("");
     setParams(new URLSearchParams({ from, to }), { replace: true });
   };
 
@@ -83,7 +109,10 @@ export default function LogsPage() {
         title="日志"
         description="只展示元数据，不包含 OCR 原文；时间按 Asia/Shanghai 显示。"
         actions={
-          <Button onClick={clearFilters} disabled={!status && !provider && !errorCode && offset === 0}>
+          <Button
+            onClick={clearFilters}
+            disabled={!status && !provider && !errorDraft && !errorCode && offset === 0}
+          >
             清除筛选
           </Button>
         }
@@ -140,8 +169,8 @@ export default function LogsPage() {
                 id="logs-error"
                 inputSize="sm"
                 placeholder="如 TIMEOUT"
-                value={errorCode}
-                onChange={(event) => update({ error: event.target.value, offset: "" })}
+                value={errorDraft}
+                onChange={(event) => setErrorDraft(event.target.value)}
               />
             </FilterField>
           </FilterBar>

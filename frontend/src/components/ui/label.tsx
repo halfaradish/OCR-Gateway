@@ -15,7 +15,11 @@ export const Label = React.forwardRef<
 ));
 Label.displayName = "Label";
 
-export function FieldError({ children }: { children?: React.ReactNode }) {
+export function FieldError({ id, children }: { id?: string; children?: React.ReactNode }) {
   if (!children) return null;
-  return <p className="mt-1 text-micro text-danger">{children}</p>;
+  return (
+    <p id={id} className="mt-1 text-micro text-danger">
+      {children}
+    </p>
+  );
 }
