@@ -51,7 +51,7 @@
 ```
 
 组件职责：
-- `app/core/local_engine.py`（新）：父进程侧状态机、进程池、超时、计数与状态快照。
+- `app/core/local_engine.py`（新）：父进程侧状态机、进程池（`multiprocessing.get_context("spawn").Pool`，可 `terminate()`；不使用无法 kill 运行中任务的 `ProcessPoolExecutor`）、超时、计数与状态快照（`[spec-review-amendment Q1-B]`）。
 - `app/workers/local_ocr.py`（新）：worker 进程侧，模块级引擎缓存与 `run_ocr`/`warmup`；**不得**导入 `app.state`/`app.main`/配置，避免把凭证带进子进程；必须能被 spawn 单独导入。
 - `app/core/scheduler.py`：增加 local 分支与 `auto` 兜底（云阶段截止 = 总 deadline − reserve）。
 - `app/api/public.py`：`provider` 枚举、403/502/504 映射、`/v1/providers` 条目。
@@ -216,6 +216,7 @@ downgrade：先 `UPDATE usage_events SET provider='auto' WHERE provider='local'`
 可观测性：
 - 结构化日志事件：`local_ocr.enabled` / `local_ocr.disabled` / `local_ocr.warmup`（含 model 与耗时）/ `local_ocr.fallback`（含 from_reason）/ `local_ocr.timeout` / `local_ocr.failed`。日志不含图片字节与识别原文。
 - `usage_event`：`provider='local'`、`account_id=NULL`、`quota_used=0`、`latency_ms` 为整请求耗时；兜底成功与失败都记录。
+- 管理端总览的厂商行增加 `local`（`accounts=0`、`available_accounts=0`），今日请求总数与各厂商行请求数之和对账；`auto` 失败仍单独计数（`[spec-review-amendment R-13]`）。
 - `GET /api/admin/local-ocr/status`：
 
 ```json

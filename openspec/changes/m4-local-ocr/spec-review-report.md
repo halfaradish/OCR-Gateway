@@ -23,21 +23,32 @@ memo: ok
 
 **Q-scope 范围划界认不认？**
 自答：锚 `proposal.md` `## Non-Goals`（不做模型下载/本地独立配额/多并发调优/GPU/多实例广播/批量 PDF）与 `design.md` `## Goals / Non-Goals`（不改云账号候选/排序/冷却；不做跨实例协调）。评审认为边界总体成立，但 **Non-Goals「不做本地独立配额」的假设 A2「本地只在云全挂时承接」与显式 `provider=local` 冲突**——显式 local 何时都可调用，见 R-15。请一并确认这一划界。
-[ ] 认 [ ] 不认
+[x] 认 [ ] 不认
 
 **Q-deps 依赖/顺序认不认？**
 自答：锚 `design.md` `## 切片与依赖`（T1 引擎与进程池 → T2 公共路由/T4 管理端 → T3 记账 → T5 镜像文档；T3 依赖 T2 的事件来源）。依赖链本身成立；但 T1 需补「可 kill 的进程池 / generation」、T3 需补「`models.py` 同步」，否则任务顺序对而实现会返工（R-03/R-07/R-10）。
-[ ] 认 [ ] 不认
+[x] 认 [ ] 不认
 
 **Q-risk 风险赌注与对策认不认？**
 自答：锚 `design.md` `## Risks / Trade-offs` 6 条 + `decision-memo.md` `## 接受的边角` 6 条。评审认为还缺 3 项风险：运行中任务不可取消（R-03）、兄弟请求被池重建取消（R-12）、`python:3.12-slim` 系统库未显式验证（R-36）。接受这些风险的话，需把「可 kill 池」的成本计入 T1。
-[ ] 认 [ ] 不认
+[x] 认 [ ] 不认
 
 ---
 
 ## 决策登记区
 
 > `[需拍板]` 在主 session 无法单方面定；`[自动决策]` 已按通则自行裁决并落入 amendment，可覆盖。
+
+## 拍板结果（人 2026-11-04）
+
+人已批准进入设计 HARD-GATE，并按推荐拍板：
+
+- **Q1 → B**：`multiprocessing.get_context("spawn").Pool`（可 `terminate()`）；已落入 design 组件职责与 tasks 1.2。
+- **Q2 → A**：`reserve_eff` clamp；已落入 design 预算不变量、R-SCH-07 与 tasks 2.2。
+- **Q3 → A**：overview 增加 `local` 行（`accounts=0`）；已落入 R-ADM-09 delta、design 可观测性、tasks 3.4。
+- **Q4 → A**：保持 D3，修正理由并写明仅受 Key RPM/并发；已落入 proposal Non-Goals、R-QTA-01、tasks 5.2。
+- 拍板三问：范围 **认** / 依赖 **认** / 风险 **认**。
+- 窄复核（增量）：Q1/Q3/Q4 的二次修订只触及上述段落与 R-ADM-09 delta；`openspec validate --strict` 通过，R-ADM-09 的 7 条既有 scenario 全部保留并新增「本地厂商行」。
 
 ### [需拍板]
 
@@ -90,7 +101,7 @@ D3 定 `quota_used=0`，memo 的接受理由写「概率低（仅云全挂时触
 | D3 | R-05 | lifespan 在 `local_ocr_enabled && installed` 时调用 `set_enabled(true)` | R-ADM-08「重启后新值仍生效」与 R-LOC-05「启用后建池预热」的必然推论 |
 | D4 | R-06 | MODIFY R-SCH-03：总 deadline 不变，auto 云阶段用 `deadline − reserve_eff` 子 deadline，本地阶段用总 deadline | 消除两条权威需求的冲突；保留既有「同一绝对 deadline」的意图 |
 | D5 | R-07 | task 3.1 同时修改 `models.py` 的 `ck_usage_provider`，并加 `create_all` 插入 local 的测试 | 测试建库走 `Base.metadata.create_all`，ORM 不同步会让 local 事件在单测里直接 IntegrityError |
-| D6 | R-08 | 账号域保留 `ProviderCode = baidu\|tencent`；新增 `EventProvider = ProviderCode \| auto \| local` 供日志/用量/标签；`ProviderRow` 维持云厂商 | 防止账号创建 UI 被 local 污染；memo C6「改 types.ts:1」按此修正 |
+| D6 | R-08 | 账号域保留 `ProviderCode = baidu\|tencent`；新增 `EventProvider = ProviderCode \| auto \| local` 供日志/用量/标签/`ProviderRow.code`（Q3 后 overview 也返回 local 行）；账号/凭证映射仍用 `ProviderCode` | 防止账号创建 UI 被 local 污染；memo C6「改 types.ts:1」按此修正 |
 | D7 | R-09 | 依赖缺失 → `unavailable`（不建池，显式 local 仍 403）；模型加载失败 → `error`；同步状态图/JSON/spec | 两份 spec 已写 unavailable，只有 design 状态机漏了 |
 | D8 | R-10 | `set_enabled` 幂等且仅在状态变化时执行；enable/disable/rebuild 分配自增 generation，回调先比对 generation；disable 清 ready event | 防止迟到 warmup 覆盖新状态、重复建池 |
 | D9 | R-11 | warmup 用含文字的小图并断言返回非空；warmup 加超时（≤ ready 等待上限），超时置 `error` | 1×1 白图在检测阶段即返回，不能证明 rec/cls 已加载；warmup 卡住会让 starting 永久停留 |
@@ -162,7 +173,7 @@ D3 定 `quota_used=0`，memo 的接受理由写「概率低（仅云全挂时触
 #### R-08 `ProviderCode` 复用于账号/事件/总览导致类型与语义冲突
 - **命中**：ADV-A / BE / FE / DX
 - **证据**：`frontend/src/types.ts:1`「export type ProviderCode = "baidu" | "tencent";」；同文件 `ProviderRow.code: ProviderCode`；`frontend/src/pages/accounts-page.tsx:49`「const CREDENTIAL_FIELDS: Record<ProviderCode, …> = {」；同文件 `provider: z.enum(["baidu", "tencent"])`；`decision-memo.md:41`「frontend/src/types.ts:1」列为需改
-- **裁决**：成立。直接扩 union 会逼账号 UI 为 local 配凭证，且与 D10「总览不加 local」冲突。拆类型。
+- **裁决**：成立。直接扩 union 会逼账号 UI 为 local 配凭证，且与 D10「总览不加 local」冲突。拆类型。Q3 拍板让 overview 也返回 local 行后，`ProviderRow.code` 必须使用展示联合（含 local）；账号/凭证映射仍只接受 baidu/tencent。
 
 #### R-09 `unavailable` 状态在 design 状态机缺失，与两份 spec 冲突
 - **命中**：ADV-A / ADV-B / BE / DX

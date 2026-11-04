@@ -124,6 +124,41 @@
 - **WHEN** 传入无法解析的 `from` 或 `to`
 - **THEN** 返回 400 `BAD_REQUEST`
 
+### Requirement: R-ADM-09 总览聚合
+管理员 SHALL 能获取总览数据：今日请求、成功、失败、缓存命中、配额用量、成功率、缓存命中率、平均延迟，近 7 个本地日的序列，各厂商账号数与可用账号数，账号配额用量，最近 10 条错误与缓存状态；今日 MUST 按 `Asia/Shanghai` 自然日计算；无请求时比率 MUST 为空值而不是 0；`available_accounts` MUST 表示瞬时可调度数；`provider='auto'` 的失败 MUST 单独计数；`provider='local'` MUST 在厂商行中返回一行（`accounts=0`、`available_accounts=0`），使今日总数与厂商行之和可对账。`[spec-review-amendment R-09/R-21/R-52/R-13]` `[m4-local-ocr]`
+
+#### Scenario: 有数据的总览
+- **WHEN** 今日存在成功与失败请求
+- **THEN** 各计数、成功率、缓存命中率与平均延迟为非空值
+
+#### Scenario: 无请求的总览
+- **WHEN** 今日没有请求
+- **THEN** 计数为 0，成功率、缓存命中率与平均延迟为 `null`
+
+#### Scenario: 可用账号数
+- **WHEN** 某厂商账号被禁用、冷却或配额耗尽
+- **THEN** 该厂商的可用账号数不包含这些账号
+
+#### Scenario: 可用账号数的瞬时口径
+- **WHEN** 账号并发已满或令牌桶暂时为空
+- **THEN** 该账号也暂不计入 `available_accounts`；GET 不改变账号状态
+
+#### Scenario: 近 7 日序列
+- **WHEN** 请求总览
+- **THEN** 响应包含 7 个本地日桶的序列
+
+#### Scenario: 自动路由失败计数
+- **WHEN** 今日存在 `provider=auto` 的失败事件
+- **THEN** `today.auto_failures` 计入这些事件，厂商行不重复计入
+
+#### Scenario: 本地厂商行
+- **WHEN** 今日存在 `provider='local'` 的事件
+- **THEN** 厂商行包含 `local`（`accounts=0`、`available_accounts=0`），今日请求总数与各厂商行请求数之和一致
+
+#### Scenario: 最近错误
+- **WHEN** 存在超过 10 条失败记录
+- **THEN** 只返回最近 10 条，包含账号名称，且不含 OCR 原文与凭证
+
 ## ADDED Requirements
 
 ### Requirement: R-ADM-11 本地 OCR 状态查询

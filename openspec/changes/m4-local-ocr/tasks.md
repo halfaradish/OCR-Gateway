@@ -4,7 +4,7 @@
 
 - [ ] 1.1 在 `backend/pyproject.toml` 增加 optional extra `local`（`rapidocr>=3.10,<4`、`onnxruntime>=1.20`），**先把项目版本升到 `0.3.0`**，再按 ADR-0002 用镜像重解析 `uv.lock` 并把源 URL 规范化回 PyPI；验证：`uv lock --check --offline` 退出 0、`uv export --frozen --no-dev --no-emit-project --extra local` 含 rapidocr/onnxruntime、`git diff backend/uv.lock` 只有新增包与源地址行 `[spec-review-amendment R-22]`
   - R-ID: R-LOC-01
-- [ ] 1.2 新增 `app/workers/local_ocr.py`（模块级引擎缓存 + `run_ocr`/`warmup`，输出归一化为 `text`/`lines[{text,confidence}]`，只收 bytes/语言，不导入 app.state/main；initializer 清除敏感 env）与 `app/core/local_engine.py`（状态机、**可 terminate/kill 的 spawn 进程池**、generation、幂等 `set_enabled`、warmup 含文字小图 + 超时、wait_for 超时、超时/崩溃重建、兄弟请求取消映射、warmup 失败退避、计数）；验证：单元测试覆盖状态迁移与 fake pool，超时不泄漏进程、兄弟请求不 500、重启恢复；真实引擎测试断言文本/置信度与空结果，标记 `slow`、未安装 extra 时 skip `[spec-review-amendment R-03/R-10/R-11/R-12/R-18/R-26]`
+- [ ] 1.2 新增 `app/workers/local_ocr.py`（模块级引擎缓存 + `run_ocr`/`warmup`，输出归一化为 `text`/`lines[{text,confidence}]`，只收 bytes/语言，不导入 app.state/main；initializer 清除敏感 env）与 `app/core/local_engine.py`（状态机、**`multiprocessing.get_context("spawn").Pool` 可 terminate 池（不用 `ProcessPoolExecutor`）**、generation、幂等 `set_enabled`、warmup 含文字小图 + 超时、wait_for 超时、超时/崩溃重建、兄弟请求取消映射、warmup 失败退避、计数）；验证：单元测试覆盖状态迁移与 fake pool，超时不泄漏进程、兄弟请求不 500、重启恢复；真实引擎测试断言文本/置信度与空结果，标记 `slow`、未安装 extra 时 skip `[spec-review-amendment R-03/R-10/R-11/R-12/R-18/R-26/Q1-B]`
   - R-ID: R-LOC-02, R-LOC-03, R-LOC-04, R-LOC-05
 - [ ] 1.3 在 `app/config.py` 增加 `local_ocr_enabled=false`、`local_ocr_max_concurrency=1`、`local_ocr_timeout_ms=30000`、`local_ocr_reserve_ms=5000`、`local_ocr_min_budget_ms=1000`，并在 `state.py`/`main.py` 装配与关闭 `LocalEngine`：lifespan 按持久化 `local_ocr_enabled && installed` 调用 `set_enabled(true)`，关闭时 shutdown 上限 20s；本地专用 gate 接入公共路径；验证：重启后自动建池测试、启动/关闭 lifespan 无悬挂进程、配置默认值单测 `[spec-review-amendment R-05/R-19/R-29]`
   - R-ID: R-LOC-02, R-LOC-05
@@ -26,8 +26,10 @@
   - R-ID: R-QTA-01
 - [ ] 3.2 本地成功路径写 `usage_event(provider='local', account_id=NULL, quota_used=0)`，不增加账号计数、Key 请求条数照记；**响应 `quota.used=0` 与事件同源**；验证：单测断言事件字段、账号计数不变、`/v1/me` 当日额度不增长、缓存命中的 local 事件为 0 `[spec-review-amendment R-04/R-15]`
   - R-ID: R-QTA-01, R-API-05
-- [ ] 3.3 用量聚合与日志查询的厂商标签增加「本地 RapidOCR」，前端 `PROVIDER_LABELS`、**日志与用量两处筛选下拉**同步；**账号域 `ProviderCode` 不扩 local，新增事件/展示用 provider 联合类型**；验证：API 测试断言 group_by=provider 返回 local 行与 label、用量页 `provider=local` 过滤生效、前端 typecheck 通过 `[spec-review-amendment R-08/R-14]`
+- [ ] 3.3 用量聚合与日志查询的厂商标签增加「本地 RapidOCR」，前端 `PROVIDER_LABELS`、**日志与用量两处筛选下拉**同步；**账号域 `ProviderCode` 不扩 local，新增事件/展示用 provider 联合类型；`ProviderRow.code` 改用该展示联合（Q3 后 overview 含 local 行）**；验证：API 测试断言 group_by=provider 返回 local 行与 label、用量页 `provider=local` 过滤生效、前端 typecheck 通过 `[spec-review-amendment R-08/R-14]`
   - R-ID: R-ADM-06, R-API-06
+- [ ] 3.4 管理端 overview 的厂商行增加 `local`（`accounts=0`、`available_accounts=0`），今日请求总数与厂商行请求数之和对账；验证：含 local 事件的 overview API 测试断言行存在且总数=行和 `[spec-review-amendment R-13/Q3-A]`
+  - R-ID: R-ADM-09
 
 ## 4. 管理端
 
@@ -42,7 +44,7 @@
 
 - [ ] 5.1 Dockerfile 依赖层为 `uv export` 增加 `--extra local`；**版本源全部升 `0.3.0`**（`backend/pyproject.toml`、`backend/app/__init__.py`、`frontend/package.json`、`backend/uv.lock` project version、README 版本锚），compose tag 更新为 `0.3.0`/`latest`（`0.2.1` 不动）；**若基础镜像缺 `libgomp1` 等系统库，构建期安装**；验证：镜像构建成功、容器内 `python -c "import rapidocr, onnxruntime"` 通过、`/healthz` 为 ok、`readonly.version == 0.3.0` `[spec-review-amendment R-22/R-36]`
   - R-ID: R-DEP-11, R-DEP-10
-- [ ] 5.2 README 增加本地 OCR 说明、`LOCAL_OCR_*` 环境变量权威清单、模型 Apache-2.0 归属与镜像体积提示；`.env.example` 补默认值；**逐处更新** README 的「不做本地 OCR」「provider 只接受 auto/baidu/tencent」「版本锚 0.2.1」「回滚到 0.1.0/0001」、`docs/tech-selection.md` 的按需下载/`/local-ocr/download`/`data/models/rapidocr`/`local_ocr_max_concurrency` 设置键；开发快速上手注明 `uv sync --project backend --extra local` 并补本地 OCR 上手的步骤数/耗时假设/TTHW 估算；验证：文档命令与默认值逐条对照 `.env.example` 与代码，`grep -rn "0.2.1\|不做本地 OCR\|local.*400\|/local-ocr/download"` 无残留 `[spec-review-amendment R-22/R-32/R-34]`
+- [ ] 5.2 README 增加本地 OCR 说明、`LOCAL_OCR_*` 环境变量权威清单、模型 Apache-2.0 归属与镜像体积提示；**写明显式 `provider=local` 不计入日限额，仅受 Key RPM 与全局并发约束（M4 接受的边角）**；`.env.example` 补默认值；**逐处更新** README 的「不做本地 OCR」「provider 只接受 auto/baidu/tencent」「版本锚 0.2.1」「回滚到 0.1.0/0001」、`docs/tech-selection.md` 的按需下载/`/local-ocr/download`/`data/models/rapidocr`/`local_ocr_max_concurrency` 设置键；开发快速上手注明 `uv sync --project backend --extra local` 并补本地 OCR 上手的步骤数/耗时假设/TTHW 估算；验证：文档命令与默认值逐条对照 `.env.example` 与代码，`grep -rn "0.2.1\|不做本地 OCR\|local.*400\|/local-ocr/download"` 无残留 `[spec-review-amendment R-22/R-32/R-34/Q4-A]`
   - R-ID: R-DEP-11, R-LOC-01
 - [ ] 5.3 集成验收：停用全部云账号后 `provider=auto` 由本地返回 200；关闭开关后显式 local 返回 403；按 design 的回滚顺序演练 `alembic downgrade -1`（或 `7c1f0d2a9b31`，`--entrypoint` 覆盖）；**安装 extra 后跑 `pytest -m slow`**；**固定 N 次（≥30）基准脚本计算 p95**；**镜像冒烟脚本**：无外网启动 → 开启开关 → 轮询 status 到 ready；验证：验收记录含请求/响应、p95、状态接口快照与子进程数 `[spec-review-amendment R-16/R-17/R-21]`
   - R-ID: R-SCH-07, R-API-01, R-ADM-11, R-DEP-11
