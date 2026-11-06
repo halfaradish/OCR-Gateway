@@ -21,6 +21,7 @@ services:
       # 容器内固定绝对路径；DATABASE_URL 置空以强制从 DATA_DIR 推导。
       DATA_DIR: /data
       DATABASE_URL: ""
+      FRONTEND_DIST: /app/static
     ports:
       # 宿主机端口可经 .env 的 HOST_PORT 自定义；容器内固定 8000（entrypoint 与 healthcheck 均按 8000）。
       - "127.0.0.1:${HOST_PORT:-8000}:8000"
