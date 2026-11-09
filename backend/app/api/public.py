@@ -62,7 +62,7 @@ def _ensure_provider_enabled(provider: str, state: AppState) -> None:
         raise ApiError(
             403,
             "FORBIDDEN",
-            "本地 OCR 依赖未安装。当前镜像未包含 local extra，请使用内置该依赖的 0.3.0 镜像。",
+            "本地 OCR 依赖未安装。当前镜像未包含 local extra，请使用内置该依赖的 0.3.1 镜像。",
         )
     if not status["enabled"]:
         raise ApiError(
@@ -231,16 +231,9 @@ async def ocr_image(
     except InputError as exc:
         raise ApiError(400, "BAD_REQUEST", str(exc)) from exc
     _ensure_provider_enabled(parsed.provider, state)
-    try:
-        normalized = normalize_image(
-            parsed.data,
-            parsed.provider,
-            state.settings.max_upload_bytes,
-            state.settings.max_image_pixels,
-        )
-    except InputError as exc:
-        raise ApiError(400, "BAD_REQUEST", str(exc)) from exc
 
+    # [P1 hardening] Cache first: identical bytes never pay a second Pillow decode.
+    # The local-OCR gate above still runs before the cache read (M4 invariant).
     image_digest = image_hash(parsed.data)
     cache_key = state.cache.build_key(parsed.data, parsed.language, parsed.provider)
     cached = state.cache.get(cache_key)
@@ -272,6 +265,18 @@ async def ocr_image(
             True,
             0,
         )
+
+    # [P1 hardening] Pillow decode/resize/encode is CPU-heavy; keep it off the event loop.
+    try:
+        normalized = await asyncio.to_thread(
+            normalize_image,
+            parsed.data,
+            parsed.provider,
+            state.settings.max_upload_bytes,
+            state.settings.max_image_pixels,
+        )
+    except InputError as exc:
+        raise ApiError(400, "BAD_REQUEST", str(exc)) from exc
 
     remaining = deadline - time.monotonic()
     if remaining <= 0:

@@ -78,12 +78,15 @@ class Settings(BaseSettings):
     cache_ttl_seconds: int = 3600
     cache_max_entries: int = 1000
     max_upload_bytes: int = 10 * 1024 * 1024
-    max_image_pixels: int = 40_000_000
-    max_concurrent_requests: int = 8
+    # [P1 hardening] 2C4G 上 40MP × 8 并发有 OOM 风险；默认降到 25MP × 4 并发。
+    max_image_pixels: int = 25_000_000
+    max_concurrent_requests: int = 4
     url_fetch_timeout_seconds: float = 10.0
     url_fetch_max_bytes: int = 10 * 1024 * 1024
     session_ttl_seconds: int = 43200
     trust_proxy_headers: bool = False
+    # [P1 hardening] /docs、/redoc 与 /openapi.json 默认关闭（生产）；本地开发在 .env 设 true。
+    docs_enabled: bool = False
     frontend_dist: str = ""
     log_level: str = "INFO"
 

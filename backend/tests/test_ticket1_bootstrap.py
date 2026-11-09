@@ -30,14 +30,16 @@ def test_settings_rejects_short_admin_password() -> None:
         Settings(_env_file=None, master_key="k" * 32, admin_password="short")
 
 
-def test_settings_defaults(settings: Settings) -> None:
+def test_settings_defaults() -> None:
+    # 无 .env 参与，直接验证类默认值（本机 .env 可能覆盖环境变量默认）。
+    settings = Settings(_env_file=None, master_key="k" * 32, admin_password="password123")
     assert settings.default_timeout_ms == 8000
     assert settings.request_deadline_ms == 20000
     assert settings.cache_ttl_seconds == 3600
     assert settings.cache_max_entries == 1000
     assert settings.max_upload_bytes == 10 * 1024 * 1024
-    assert settings.max_image_pixels == 40_000_000
-    assert settings.max_concurrent_requests == 8
+    assert settings.max_image_pixels == 25_000_000
+    assert settings.max_concurrent_requests == 4
     assert settings.session_ttl_seconds == 43200
 
 

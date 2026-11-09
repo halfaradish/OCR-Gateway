@@ -38,10 +38,11 @@ async def test_login_rejects_wrong_password_and_rate_limits(client) -> None:
 
 
 def test_admin_token_expiry(settings) -> None:
-    token = create_admin_token(settings.master_key_bytes)
-    assert verify_admin_token(settings.master_key_bytes, token, 43200)
-    assert not verify_admin_token(settings.master_key_bytes, token, -1)
-    assert not verify_admin_token(settings.master_key_bytes, "not-a-token", 43200)
+    token = create_admin_token(settings.master_key_bytes, session_version=1)
+    assert verify_admin_token(settings.master_key_bytes, token, 43200, session_version=1)
+    assert not verify_admin_token(settings.master_key_bytes, token, -1, session_version=1)
+    assert not verify_admin_token(settings.master_key_bytes, token, 43200, session_version=2)
+    assert not verify_admin_token(settings.master_key_bytes, "not-a-token", 43200, session_version=1)
 
 
 async def test_user_crud_and_duplicate_name(client, admin_headers) -> None:

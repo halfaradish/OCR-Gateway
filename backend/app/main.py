@@ -31,7 +31,7 @@ from app.panel import register_panel
 from app.providers.baidu import BaiduAdapter
 from app.providers.base import ProviderAdapter
 from app.providers.tencent import TencentAdapter
-from app.runtime_settings import load_runtime_settings
+from app.runtime_settings import load_runtime_settings, load_session_version
 from app.security_headers import SecurityHeadersMiddleware
 from app.state import AppState
 
@@ -64,6 +64,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         async with session_factory() as session:
             accounts = (await session.execute(select(Account))).scalars().all()
             runtime = await load_runtime_settings(session, resolved)
+            session_version = await load_session_version(session)
 
         registry = AccountRegistry(resolved.master_key_bytes)
         registry.load(list(accounts))
@@ -91,6 +92,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         state = AppState(
             settings=resolved,
             runtime=runtime,
+            session_version=session_version,
             engine=engine,
             session_factory=session_factory,
             registry=registry,
@@ -131,7 +133,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             await http_client.aclose()
             await engine.dispose()
 
-    app = FastAPI(title="OCR Gateway", version=__version__, lifespan=lifespan)
+    # [P1 hardening] 生产关闭 /docs、/redoc、/openapi.json（DOCS_ENABLED=false 为默认）。
+    if resolved.docs_enabled:
+        app = FastAPI(title="OCR Gateway", version=__version__, lifespan=lifespan)
+    else:
+        app = FastAPI(
+            title="OCR Gateway",
+            version=__version__,
+            lifespan=lifespan,
+            docs_url=None,
+            redoc_url=None,
+            openapi_url=None,
+        )
     app.state.settings = resolved
 
     @app.middleware("http")

@@ -32,6 +32,8 @@ def settings(tmp_path: Path) -> Settings:
         database_url=f"sqlite+aiosqlite:///{(tmp_path / 'test.db').as_posix()}",
         request_deadline_ms=20000,
         max_concurrent_requests=8,
+        # Unit tests exercise /docs 与 /openapi.json；生产默认关闭（见 test_p1_hardening.py）。
+        docs_enabled=True,
         # Keep the panel out of unit tests even after a local build produced real assets;
         # panel tests point FRONTEND_DIST at their own temp directory.
         frontend_dist=str(tmp_path / "frontend-dist"),

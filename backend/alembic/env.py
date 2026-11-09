@@ -19,7 +19,9 @@ config = context.config
 
 if config.config_file_name is not None:
     try:
-        fileConfig(config.config_file_name)
+        # [P1 hardening] 进程内混跑迁移与应用时（测试/工具），不要禁用既有 app logger，
+        # 否则 fileConfig 之后 admin.audit 等日志静默消失。
+        fileConfig(config.config_file_name, disable_existing_loggers=False)
     except Exception:  # noqa: BLE001 - logging config is optional
         pass
 

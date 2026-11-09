@@ -54,7 +54,8 @@ curl -i http://127.0.0.1:8000/healthz
 
 - **面板**：<http://127.0.0.1:8000/>，cookie + CSRF，适合日常运营。
 - **脚本/curl**：<http://127.0.0.1:8000/docs>，`POST /api/admin/login` 拿 Bearer token，再在右上角
-  Authorize 填入，即可完成全部管理动作。Bearer 路径不校验 CSRF。
+  Authorize 填入，即可完成全部管理动作。Bearer 路径不校验 CSRF。**`/docs`、`/redoc`、
+  `/openapi.json` 默认关闭**（`DOCS_ENABLED=false`）；本地开发在 `.env` 设 `DOCS_ENABLED=true`。
 
 健康检查：`GET /healthz`（不鉴权），数据库可用返回 200，否则 503；编排侧以此判定 `healthy`。
 面板产物不存在时根路径返回 404 `FRONTEND_NOT_BUILT`，API 不受影响。
@@ -149,12 +150,16 @@ pnpm --dir frontend e2e:local
 | `CACHE_TTL_SECONDS` | 否 | `3600` | 同上 |
 | `CACHE_MAX_ENTRIES` | 否 | `1000` | 同上 |
 | `MAX_UPLOAD_BYTES` | 否 | `10485760` | 解码后图片字节上限 |
-| `MAX_IMAGE_PIXELS` | 否 | `40000000` | 解码前像素上限 |
-| `MAX_CONCURRENT_REQUESTS` | 否 | `8` | 公共 OCR 全局并发上限 |
+| `MAX_IMAGE_PIXELS` | 否 | `25000000` | 解码前像素上限 |
+| `MAX_CONCURRENT_REQUESTS` | 否 | `4` | 公共 OCR 全局并发上限 |
 | `URL_FETCH_TIMEOUT_SECONDS` | 否 | `10` | |
 | `URL_FETCH_MAX_BYTES` | 否 | `10485760` | |
 | `SESSION_TTL_SECONDS` | 否 | `43200` | 管理会话（token 与 cookie）有效期（12h） |
 | `TRUST_PROXY_HEADERS` | 否 | `false` | 反代后启用：登录限速按 `X-Forwarded-For`/`X-Real-IP` 识别客户端 IP；**M3 起还用于判定 `X-Forwarded-Proto: https` 并给 cookie 加 `Secure`** |
+| `DOCS_ENABLED` | 否 | `false` | `/docs`、`/redoc`、`/openapi.json` 开关；生产保持 `false`，本地开发设 `true` |
+| `MEM_LIMIT` | 否 | `2g` | compose 容器内存上限（2C4G 建议值） |
+| `CPUS` | 否 | `2.0` | compose 容器 CPU 上限 |
+| `PIDS_LIMIT` | 否 | `512` | compose 容器进程数上限 |
 | `LOG_LEVEL` | 否 | `INFO` | |
 
 设置页里保存的运行时设置（缓存开关/TTL/容量、请求总预算、账号默认超时、本地 OCR 开关）优先于上面
@@ -229,14 +234,17 @@ scripts/deploy.sh               # 自动 git pull --ff-only；服务器无 git �
 scripts/rollback.sh [data/backup/ocr-gateway-<日期>-<时间>.db]
 ```
 
-- **版本锚**：`docker-compose.yml` 的 `image`/`build.tags` 为 `ocr-gateway:0.3.0`；**`0.1.0`、
-  `0.2.0` 与 `0.2.1` tag 必须保持不可变**，它们是镜像回滚的锚点（`latest` 不作回滚依据）。构建
-  0.3.0 不会覆盖 0.1.0/0.2.0/0.2.1。
-- **回滚顺序（0.3.0 起）**：先关闭本地 OCR 开关（避免新 local 事件）→ 停 0.3.0 容器 → 用 0.3.0
-  镜像执行 `alembic -c /app/alembic.ini downgrade -1`（或 revision `7c1f0d2a9b31`；local 行映射为
-  `auto`；需 `--entrypoint` 覆盖，否则 entrypoint 启动即 `upgrade head`）→ 启动 `0.2.1`。也可用
-  部署前备份跑 `scripts/rollback.sh` 恢复 0002 数据库。**不可先启旧镜像再降级**：0.2.1 的 Alembic
-  脚本目录不认识 `0003`。
+- **版本锚**：`docker-compose.yml` 的 `image`/`build.tags` 为 `ocr-gateway:0.3.1`；**`0.1.0`、
+  `0.2.0`、`0.2.1` 与 `0.3.0` tag 必须保持不可变**，它们是镜像回滚的锚点（`latest` 不作回滚
+  依据）。构建 0.3.1 不会覆盖旧 tag。
+- **回滚 0.3.1 → 0.3.0**：两者 schema 相同（0.3.1 无新迁移，`session_version` 复用 settings 表），
+  停 0.3.1 容器、把 compose 的 `image`/`build.tags` 改回 `0.3.0`、`docker compose up -d` 即可；
+  旧会话 token 因 session_version 不回退而失效，重新登录即可。
+- **回滚顺序（0.3.0 起，跨 0003 迁移）**：先关闭本地 OCR 开关（避免新 local 事件）→ 停 0.3.0
+  容器 → 用 0.3.0 镜像执行 `alembic -c /app/alembic.ini downgrade -1`（或 revision `7c1f0d2a9b31`；
+  local 行映射为 `auto`；需 `--entrypoint` 覆盖，否则 entrypoint 启动即 `upgrade head`）→ 启动
+  `0.2.1`。也可用部署前备份跑 `scripts/rollback.sh` 恢复 0002 数据库。**不可先启旧镜像再降级**：
+  0.2.1 的 Alembic 脚本目录不认识 `0003`。
 - 镜像不发布 registry，仅存在于服务器本地；如需对外发布，届时引入 registry 并按 digest 固定镜像。
 
 ## 备份与恢复

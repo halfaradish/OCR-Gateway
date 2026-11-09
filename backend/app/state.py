@@ -105,6 +105,8 @@ class AppState:
     local_engine: LocalEngine
     semaphore: asyncio.Semaphore
     settings_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    # [P1 hardening] 登出/重置会话时 +1；admin token 内嵌 sv，不匹配即 401（单实例内存计数）。
+    session_version: int = 1
     frontend_built: bool = False
     key_limiter: KeyRateLimiter = field(default_factory=KeyRateLimiter)
     login_limiter: LoginLimiter = field(default_factory=LoginLimiter)

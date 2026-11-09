@@ -47,16 +47,23 @@ def _serializer(master_key: bytes) -> URLSafeTimedSerializer:
     return URLSafeTimedSerializer(_admin_secret(master_key), salt=ADMIN_SALT)
 
 
-def create_admin_token(master_key: bytes) -> str:
-    return _serializer(master_key).dumps({"sub": "admin"})
+def create_admin_token(master_key: bytes, session_version: int) -> str:
+    """Signed admin token embedding the session version (revoked by bumping the version)."""
+    return _serializer(master_key).dumps({"sub": "admin", "sv": session_version})
 
 
-def verify_admin_token(master_key: bytes, token: str, max_age: int) -> bool:
+def verify_admin_token(
+    master_key: bytes, token: str, max_age: int, session_version: int
+) -> bool:
     try:
         data = _serializer(master_key).loads(token, max_age=max_age)
     except (BadSignature, SignatureExpired):
         return False
-    return isinstance(data, dict) and data.get("sub") == "admin"
+    return (
+        isinstance(data, dict)
+        and data.get("sub") == "admin"
+        and data.get("sv") == session_version
+    )
 
 
 def encrypt_credentials(master_key: bytes, credentials: dict[str, Any]) -> str:

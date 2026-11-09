@@ -135,6 +135,9 @@ async def load_runtime_settings(session: AsyncSession, config: Settings) -> Runt
     updates: dict[str, Any] = {}
     rows = (await session.execute(select(Setting))).scalars().all()
     for row in rows:
+        if row.key == SESSION_VERSION_KEY:
+            # 会话版本由 load_session_version 读取，不属于可编辑设置。
+            continue
         if row.key not in FIELD_RULES:
             logger.warning(
                 "settings.unknown_stored_key", extra={"extra_fields": {"field": row.key}}
@@ -165,3 +168,35 @@ async def upsert_settings(session: AsyncSession, values: dict[str, Any]) -> None
             )
         )
         await session.execute(statement)
+
+
+# [P1 hardening] session_version 复用 settings 表存储，但不进 FIELD_RULES：
+# 它由登出/重置流程自增，不对面板暴露为可编辑项。
+SESSION_VERSION_KEY = "session_version"
+
+
+def _decode_session_version(raw: str | None) -> int:
+    if raw is None:
+        return 1
+    try:
+        value = json.loads(raw)
+    except (TypeError, ValueError):
+        return 1
+    if isinstance(value, int) and value >= 1:
+        return value
+    return 1
+
+
+async def load_session_version(session: AsyncSession) -> int:
+    """Read the persisted session version; missing/invalid rows fall back to 1."""
+    row = await session.get(Setting, SESSION_VERSION_KEY)
+    return _decode_session_version(row.value if row is not None else None)
+
+
+async def bump_session_version(session: AsyncSession) -> int:
+    """Increment the persisted session version (caller commits). Revokes all issued tokens."""
+    row = await session.get(Setting, SESSION_VERSION_KEY)
+    current = _decode_session_version(row.value if row is not None else None)
+    bumped = current + 1
+    await upsert_settings(session, {SESSION_VERSION_KEY: bumped})
+    return bumped

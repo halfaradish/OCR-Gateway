@@ -10,11 +10,16 @@ services:
         NPM_REGISTRY: "${NPM_REGISTRY:-}"
         APT_MIRROR: "${APT_MIRROR:-}"
       tags:
-        # 0.3.0 起 0.2.1 成为回滚锚点；既有已发布 tag MUST NOT 被本次构建覆盖。
-        - ocr-gateway:0.3.0
+        # 0.3.1 起 0.3.0 成为回滚锚点；既有已发布 tag MUST NOT 被本次构建覆盖。
+        - ocr-gateway:0.3.1
         - ocr-gateway:latest
-    image: ocr-gateway:0.3.0
+    image: ocr-gateway:0.3.1
     container_name: ocr-gateway
+    # [P1 hardening] 资源上限：2C4G 上给容器设硬顶，防止 Pillow/onnxruntime 吃满整机。
+    # 可在 .env 用 MEM_LIMIT / CPUS / PIDS_LIMIT 覆盖。
+    mem_limit: "${MEM_LIMIT:-2g}"
+    cpus: "${CPUS:-2.0}"
+    pids_limit: "${PIDS_LIMIT:-512}"
     env_file:
       - .env
     environment:

@@ -43,6 +43,7 @@ from app.providers.templates import DISCLAIMER, QUOTA_TEMPLATES
 from app.runtime_settings import (
     FIELD_RULES,
     RuntimeSettings,
+    bump_session_version,
     upsert_settings,
     validate_value,
 )
@@ -108,6 +109,27 @@ def _validate_credentials(provider: str, credentials: dict[str, str]) -> dict[st
         if not isinstance(value, str) or not value.strip():
             raise ApiError(400, "BAD_REQUEST", f"credentials.{field} is required")
     return {str(key): str(value) for key, value in credentials.items()}
+
+
+def _audit(
+    action: str,
+    *,
+    target: str | None = None,
+    target_id: int | None = None,
+    detail: Mapping[str, Any] | None = None,
+) -> None:
+    """[P1 hardening] Structured audit trail for admin mutations (stdout JSON logs)."""
+    logger.info(
+        "admin.audit",
+        extra={
+            "extra_fields": {
+                "action": action,
+                "target": target,
+                "target_id": target_id,
+                "detail": dict(detail or {}),
+            }
+        },
+    )
 
 
 def _masked_credentials(state: AppState, account: Account) -> dict[str, str]:
@@ -269,7 +291,7 @@ async def login(
             await asyncio.sleep(delay)
         raise ApiError(401, "UNAUTHORIZED", "invalid password")
     state.login_limiter.record_success(ip)
-    token = create_admin_token(state.settings.master_key_bytes)
+    token = create_admin_token(state.settings.master_key_bytes, state.session_version)
     csrf_token = new_csrf_token()
     set_admin_cookies(response, request, state, token, csrf_token)
     logger.info("admin.login.succeeded", extra={"extra_fields": {"ip": ip}})
@@ -302,8 +324,22 @@ async def admin_me(
 
 @router.post("/logout")
 async def logout(
-    request: Request, _: str = Depends(require_admin), state: AppState = Depends(get_state)
+    request: Request,
+    _: str = Depends(require_admin),
+    state: AppState = Depends(get_state),
+    session: AsyncSession = Depends(get_session),
 ) -> Response:
+    # [P1 hardening] Bump the session version so every previously issued token is revoked
+    # (single-admin panel: logout = all sessions die). Memory is updated only after commit.
+    bumped = await bump_session_version(session)
+    try:
+        await session.commit()
+    except Exception:  # noqa: BLE001 - still clear the cookie; the next logout retries
+        await session.rollback()
+        logger.exception("admin.logout.session_version_failed")
+    else:
+        state.session_version = bumped
+        _audit("session.revoke_all", target="session", target_id=bumped)
     cleared = Response(status_code=204)
     clear_admin_cookies(cleared, request, state)
     return cleared
@@ -331,6 +367,7 @@ async def create_user(
         await session.rollback()
         raise ApiError(400, "BAD_REQUEST", "user name already exists") from exc
     await session.refresh(user)
+    _audit("user.create", target="user", target_id=user.id, detail={"name": user.name})
     return _user_out(user)
 
 
@@ -353,6 +390,7 @@ async def update_user(
         await session.rollback()
         raise ApiError(400, "BAD_REQUEST", "user name already exists") from exc
     await session.refresh(user)
+    _audit("user.update", target="user", target_id=user.id, detail={"name": user.name})
     return _user_out(user)
 
 
@@ -365,6 +403,7 @@ async def delete_user(
     user = await session.get(User, user_id)
     if user is None:
         raise ApiError(404, "NOT_FOUND", "user not found")
+    _audit("user.delete", target="user", target_id=user_id, detail={"name": user.name})
     await session.delete(user)
     await session.commit()
     return Response(status_code=204)
@@ -400,6 +439,12 @@ async def create_api_key(
     session.add(key)
     await session.commit()
     await session.refresh(key)
+    _audit(
+        "key.create",
+        target="api_key",
+        target_id=key.id,
+        detail={"name": key.name, "user_id": key.user_id},
+    )
     result = _key_out(key)
     result["key"] = plaintext
     return result
@@ -420,6 +465,7 @@ async def update_api_key(
         setattr(key, field, value)
     await session.commit()
     await session.refresh(key)
+    _audit("key.update", target="api_key", target_id=key.id, detail={"name": key.name})
     return _key_out(key)
 
 
@@ -432,6 +478,7 @@ async def delete_api_key(
     key = await session.get(ApiKey, key_id)
     if key is None:
         raise ApiError(404, "NOT_FOUND", "api key not found")
+    _audit("key.delete", target="api_key", target_id=key_id, detail={"name": key.name})
     await session.delete(key)
     await session.commit()
     return Response(status_code=204)
@@ -482,6 +529,12 @@ async def create_account(
     await session.commit()
     await session.refresh(account)
     state.registry.register(account)
+    _audit(
+        "account.create",
+        target="account",
+        target_id=account.id,
+        detail={"provider": account.provider, "name": account.name},
+    )
     owner = await session.get(User, account.owner_id) if account.owner_id else None
     return _account_out(state, account, owner_name=owner.name if owner else None)
 
@@ -515,6 +568,12 @@ async def update_account(
     state.registry.update(account)
     if credentials is not None:
         state.adapters[account.provider].invalidate(account.id)
+    _audit(
+        "account.update",
+        target="account",
+        target_id=account.id,
+        detail={"provider": account.provider, "name": account.name},
+    )
     owner = await session.get(User, account.owner_id) if account.owner_id else None
     return _account_out(state, account, owner_name=owner.name if owner else None)
 
@@ -530,6 +589,12 @@ async def delete_account(
     if account is None:
         raise ApiError(404, "NOT_FOUND", "account not found")
     provider = account.provider
+    _audit(
+        "account.delete",
+        target="account",
+        target_id=account_id,
+        detail={"provider": provider, "name": account.name},
+    )
     await session.delete(account)
     await session.commit()
     state.registry.remove(account_id)
@@ -559,6 +624,7 @@ async def reset_account_state(
     await session.commit()
     state.quota.reset_account(account_id)
     state.registry.reset_state(account_id)
+    _audit("account.reset_state", target="account", target_id=account_id)
     return {"state": "active"}
 
 
@@ -1079,7 +1145,9 @@ async def list_logs(
 async def clear_cache(
     _: str = Depends(require_admin), state: AppState = Depends(get_state)
 ) -> dict[str, int]:
-    return {"cleared": state.cache.clear()}
+    cleared = state.cache.clear()
+    _audit("cache.clear", target="cache", detail={"cleared": cleared})
+    return {"cleared": cleared}
 
 
 def _readonly_settings(state: AppState) -> dict[str, Any]:
@@ -1164,4 +1232,5 @@ async def update_settings(
     logger.info(
         "admin.settings.updated", extra={"extra_fields": {"keys": sorted(updates)}}
     )
+    _audit("settings.update", target="settings", detail={"keys": sorted(updates)})
     return {"settings": runtime.as_dict(), "cache_cleared": cache_cleared}

@@ -80,7 +80,10 @@ async def require_admin(
     if request.headers.get("Authorization") is not None:
         token = get_bearer_token(request)
         if token is None or not verify_admin_token(
-            state.settings.master_key_bytes, token, state.settings.session_ttl_seconds
+            state.settings.master_key_bytes,
+            token,
+            state.settings.session_ttl_seconds,
+            state.session_version,
         ):
             raise ApiError(401, "UNAUTHORIZED", "invalid admin token")
         request.state.admin_auth_source = "bearer"
@@ -90,7 +93,10 @@ async def require_admin(
     if not cookie:
         raise ApiError(401, "UNAUTHORIZED", "missing admin token")
     if not verify_admin_token(
-        state.settings.master_key_bytes, cookie, state.settings.session_ttl_seconds
+        state.settings.master_key_bytes,
+        cookie,
+        state.settings.session_ttl_seconds,
+        state.session_version,
     ):
         raise ApiError(401, "UNAUTHORIZED", "invalid admin token")
 
