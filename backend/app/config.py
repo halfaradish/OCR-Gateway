@@ -72,6 +72,8 @@ class Settings(BaseSettings):
     local_ocr_enabled: bool = False
     local_ocr_max_concurrency: int = 1
     local_ocr_timeout_ms: int = 30000
+    # [P1 hardening] 启动/重建池的预热预算；繁忙宿主机（含 cpus 限制）可调大，如 30000。
+    local_ocr_warmup_timeout_ms: int = 10000
     local_ocr_reserve_ms: int = 5000
     local_ocr_min_budget_ms: int = 1000
     cache_enabled: bool = True
@@ -99,6 +101,8 @@ class Settings(BaseSettings):
             raise ValueError("LOCAL_OCR_MAX_CONCURRENCY 必须 ≥ 1")
         if self.local_ocr_timeout_ms < 1:
             raise ValueError("LOCAL_OCR_TIMEOUT_MS 必须 ≥ 1")
+        if self.local_ocr_warmup_timeout_ms < 1:
+            raise ValueError("LOCAL_OCR_WARMUP_TIMEOUT_MS 必须 ≥ 1")
         if self.local_ocr_reserve_ms < 0 or self.local_ocr_min_budget_ms < 0:
             raise ValueError("LOCAL_OCR_RESERVE_MS / LOCAL_OCR_MIN_BUDGET_MS 必须 ≥ 0")
         if not self.database_url:

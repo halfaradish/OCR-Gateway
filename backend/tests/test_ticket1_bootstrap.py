@@ -41,6 +41,7 @@ def test_settings_defaults() -> None:
     assert settings.max_image_pixels == 25_000_000
     assert settings.max_concurrent_requests == 4
     assert settings.session_ttl_seconds == 43200
+    assert settings.local_ocr_warmup_timeout_ms == 10000
 
 
 async def test_healthz_ok(client) -> None:

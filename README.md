@@ -144,6 +144,7 @@ pnpm --dir frontend e2e:local
 | `LOCAL_OCR_ENABLED` | 否 | `false` | 本地 OCR 开关的启动默认值；持久化后由设置页的值覆盖 |
 | `LOCAL_OCR_MAX_CONCURRENCY` | 否 | `1` | 本地 worker 并发上限；变更需重启容器（建池时生效） |
 | `LOCAL_OCR_TIMEOUT_MS` | 否 | `30000` | 本地单次识别上限；实际值 = `min(该值, 剩余预算)` |
+| `LOCAL_OCR_WARMUP_TIMEOUT_MS` | 否 | `10000` | 启动/重建池的预热预算；繁忙宿主机（含 cpus 限制）可调大，如 `30000` |
 | `LOCAL_OCR_RESERVE_MS` | 否 | `5000` | `auto` 云阶段为本地预留的预算；总预算不足时按 `reserve_eff` 收缩 |
 | `LOCAL_OCR_MIN_BUDGET_MS` | 否 | `1000` | 剩余预算低于此值不再尝试本地 |
 | `CACHE_ENABLED` | 否 | `true` | 缓存开关的启动默认值；可在设置页热更新 |
@@ -234,12 +235,12 @@ scripts/deploy.sh               # 自动 git pull --ff-only；服务器无 git �
 scripts/rollback.sh [data/backup/ocr-gateway-<日期>-<时间>.db]
 ```
 
-- **版本锚**：`docker-compose.yml` 的 `image`/`build.tags` 为 `ocr-gateway:0.3.1`；**`0.1.0`、
-  `0.2.0`、`0.2.1` 与 `0.3.0` tag 必须保持不可变**，它们是镜像回滚的锚点（`latest` 不作回滚
-  依据）。构建 0.3.1 不会覆盖旧 tag。
-- **回滚 0.3.1 → 0.3.0**：两者 schema 相同（0.3.1 无新迁移，`session_version` 复用 settings 表），
-  停 0.3.1 容器、把 compose 的 `image`/`build.tags` 改回 `0.3.0`、`docker compose up -d` 即可；
-  旧会话 token 因 session_version 不回退而失效，重新登录即可。
+- **版本锚**：`docker-compose.yml` 的 `image`/`build.tags` 为 `ocr-gateway:0.3.2`；**`0.1.0`、
+  `0.2.0`、`0.2.1`、`0.3.0` 与 `0.3.1` tag 必须保持不可变**，它们是镜像回滚的锚点（`latest`
+  不作回滚依据）。构建 0.3.2 不会覆盖旧 tag。
+- **回滚 0.3.2 → 0.3.1/0.3.0**：相邻版本 schema 相同（0.3.1/0.3.2 无新迁移，`session_version`
+  复用 settings 表），停 0.3.2 容器、把 compose 的 `image`/`build.tags` 改回旧版本、
+  `docker compose up -d` 即可；旧会话 token 因 session_version 不回退而失效，重新登录即可。
 - **回滚顺序（0.3.0 起，跨 0003 迁移）**：先关闭本地 OCR 开关（避免新 local 事件）→ 停 0.3.0
   容器 → 用 0.3.0 镜像执行 `alembic -c /app/alembic.ini downgrade -1`（或 revision `7c1f0d2a9b31`；
   local 行映射为 `auto`；需 `--entrypoint` 覆盖，否则 entrypoint 启动即 `upgrade head`）→ 启动

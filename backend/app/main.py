@@ -86,6 +86,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             enabled=runtime.local_ocr_enabled,
             max_concurrency=resolved.local_ocr_max_concurrency,
             timeout_ms=resolved.local_ocr_timeout_ms,
+            warmup_timeout_ms=resolved.local_ocr_warmup_timeout_ms,
             reserve_ms=resolved.local_ocr_reserve_ms,
             min_budget_ms=resolved.local_ocr_min_budget_ms,
         )

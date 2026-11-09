@@ -62,7 +62,7 @@ def _ensure_provider_enabled(provider: str, state: AppState) -> None:
         raise ApiError(
             403,
             "FORBIDDEN",
-            "本地 OCR 依赖未安装。当前镜像未包含 local extra，请使用内置该依赖的 0.3.1 镜像。",
+            "本地 OCR 依赖未安装。当前镜像未包含 local extra，请使用内置该依赖的 0.3.2 镜像。",
         )
     if not status["enabled"]:
         raise ApiError(
